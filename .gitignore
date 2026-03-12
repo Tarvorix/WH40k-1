@@ -1,0 +1,55 @@
+# Rust
+/target/
+engine/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node / Web
+node_modules/
+web/dist/
+web/.cache/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+
+# Content compiled output
+content/compiled/*.bin
+content/compiled/*.pack
+
+# Environment / secrets
+.env
+.env.local
+*.pem
+credentials.json
+
+# WASM build output
+engine/crates/wasm_api/pkg/
+
+# Coverage
+lcov.info
+*.gcda
+*.gcno
+tarpaulin-report.html
+
+# Claude
+.claude/

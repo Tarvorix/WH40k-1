@@ -1,0 +1,13 @@
+[package]
+name = "wh40k_content_schema"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+bitflags = { workspace = true }
+wh40k_core_types = { workspace = true }

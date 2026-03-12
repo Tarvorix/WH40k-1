@@ -1,0 +1,17 @@
+[package]
+name = "wh40k_game_core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+wh40k_core_types = { workspace = true }
+wh40k_dice = { workspace = true }
+wh40k_geometry = { workspace = true }
+wh40k_event_system = { workspace = true }
+wh40k_command_system = { workspace = true }
+wh40k_content_schema = { workspace = true }
+ahash = { workspace = true }

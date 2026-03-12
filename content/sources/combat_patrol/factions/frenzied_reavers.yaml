@@ -1,0 +1,737 @@
+# World Eaters: Frenzied Reavers
+# Combat Patrol Faction Data
+# Source: Frenzied_Reavers.md
+
+id: 2
+name: "Frenzied Reavers"
+
+# Faction keywords: CHAOS, KHORNE, WORLD_EATERS
+# (1 << 16) | (1 << 17) | (1 << 19) = 65536 + 131072 + 524288 = 720896
+faction_keywords: 720896
+
+# ─── Faction Ability: Blessings of Khorne ──────────────────────────────────────
+faction_ability:
+  name: "Blessings of Khorne"
+  description: >-
+    At the start of each battle round, roll 5D6. Allocate dice to activate up
+    to two Blessings. Each Blessing can only be activated once per round. Active
+    Blessings apply to all units with this ability until the end of the battle round.
+  ability_type: FactionAbility
+  effects:
+    - DicePoolAllocation:
+        num_dice: 5
+        max_blessings: 2
+        blessings:
+          - name: "Rage-fuelled Invigoration"
+            requirement: DoubleTwoPlus
+            effects:
+              - TriggerMoveReaction:
+                  move_type: PileInAndConsolidation
+                  distance:
+                    Fixed: 6000
+            description: >-
+              Each time a model in this unit makes a Pile-in or Consolidation
+              move, it can move up to 6" instead of up to 3".
+          - name: "Total Carnage"
+            requirement: DoubleTwoPlus
+            effects:
+              - FightOnDeath:
+                  threshold: 4
+                  modifier_source: null
+            description: >-
+              Each time a model in this unit is destroyed by a melee attack, if
+              it has not fought this phase, roll one D6: on a 4+, do not remove
+              it from play. The destroyed model can fight after the attacking
+              unit has finished making its attacks, and is then removed from play.
+          - name: "Martial Excellence"
+            requirement: DoubleFourPlusOrTripleAny
+            effects:
+              - GrantWeaponAbility:
+                  weapon_ability:
+                    SustainedHits: 1
+                  weapon_filter: MeleeOnly
+            description: >-
+              Melee weapons equipped by models in this unit have the
+              [SUSTAINED HITS 1] ability.
+  trigger: StartOfBattleRound
+
+# ─── Datasheets ────────────────────────────────────────────────────────────────
+datasheets:
+  # ── Vorrakh (Daemon Prince) ──────────────────────────────────────────────────
+  - id: 5
+    name: "Vorrakh"
+    # MONSTER + CHARACTER + CHAOS + KHORNE + DAEMON + WORLD_EATERS + DAEMON_PRINCE + VORRAKH
+    # 2 + 128 + 65536 + 131072 + 262144 + 524288 + 33554432 + 67108864 = 101646466
+    keywords: 101646466
+    movement: 10000   # 10"
+    toughness: 10
+    armor_save: 2
+    invulnerable_save: 4
+    wounds: 10
+    leadership: 6
+    objective_control: 3
+    base_size: 60
+    ranged_weapons:
+      - name: "Infernal cannon"
+        weapon_type: Ranged
+        range: 24000   # 24"
+        attacks:
+          Fixed: 3
+        skill: 3
+        strength: 5
+        ap: -1
+        damage:
+          Fixed: 2
+        abilities:
+          - RapidFire: 1
+    melee_weapons:
+      - name: "Hellforged weapons"
+        weapon_type: Melee
+        range: 0
+        attacks:
+          Fixed: 16
+        skill: 2
+        strength: 6
+        ap: -1
+        damage:
+          Fixed: 1
+        abilities: []
+    abilities:
+      - name: "Blessings of Khorne"
+        description: >-
+          At the start of each battle round, roll 5D6. Allocate dice to activate
+          up to two Blessings. Each Blessing can only be activated once per
+          round. Active Blessings apply to all units with this ability until the
+          end of the battle round.
+        ability_type: FactionAbility
+        effects:
+          - DicePoolAllocation:
+              num_dice: 5
+              max_blessings: 2
+              blessings:
+                - name: "Rage-fuelled Invigoration"
+                  requirement: DoubleTwoPlus
+                  effects:
+                    - TriggerMoveReaction:
+                        move_type: PileInAndConsolidation
+                        distance:
+                          Fixed: 6000
+                  description: >-
+                    Each time a model in this unit makes a Pile-in or
+                    Consolidation move, it can move up to 6" instead of up to 3".
+                - name: "Total Carnage"
+                  requirement: DoubleTwoPlus
+                  effects:
+                    - FightOnDeath:
+                        threshold: 4
+                        modifier_source: null
+                  description: >-
+                    Each time a model in this unit is destroyed by a melee
+                    attack, if it has not fought this phase, roll one D6: on a
+                    4+, do not remove it from play. The destroyed model can
+                    fight after the attacking unit has finished making its
+                    attacks, and is then removed from play.
+                - name: "Martial Excellence"
+                  requirement: DoubleFourPlusOrTripleAny
+                  effects:
+                    - GrantWeaponAbility:
+                        weapon_ability:
+                          SustainedHits: 1
+                        weapon_filter: MeleeOnly
+                  description: >-
+                    Melee weapons equipped by models in this unit have the
+                    [SUSTAINED HITS 1] ability.
+        trigger: StartOfBattleRound
+    unit_size:
+      Fixed: 1
+    model_loadouts:
+      - model_label: "Vorrakh"
+        count: 1
+        ranged_weapons:
+          - "Infernal cannon"
+        melee_weapons:
+          - "Hellforged weapons"
+    wargear_abilities: []
+
+  # ── Master of Executions ─────────────────────────────────────────────────────
+  - id: 6
+    name: "Master of Executions"
+    # INFANTRY + CHARACTER + CHAOS + KHORNE + WORLD_EATERS + MASTER_OF_EXECUTIONS
+    # 1 + 128 + 65536 + 131072 + 524288 + 134217728 = 134938753
+    keywords: 134938753
+    movement: 8000   # 8"
+    toughness: 4
+    armor_save: 3
+    invulnerable_save: null
+    wounds: 4
+    leadership: 6
+    objective_control: 1
+    base_size: 32
+    ranged_weapons:
+      - name: "Bolt pistol"
+        weapon_type: Ranged
+        range: 12000   # 12"
+        attacks:
+          Fixed: 1
+        skill: 3
+        strength: 4
+        ap: 0
+        damage:
+          Fixed: 1
+        abilities:
+          - Pistol
+    melee_weapons:
+      - name: "Axe of dismemberment"
+        weapon_type: Melee
+        range: 0
+        attacks:
+          Fixed: 5
+        skill: 2
+        strength: 7
+        ap: -2
+        damage:
+          Fixed: 2
+        abilities:
+          - DevastatingWounds
+          - Precision
+    abilities:
+      - name: "Blessings of Khorne"
+        description: >-
+          At the start of each battle round, roll 5D6. Allocate dice to activate
+          up to two Blessings. Each Blessing can only be activated once per
+          round. Active Blessings apply to all units with this ability until the
+          end of the battle round.
+        ability_type: FactionAbility
+        effects:
+          - DicePoolAllocation:
+              num_dice: 5
+              max_blessings: 2
+              blessings:
+                - name: "Rage-fuelled Invigoration"
+                  requirement: DoubleTwoPlus
+                  effects:
+                    - TriggerMoveReaction:
+                        move_type: PileInAndConsolidation
+                        distance:
+                          Fixed: 6000
+                  description: >-
+                    Each time a model in this unit makes a Pile-in or
+                    Consolidation move, it can move up to 6" instead of up to 3".
+                - name: "Total Carnage"
+                  requirement: DoubleTwoPlus
+                  effects:
+                    - FightOnDeath:
+                        threshold: 4
+                        modifier_source: null
+                  description: >-
+                    Each time a model in this unit is destroyed by a melee
+                    attack, if it has not fought this phase, roll one D6: on a
+                    4+, do not remove it from play. The destroyed model can
+                    fight after the attacking unit has finished making its
+                    attacks, and is then removed from play.
+                - name: "Martial Excellence"
+                  requirement: DoubleFourPlusOrTripleAny
+                  effects:
+                    - GrantWeaponAbility:
+                        weapon_ability:
+                          SustainedHits: 1
+                        weapon_filter: MeleeOnly
+                  description: >-
+                    Melee weapons equipped by models in this unit have the
+                    [SUSTAINED HITS 1] ability.
+        trigger: StartOfBattleRound
+      - name: "A Worthy Skull"
+        description: >-
+          Each time this model makes a melee attack that targets a CHARACTER
+          unit, you can re-roll the Hit roll and you can re-roll the Wound roll.
+          Each time this model's unit destroys an enemy CHARACTER model, you
+          gain 1CP.
+        ability_type: UnitAbility
+        effects:
+          - Composite:
+              effects:
+                - ApplyReroll:
+                    scope: HitAndWoundRolls
+                    condition:
+                      TargetIsCharacter
+                - Conditional:
+                    condition: TargetIsCharacter
+                    effect:
+                      AlterCP:
+                        amount: 1
+                    else_effect: null
+        trigger: OnAttack
+    unit_size:
+      Fixed: 1
+    model_loadouts:
+      - model_label: "Master of Executions"
+        count: 1
+        ranged_weapons:
+          - "Bolt pistol"
+        melee_weapons:
+          - "Axe of dismemberment"
+    wargear_abilities: []
+
+  # ── Khorne Berzerkers ────────────────────────────────────────────────────────
+  - id: 7
+    name: "Khorne Berzerkers"
+    # INFANTRY + BATTLELINE + CHAOS + KHORNE + WORLD_EATERS + BERZERKERS
+    # 1 + 256 + 65536 + 131072 + 524288 + 268435456 = 269156609
+    keywords: 269156609
+    movement: 8000   # 8"
+    toughness: 4
+    armor_save: 3
+    invulnerable_save: null
+    wounds: 2
+    leadership: 6
+    objective_control: 2
+    base_size: 32
+    ranged_weapons:
+      - name: "Bolt pistol"
+        weapon_type: Ranged
+        range: 12000   # 12"
+        attacks:
+          Fixed: 1
+        skill: 4
+        strength: 4
+        ap: 0
+        damage:
+          Fixed: 1
+        abilities:
+          - Pistol
+      - name: "Plasma pistol - standard"
+        weapon_type: Ranged
+        range: 12000   # 12"
+        attacks:
+          Fixed: 1
+        skill: 4
+        strength: 7
+        ap: -2
+        damage:
+          Fixed: 1
+        abilities:
+          - Pistol
+      - name: "Plasma pistol - supercharge"
+        weapon_type: Ranged
+        range: 12000   # 12"
+        attacks:
+          Fixed: 1
+        skill: 4
+        strength: 8
+        ap: -3
+        damage:
+          Fixed: 2
+        abilities:
+          - Hazardous
+          - Pistol
+    melee_weapons:
+      - name: "Chainblade"
+        weapon_type: Melee
+        range: 0
+        attacks:
+          Fixed: 4
+        skill: 3
+        strength: 4
+        ap: -1
+        damage:
+          Fixed: 1
+        abilities: []
+      - name: "Khornate eviscerator"
+        weapon_type: Melee
+        range: 0
+        attacks:
+          Fixed: 3
+        skill: 3
+        strength: 8
+        ap: -2
+        damage:
+          Fixed: 2
+        abilities: []
+    abilities:
+      - name: "Blessings of Khorne"
+        description: >-
+          At the start of each battle round, roll 5D6. Allocate dice to activate
+          up to two Blessings. Each Blessing can only be activated once per
+          round. Active Blessings apply to all units with this ability until the
+          end of the battle round.
+        ability_type: FactionAbility
+        effects:
+          - DicePoolAllocation:
+              num_dice: 5
+              max_blessings: 2
+              blessings:
+                - name: "Rage-fuelled Invigoration"
+                  requirement: DoubleTwoPlus
+                  effects:
+                    - TriggerMoveReaction:
+                        move_type: PileInAndConsolidation
+                        distance:
+                          Fixed: 6000
+                  description: >-
+                    Each time a model in this unit makes a Pile-in or
+                    Consolidation move, it can move up to 6" instead of up to 3".
+                - name: "Total Carnage"
+                  requirement: DoubleTwoPlus
+                  effects:
+                    - FightOnDeath:
+                        threshold: 4
+                        modifier_source: null
+                  description: >-
+                    Each time a model in this unit is destroyed by a melee
+                    attack, if it has not fought this phase, roll one D6: on a
+                    4+, do not remove it from play. The destroyed model can
+                    fight after the attacking unit has finished making its
+                    attacks, and is then removed from play.
+                - name: "Martial Excellence"
+                  requirement: DoubleFourPlusOrTripleAny
+                  effects:
+                    - GrantWeaponAbility:
+                        weapon_ability:
+                          SustainedHits: 1
+                        weapon_filter: MeleeOnly
+                  description: >-
+                    Melee weapons equipped by models in this unit have the
+                    [SUSTAINED HITS 1] ability.
+        trigger: StartOfBattleRound
+    unit_size:
+      Fixed: 10
+    model_loadouts:
+      - model_label: "Khorne Berzerker Champion"
+        count: 1
+        ranged_weapons:
+          - "Plasma pistol - standard"
+          - "Plasma pistol - supercharge"
+        melee_weapons:
+          - "Chainblade"
+      - model_label: "Khorne Berzerker with plasma pistol"
+        count: 2
+        ranged_weapons:
+          - "Plasma pistol - standard"
+          - "Plasma pistol - supercharge"
+        melee_weapons:
+          - "Chainblade"
+      - model_label: "Khorne Berzerker with eviscerator"
+        count: 2
+        ranged_weapons:
+          - "Bolt pistol"
+        melee_weapons:
+          - "Khornate eviscerator"
+      - model_label: "Khorne Berzerker"
+        count: 5
+        ranged_weapons:
+          - "Bolt pistol"
+        melee_weapons:
+          - "Chainblade"
+    wargear_abilities: []
+
+  # ── Jakhals ──────────────────────────────────────────────────────────────────
+  - id: 8
+    name: "Jakhals"
+    # INFANTRY + CHAOS + KHORNE + WORLD_EATERS + JAKHALS
+    # 1 + 65536 + 131072 + 524288 + 536870912 = 537591809
+    keywords: 537591809
+    movement: 7000   # 7"
+    toughness: 4
+    armor_save: 6
+    invulnerable_save: null
+    wounds: 1
+    leadership: 7
+    objective_control: 1
+    base_size: 25
+    ranged_weapons:
+      - name: "Autopistol"
+        weapon_type: Ranged
+        range: 12000   # 12"
+        attacks:
+          Fixed: 1
+        skill: 4
+        strength: 3
+        ap: 0
+        damage:
+          Fixed: 1
+        abilities:
+          - Pistol
+    melee_weapons:
+      - name: "Chainblades"
+        weapon_type: Melee
+        range: 0
+        attacks:
+          Fixed: 3
+        skill: 4
+        strength: 3
+        ap: 0
+        damage:
+          Fixed: 1
+        abilities: []
+      - name: "Mauler chainblade"
+        weapon_type: Melee
+        range: 0
+        attacks:
+          Fixed: 3
+        skill: 5
+        strength: 4
+        ap: -1
+        damage:
+          Fixed: 2
+        abilities: []
+      - name: "Skullsmasher and mangler"
+        weapon_type: Melee
+        range: 0
+        attacks:
+          Fixed: 2
+        skill: 4
+        strength: 4
+        ap: -1
+        damage:
+          Fixed: 2
+        abilities: []
+    abilities:
+      - name: "Blessings of Khorne"
+        description: >-
+          At the start of each battle round, roll 5D6. Allocate dice to activate
+          up to two Blessings. Each Blessing can only be activated once per
+          round. Active Blessings apply to all units with this ability until the
+          end of the battle round.
+        ability_type: FactionAbility
+        effects:
+          - DicePoolAllocation:
+              num_dice: 5
+              max_blessings: 2
+              blessings:
+                - name: "Rage-fuelled Invigoration"
+                  requirement: DoubleTwoPlus
+                  effects:
+                    - TriggerMoveReaction:
+                        move_type: PileInAndConsolidation
+                        distance:
+                          Fixed: 6000
+                  description: >-
+                    Each time a model in this unit makes a Pile-in or
+                    Consolidation move, it can move up to 6" instead of up to 3".
+                - name: "Total Carnage"
+                  requirement: DoubleTwoPlus
+                  effects:
+                    - FightOnDeath:
+                        threshold: 4
+                        modifier_source: null
+                  description: >-
+                    Each time a model in this unit is destroyed by a melee
+                    attack, if it has not fought this phase, roll one D6: on a
+                    4+, do not remove it from play. The destroyed model can
+                    fight after the attacking unit has finished making its
+                    attacks, and is then removed from play.
+                - name: "Martial Excellence"
+                  requirement: DoubleFourPlusOrTripleAny
+                  effects:
+                    - GrantWeaponAbility:
+                        weapon_ability:
+                          SustainedHits: 1
+                        weapon_filter: MeleeOnly
+                  description: >-
+                    Melee weapons equipped by models in this unit have the
+                    [SUSTAINED HITS 1] ability.
+        trigger: StartOfBattleRound
+    unit_size:
+      Fixed: 10
+    model_loadouts:
+      - model_label: "Jakhal Pack Leader"
+        count: 1
+        ranged_weapons:
+          - "Autopistol"
+        melee_weapons:
+          - "Chainblades"
+      - model_label: "Dishonoured"
+        count: 1
+        ranged_weapons: []
+        melee_weapons:
+          - "Skullsmasher and mangler"
+      - model_label: "Jakhal with mauler chainblade"
+        count: 1
+        ranged_weapons:
+          - "Autopistol"
+        melee_weapons:
+          - "Mauler chainblade"
+      - model_label: "Jakhal"
+        count: 7
+        ranged_weapons:
+          - "Autopistol"
+        melee_weapons:
+          - "Chainblades"
+    wargear_abilities: []
+
+# ─── Stratagems ────────────────────────────────────────────────────────────────
+stratagems:
+  # ── Horrifying Butchery ──────────────────────────────────────────────────────
+  - name: "Horrifying Butchery"
+    cp_cost: 1
+    phase: Fight
+    timing: StartOfPhase
+    stratagem_type: BattleTactic
+    target_restriction:
+      required_keywords:
+        - Berzerkers
+      excluded_keywords: []
+      owner: Friendly
+      conditions: []
+    effects:
+      - ForceBattleShockTest:
+          target: SelectedEnemy
+    once_per_battle: false
+    once_per_turn: true
+    description: >-
+      Select one enemy unit within Engagement Range of your unit. That enemy
+      unit must take a Battle-shock test.
+
+  # ── Berserk Resilience ───────────────────────────────────────────────────────
+  - name: "Berserk Resilience"
+    cp_cost: 1
+    phase: Fight
+    timing: AfterTargetSelection
+    stratagem_type: BattleTactic
+    target_restriction:
+      required_keywords:
+        - WorldEaters
+        - Character
+      excluded_keywords: []
+      owner: Friendly
+      conditions: []
+    effects:
+      - ApplyForDuration:
+          effect:
+            FightOnDeath:
+              threshold: 4
+              modifier_source: "Total Carnage"
+          duration: UntilEndOfPhase
+    once_per_battle: false
+    once_per_turn: true
+    description: >-
+      Until the end of the phase, each time a model in your unit is destroyed,
+      if that model has not fought this phase, roll one D6, adding 2 if the
+      Total Carnage Blessing of Khorne is active for your army. On a 4+, do not
+      remove the destroyed model from play; it can fight after the attacking
+      unit has finished making its attacks, and is then removed from play.
+
+  # ── Bloodlust ────────────────────────────────────────────────────────────────
+  - name: "Bloodlust"
+    cp_cost: 1
+    phase: Shooting
+    timing: AfterEnemyShoots
+    stratagem_type: StrategicPloy
+    target_restriction:
+      required_keywords:
+        - Jakhals
+      excluded_keywords: []
+      owner: Friendly
+      conditions: []
+    effects:
+      - TriggerMoveReaction:
+          move_type: NormalMove
+          distance: D6
+    once_per_battle: false
+    once_per_turn: true
+    description: >-
+      Your unit can make a Normal move of up to D6".
+
+# ─── Enhancements ─────────────────────────────────────────────────────────────
+enhancements:
+  # ── Fearsome Presence (default) ──────────────────────────────────────────────
+  - name: "Fearsome Presence"
+    description: >-
+      While the bearer is not Battle-shocked, it has an Objective Control
+      characteristic of 5.
+    is_default: true
+    effects:
+      - Conditional:
+          condition: NotBattleShocked
+          effect:
+            AlterOC:
+              target: Bearer
+              new_oc:
+                SetTo: 5
+          else_effect: null
+    conditions:
+      - NotBattleShocked
+
+  # ── Bane of the Craven (optional) ───────────────────────────────────────────
+  - name: "Bane of the Craven"
+    description: >-
+      Each time an enemy unit (excluding MONSTERS and VEHICLES) that is within
+      Engagement Range of the bearer Falls Back, all models in that enemy unit
+      must take a Desperate Escape test. When doing so, if that enemy unit is
+      Battle-shocked, subtract 1 from each of those tests.
+    is_default: false
+    effects:
+      - ForceDespairEscapeTest:
+          modifier: 0
+          condition:
+            TargetNotMonsterOrVehicle
+      - Conditional:
+          condition: BattleShocked
+          effect:
+            ForceDespairEscapeTest:
+              modifier: -1
+              condition:
+                TargetNotMonsterOrVehicle
+          else_effect: null
+    conditions: []
+
+# ─── Secondary Objectives ─────────────────────────────────────────────────────
+secondary_objectives:
+  # ── Champions of Khorne (default) ───────────────────────────────────────────
+  - name: "Champions of Khorne"
+    description: >-
+      From the second battle round onwards, at the end of your Command phase:
+      score 2VP if there is one objective marker wholly within No Man's Land
+      that you control and has one or more CHARACTER models (excluding
+      Battle-shocked) within range; score 3VP instead if there are two such
+      objective markers.
+    is_default: true
+    scoring:
+      - timing:
+          phase: Command
+          whose_turn: Active
+          from_round: 2
+        condition:
+          ObjectiveCount:
+            condition:
+              All:
+                - OnObjectiveInNoMansLand
+                - IsCharacter
+                - NotBattleShocked
+            count: 1
+        vp_amount: 2
+        description: "Score 2VP for 1 NML objective controlled with a non-Battle-shocked CHARACTER."
+      - timing:
+          phase: Command
+          whose_turn: Active
+          from_round: 2
+        condition:
+          ObjectiveCount:
+            condition:
+              All:
+                - OnObjectiveInNoMansLand
+                - IsCharacter
+                - NotBattleShocked
+            count: 2
+        vp_amount: 3
+        description: "Score 3VP instead for 2 NML objectives controlled with non-Battle-shocked CHARACTERs."
+    max_vp: 12
+
+  # ── Skull Takers (optional) ─────────────────────────────────────────────────
+  - name: "Skull Takers"
+    description: >-
+      At the end of the Fight phase, for each CHARACTER model from your army, if
+      that model destroyed one or more enemy units that phase, you score 3VP.
+    is_default: false
+    scoring:
+      - timing:
+          phase: Fight
+          whose_turn: Either
+          from_round: 1
+        condition:
+          All:
+            - IsCharacter
+            - DestroyedEnemyUnitThisPhase
+        vp_amount: 3
+        description: "Score 3VP for each CHARACTER that destroyed one or more enemy units this Fight phase."
+    max_vp: 12

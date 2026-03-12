@@ -1,0 +1,13 @@
+[package]
+name = "wh40k_wasm_api"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+wasm-bindgen = "0.2"
+wh40k_core_types = { workspace = true }
+wh40k_game_core = { workspace = true }
+wh40k_search_core = { workspace = true }

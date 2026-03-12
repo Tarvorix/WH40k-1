@@ -1,0 +1,13 @@
+[package]
+name = "wh40k_faction_runtime"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+wh40k_core_types = { workspace = true }
+wh40k_game_core = { workspace = true }
+wh40k_content_schema = { workspace = true }
+wh40k_event_system = { workspace = true }

@@ -1,0 +1,11 @@
+[package]
+name = "wh40k_eval_heuristic"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+wh40k_core_types = { workspace = true }
+wh40k_game_core = { workspace = true }
+wh40k_eval_features = { workspace = true }
+wh40k_geometry = { workspace = true }

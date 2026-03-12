@@ -1,0 +1,13 @@
+[package]
+name = "wh40k_native_api"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde_json = { workspace = true }
+tracing = { workspace = true }
+wh40k_core_types = { workspace = true }
+wh40k_game_core = { workspace = true }
+wh40k_search_core = { workspace = true }
+wh40k_replay = { workspace = true }

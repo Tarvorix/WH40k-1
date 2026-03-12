@@ -1,0 +1,86 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core_types",
+    "crates/dice",
+    "crates/geometry",
+    "crates/content_schema",
+    "crates/content_compiler",
+    "crates/event_system",
+    "crates/command_system",
+    "crates/game_core",
+    "crates/combat_patrol_rules",
+    "crates/faction_runtime",
+    "crates/stratagem_runtime",
+    "crates/mission_runtime",
+    "crates/replay",
+    "crates/determinism",
+    "crates/test_harness",
+    "crates/eval_features",
+    "crates/eval_heuristic",
+    "crates/search_abstraction",
+    "crates/search_ordering",
+    "crates/transposition",
+    "crates/search_core",
+    "crates/eval_nnue",
+    "crates/selfplay",
+    "crates/wasm_api",
+    "crates/native_api",
+    "crates/mcp_server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Tarvorix"]
+license = "MIT"
+
+[workspace.dependencies]
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+bincode = "1.3"
+
+# Randomness (deterministic)
+rand = { version = "0.8", features = ["small_rng"] }
+
+# Bitflags for keyword sets
+bitflags = { version = "2.6", features = ["serde"] }
+
+# Error handling
+thiserror = "2.0"
+
+# Logging / tracing
+tracing = "0.1"
+
+# Hashing
+ahash = "0.8"
+
+# Workspace crate cross-references
+wh40k_core_types = { path = "crates/core_types" }
+wh40k_dice = { path = "crates/dice" }
+wh40k_geometry = { path = "crates/geometry" }
+wh40k_content_schema = { path = "crates/content_schema" }
+wh40k_content_compiler = { path = "crates/content_compiler" }
+wh40k_event_system = { path = "crates/event_system" }
+wh40k_command_system = { path = "crates/command_system" }
+wh40k_game_core = { path = "crates/game_core" }
+wh40k_combat_patrol_rules = { path = "crates/combat_patrol_rules" }
+wh40k_faction_runtime = { path = "crates/faction_runtime" }
+wh40k_stratagem_runtime = { path = "crates/stratagem_runtime" }
+wh40k_mission_runtime = { path = "crates/mission_runtime" }
+wh40k_replay = { path = "crates/replay" }
+wh40k_determinism = { path = "crates/determinism" }
+wh40k_test_harness = { path = "crates/test_harness" }
+wh40k_eval_features = { path = "crates/eval_features" }
+wh40k_eval_heuristic = { path = "crates/eval_heuristic" }
+wh40k_search_abstraction = { path = "crates/search_abstraction" }
+wh40k_search_ordering = { path = "crates/search_ordering" }
+wh40k_transposition = { path = "crates/transposition" }
+wh40k_search_core = { path = "crates/search_core" }
+wh40k_eval_nnue = { path = "crates/eval_nnue" }
+wh40k_selfplay = { path = "crates/selfplay" }
+wh40k_wasm_api = { path = "crates/wasm_api" }
+wh40k_native_api = { path = "crates/native_api" }
+wh40k_mcp_server = { path = "crates/mcp_server" }

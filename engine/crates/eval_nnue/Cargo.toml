@@ -1,0 +1,11 @@
+[package]
+name = "wh40k_eval_nnue"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+bincode = { workspace = true }
+wh40k_core_types = { workspace = true }
+wh40k_eval_features = { workspace = true }

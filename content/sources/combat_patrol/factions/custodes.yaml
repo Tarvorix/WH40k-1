@@ -1,0 +1,564 @@
+# Adeptus Custodes: Tristraen's Gilded Blades
+# Combat Patrol Faction Data
+# Source: Custodes.md
+
+id: 1
+name: "Tristraen's Gilded Blades"
+
+# Faction keywords: IMPERIUM, ADEPTUS CUSTODES
+# (1 << 12) | (1 << 13) = 4096 + 8192 = 12288
+faction_keywords: 12288
+
+# ─── Faction Ability: Martial Ka'tah ───────────────────────────────────────────
+faction_ability:
+  name: "Martial Ka'tah"
+  description: >-
+    Each time a unit with this ability is selected to fight, choose one of the
+    following stances. The selected stance is active until that unit finishes
+    making its attacks.
+  ability_type: FactionAbility
+  effects:
+    - StanceChoice:
+        stances:
+          - name: "Dacatarai"
+            effects:
+              - GrantWeaponAbility:
+                  weapon_ability:
+                    SustainedHits: 1
+                  weapon_filter: MeleeOnly
+            description: "Melee weapons have [SUSTAINED HITS 1]."
+          - name: "Rendax"
+            effects:
+              - GrantWeaponAbility:
+                  weapon_ability: LethalHits
+                  weapon_filter: MeleeOnly
+            description: "Melee weapons have [LETHAL HITS]."
+  trigger: OnSelectedToFight
+
+# ─── Datasheets ────────────────────────────────────────────────────────────────
+datasheets:
+  # ── Tristraen (Blade Champion) ───────────────────────────────────────────────
+  - id: 1
+    name: "Tristraen"
+    # INFANTRY + CHARACTER + IMPERIUM + ADEPTUS_CUSTODES + BLADE_CHAMPION + TRISTRAEN
+    # 1 + 128 + 4096 + 8192 + 1048576 + 2097152 = 3158145
+    keywords: 3158145
+    movement: 6000   # 6" in mils
+    toughness: 6
+    armor_save: 2
+    invulnerable_save: 4
+    wounds: 6
+    leadership: 6
+    objective_control: 2
+    base_size: 32
+    ranged_weapons: []
+    melee_weapons:
+      - name: "Vaultswords - Behemor"
+        weapon_type: Melee
+        range: 0
+        attacks:
+          Fixed: 6
+        skill: 2
+        strength: 7
+        ap: -2
+        damage:
+          Fixed: 2
+        abilities:
+          - Precision
+      - name: "Vaultswords - Hurricanus"
+        weapon_type: Melee
+        range: 0
+        attacks:
+          Fixed: 9
+        skill: 2
+        strength: 5
+        ap: -1
+        damage:
+          Fixed: 1
+        abilities:
+          - SustainedHits: 1
+      - name: "Vaultswords - Victus"
+        weapon_type: Melee
+        range: 0
+        attacks:
+          Fixed: 5
+        skill: 2
+        strength: 6
+        ap: -3
+        damage:
+          Fixed: 3
+        abilities:
+          - DevastatingWounds
+    abilities:
+      - name: "Martial Ka'tah"
+        description: >-
+          Each time this unit is selected to fight, choose Dacatarai (Sustained
+          Hits 1) or Rendax (Lethal Hits) for melee weapons.
+        ability_type: FactionAbility
+        effects:
+          - StanceChoice:
+              stances:
+                - name: "Dacatarai"
+                  effects:
+                    - GrantWeaponAbility:
+                        weapon_ability:
+                          SustainedHits: 1
+                        weapon_filter: MeleeOnly
+                  description: "Melee weapons have [SUSTAINED HITS 1]."
+                - name: "Rendax"
+                  effects:
+                    - GrantWeaponAbility:
+                        weapon_ability: LethalHits
+                        weapon_filter: MeleeOnly
+                  description: "Melee weapons have [LETHAL HITS]."
+        trigger: OnSelectedToFight
+    unit_size:
+      Fixed: 1
+    model_loadouts:
+      - model_label: "Tristraen"
+        count: 1
+        ranged_weapons: []
+        melee_weapons:
+          - "Vaultswords - Behemor"
+          - "Vaultswords - Hurricanus"
+          - "Vaultswords - Victus"
+    wargear_abilities: []
+
+  # ── Custodian Guard ──────────────────────────────────────────────────────────
+  - id: 2
+    name: "Custodian Guard"
+    # INFANTRY + BATTLELINE + IMPERIUM + ADEPTUS_CUSTODES + CUSTODIAN_GUARD
+    # 1 + 256 + 4096 + 8192 + 4194304 = 4206849
+    keywords: 4206849
+    movement: 6000   # 6"
+    toughness: 6
+    armor_save: 2
+    invulnerable_save: 4
+    wounds: 3
+    leadership: 6
+    objective_control: 2
+    base_size: 32
+    ranged_weapons:
+      - name: "Sentinel blade"
+        weapon_type: Ranged
+        range: 12000   # 12"
+        attacks:
+          Fixed: 2
+        skill: 2
+        strength: 4
+        ap: -1
+        damage:
+          Fixed: 2
+        abilities:
+          - Assault
+          - Pistol
+    melee_weapons:
+      - name: "Sentinel blade"
+        weapon_type: Melee
+        range: 0
+        attacks:
+          Fixed: 5
+        skill: 2
+        strength: 6
+        ap: -2
+        damage:
+          Fixed: 1
+        abilities: []
+    abilities:
+      - name: "Martial Ka'tah"
+        description: >-
+          Each time this unit is selected to fight, choose Dacatarai (Sustained
+          Hits 1) or Rendax (Lethal Hits) for melee weapons.
+        ability_type: FactionAbility
+        effects:
+          - StanceChoice:
+              stances:
+                - name: "Dacatarai"
+                  effects:
+                    - GrantWeaponAbility:
+                        weapon_ability:
+                          SustainedHits: 1
+                        weapon_filter: MeleeOnly
+                  description: "Melee weapons have [SUSTAINED HITS 1]."
+                - name: "Rendax"
+                  effects:
+                    - GrantWeaponAbility:
+                        weapon_ability: LethalHits
+                        weapon_filter: MeleeOnly
+                  description: "Melee weapons have [LETHAL HITS]."
+        trigger: OnSelectedToFight
+    unit_size:
+      Fixed: 3
+    model_loadouts:
+      - model_label: "Custodian Guard"
+        count: 3
+        ranged_weapons:
+          - "Sentinel blade"
+        melee_weapons:
+          - "Sentinel blade"
+    wargear_abilities:
+      - name: "Praesidium Shield"
+        description: "Add 1 to the bearer's Wounds characteristic."
+        effects:
+          - AddModifier:
+              target: Bearer
+              stat: Wounds
+              value: 1
+        model_labels:
+          - "Custodian Guard"
+
+  # ── Custodian Wardens (Patrol Squad Option A) ────────────────────────────────
+  - id: 3
+    name: "Custodian Wardens"
+    # INFANTRY + IMPERIUM + ADEPTUS_CUSTODES + CUSTODIAN_WARDENS
+    # 1 + 4096 + 8192 + 8388608 = 8400897
+    keywords: 8400897
+    movement: 6000   # 6"
+    toughness: 6
+    armor_save: 2
+    invulnerable_save: 4
+    wounds: 3
+    leadership: 6
+    objective_control: 2
+    base_size: 32
+    ranged_weapons:
+      - name: "Castellan axe"
+        weapon_type: Ranged
+        range: 24000   # 24"
+        attacks:
+          Fixed: 2
+        skill: 2
+        strength: 4
+        ap: -1
+        damage:
+          Fixed: 2
+        abilities:
+          - Assault
+      - name: "Guardian spear"
+        weapon_type: Ranged
+        range: 24000   # 24"
+        attacks:
+          Fixed: 2
+        skill: 2
+        strength: 4
+        ap: -1
+        damage:
+          Fixed: 2
+        abilities:
+          - Assault
+    melee_weapons:
+      - name: "Castellan axe"
+        weapon_type: Melee
+        range: 0
+        attacks:
+          Fixed: 4
+        skill: 2
+        strength: 9
+        ap: -1
+        damage:
+          Fixed: 3
+        abilities: []
+      - name: "Guardian spear"
+        weapon_type: Melee
+        range: 0
+        attacks:
+          Fixed: 5
+        skill: 2
+        strength: 7
+        ap: -2
+        damage:
+          Fixed: 2
+        abilities: []
+    abilities:
+      - name: "Martial Ka'tah"
+        description: >-
+          Each time this unit is selected to fight, choose Dacatarai (Sustained
+          Hits 1) or Rendax (Lethal Hits) for melee weapons.
+        ability_type: FactionAbility
+        effects:
+          - StanceChoice:
+              stances:
+                - name: "Dacatarai"
+                  effects:
+                    - GrantWeaponAbility:
+                        weapon_ability:
+                          SustainedHits: 1
+                        weapon_filter: MeleeOnly
+                  description: "Melee weapons have [SUSTAINED HITS 1]."
+                - name: "Rendax"
+                  effects:
+                    - GrantWeaponAbility:
+                        weapon_ability: LethalHits
+                        weapon_filter: MeleeOnly
+                  description: "Melee weapons have [LETHAL HITS]."
+        trigger: OnSelectedToFight
+    unit_size:
+      Fixed: 3
+    model_loadouts:
+      - model_label: "Custodian Warden with Castellan axe"
+        count: 1
+        ranged_weapons:
+          - "Castellan axe"
+        melee_weapons:
+          - "Castellan axe"
+      - model_label: "Custodian Warden with Guardian spear"
+        count: 2
+        ranged_weapons:
+          - "Guardian spear"
+        melee_weapons:
+          - "Guardian spear"
+    wargear_abilities: []
+
+  # ── Allarus Custodians (Patrol Squad Option B) ──────────────────────────────
+  - id: 4
+    name: "Allarus Custodians"
+    # INFANTRY + TERMINATOR + IMPERIUM + ADEPTUS_CUSTODES + ALLARUS_CUSTODIANS
+    # 1 + 64 + 4096 + 8192 + 16777216 = 16789569
+    keywords: 16789569
+    movement: 5000   # 5"
+    toughness: 7
+    armor_save: 2
+    invulnerable_save: 4
+    wounds: 4
+    leadership: 6
+    objective_control: 2
+    base_size: 40
+    ranged_weapons:
+      - name: "Balistus grenade launcher"
+        weapon_type: Ranged
+        range: 18000   # 18"
+        attacks: D6
+        skill: 2
+        strength: 4
+        ap: -1
+        damage:
+          Fixed: 1
+        abilities:
+          - Blast
+      - name: "Guardian spear"
+        weapon_type: Ranged
+        range: 24000   # 24"
+        attacks:
+          Fixed: 2
+        skill: 2
+        strength: 4
+        ap: -1
+        damage:
+          Fixed: 2
+        abilities:
+          - Assault
+    melee_weapons:
+      - name: "Guardian spear"
+        weapon_type: Melee
+        range: 0
+        attacks:
+          Fixed: 5
+        skill: 2
+        strength: 7
+        ap: -2
+        damage:
+          Fixed: 2
+        abilities: []
+    abilities:
+      - name: "Martial Ka'tah"
+        description: >-
+          Each time this unit is selected to fight, choose Dacatarai (Sustained
+          Hits 1) or Rendax (Lethal Hits) for melee weapons.
+        ability_type: FactionAbility
+        effects:
+          - StanceChoice:
+              stances:
+                - name: "Dacatarai"
+                  effects:
+                    - GrantWeaponAbility:
+                        weapon_ability:
+                          SustainedHits: 1
+                        weapon_filter: MeleeOnly
+                  description: "Melee weapons have [SUSTAINED HITS 1]."
+                - name: "Rendax"
+                  effects:
+                    - GrantWeaponAbility:
+                        weapon_ability: LethalHits
+                        weapon_filter: MeleeOnly
+                  description: "Melee weapons have [LETHAL HITS]."
+        trigger: OnSelectedToFight
+    unit_size:
+      Fixed: 2
+    model_loadouts:
+      - model_label: "Allarus Custodian"
+        count: 2
+        ranged_weapons:
+          - "Balistus grenade launcher"
+          - "Guardian spear"
+        melee_weapons:
+          - "Guardian spear"
+    wargear_abilities: []
+
+# ─── Stratagems ────────────────────────────────────────────────────────────────
+stratagems:
+  # ── The Gilded Spear ─────────────────────────────────────────────────────────
+  - name: "The Gilded Spear"
+    cp_cost: 1
+    phase: Fight
+    timing: DuringPhase
+    stratagem_type: BattleTactic
+    target_restriction:
+      required_keywords:
+        - AdeptusCustodes
+      excluded_keywords: []
+      owner: Friendly
+      conditions:
+        - HasNotFoughtThisPhase
+    effects:
+      - ApplyForDuration:
+          effect:
+            TriggerMoveReaction:
+              move_type: PileIn
+              distance:
+                Fixed: 6000
+          duration: UntilEndOfPhase
+    once_per_battle: false
+    once_per_turn: true
+    description: >-
+      Until the end of the phase, each time a model in your unit makes a Pile-in
+      move, it can move up to 6" instead of up to 3".
+
+  # ── Inescapable Vengeance ────────────────────────────────────────────────────
+  - name: "Inescapable Vengeance"
+    cp_cost: 1
+    phase: Movement
+    timing: DuringPhase
+    stratagem_type: StrategicPloy
+    target_restriction:
+      required_keywords:
+        - AdeptusCustodes
+      excluded_keywords: []
+      owner: Friendly
+      conditions:
+        - HasNotMovedThisPhase
+    effects:
+      - ApplyForDuration:
+          effect:
+            AddModifier:
+              target: Self_
+              stat: AdvanceRoll
+              value: 2
+          duration: UntilEndOfPhase
+    once_per_battle: false
+    once_per_turn: true
+    description: >-
+      Until the end of the phase, add 2 to Advance rolls made for your unit.
+
+  # ── Overawing Magnificence ───────────────────────────────────────────────────
+  - name: "Overawing Magnificence"
+    cp_cost: 1
+    phase: Charge
+    timing: AfterChargeDeclaration
+    stratagem_type: BattleTactic
+    target_restriction:
+      required_keywords:
+        - AdeptusCustodes
+      excluded_keywords: []
+      owner: Friendly
+      conditions:
+        - WasChargeTarget
+    effects:
+      - ForceLeadershipTest:
+          target: SelectedEnemy
+          on_fail:
+            ApplyForDuration:
+              effect:
+                AddModifier:
+                  target: Target
+                  stat: ChargeRoll
+                  value: -2
+              duration: UntilEndOfPhase
+    once_per_battle: false
+    once_per_turn: true
+    description: >-
+      That enemy unit must take a Leadership test. If that test is failed, until
+      the end of the phase, subtract 2 from Charge rolls made for that enemy unit.
+
+# ─── Enhancements ─────────────────────────────────────────────────────────────
+enhancements:
+  # ── Watchman of Terra (default) ──────────────────────────────────────────────
+  - name: "Watchman of Terra"
+    description: >-
+      While the bearer is within Engagement Range of one or more enemy units,
+      its Objective Control characteristic is 4.
+    is_default: true
+    effects:
+      - Conditional:
+          condition: InEngagementRange
+          effect:
+            AlterOC:
+              target: Bearer
+              new_oc:
+                SetTo: 4
+          else_effect: null
+    conditions:
+      - InEngagementRange
+
+  # ── Warrior Exemplar (optional) ──────────────────────────────────────────────
+  - name: "Warrior Exemplar"
+    description: >-
+      Each time the bearer destroys an enemy unit, roll one D6. On a 3+, you
+      gain 1CP.
+    is_default: false
+    effects:
+      - DiceCheck:
+          threshold: 3
+          on_success:
+            AlterCP:
+              amount: 1
+          on_failure: null
+          modifier: 0
+    conditions: []
+
+# ─── Secondary Objectives ─────────────────────────────────────────────────────
+secondary_objectives:
+  # ── Raise the Vexillas (default) ─────────────────────────────────────────────
+  - name: "Raise the Vexillas"
+    description: >-
+      From battle round 3 onwards, at the end of your turn, score 3VP if you
+      control both the objective marker closest to your battlefield edge and the
+      objective marker closest to your opponent's battlefield edge.
+    is_default: true
+    scoring:
+      - timing:
+          phase: Fight
+          whose_turn: Active
+          from_round: 3
+        condition:
+          All:
+            - ControlsClosestObjective: OwnEdge
+            - ControlsClosestObjective: OpponentEdge
+        vp_amount: 3
+        description: "Score 3VP if you control both edge objectives."
+    max_vp: 9
+
+  # ── Consecrated Ground (optional) ───────────────────────────────────────────
+  - name: "Consecrated Ground"
+    description: >-
+      Each time an enemy unit is destroyed, score 3VP. Each time an Adeptus
+      Custodes model is destroyed, lose 1VP. Minimum 0VP total.
+    is_default: false
+    scoring:
+      - timing:
+          phase: Fight
+          whose_turn: Either
+          from_round: 1
+        condition:
+          HasKeyword: AdeptusCustodes
+        vp_amount: -1
+        description: "Lose 1VP each time an Adeptus Custodes model is destroyed."
+      - timing:
+          phase: Fight
+          whose_turn: Either
+          from_round: 1
+        condition:
+          Not:
+            HasKeyword: AdeptusCustodes
+        vp_amount: 3
+        description: "Score 3VP each time an enemy unit is destroyed."
+    max_vp: null

@@ -1,0 +1,11 @@
+[package]
+name = "wh40k_dice"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+rand = { workspace = true }
+wh40k_core_types = { workspace = true }

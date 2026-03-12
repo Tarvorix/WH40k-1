@@ -1,0 +1,10 @@
+[package]
+name = "wh40k_transposition"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+ahash = { workspace = true }
+wh40k_core_types = { workspace = true }
