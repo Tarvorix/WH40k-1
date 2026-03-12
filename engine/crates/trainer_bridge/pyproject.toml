@@ -1,0 +1,14 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "wh40k-trainer-bridge"
+version = "0.1.0"
+description = "Python bindings for the WH40K game engine NNUE training pipeline"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Tarvorix" }]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]

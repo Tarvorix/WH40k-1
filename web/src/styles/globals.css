@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-surface text-gray-100 font-body;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-surface;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-lighter rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 bg-accent hover:bg-accent-muted text-black font-semibold rounded-lg
+      transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 bg-surface-lighter hover:bg-surface-light text-gray-200 font-medium rounded-lg
+      border border-gray-600 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-danger {
+    @apply px-4 py-2 bg-red-800 hover:bg-red-700 text-white font-medium rounded-lg
+      transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .card {
+    @apply bg-surface-light border border-gray-700 rounded-lg p-4;
+  }
+
+  .card-hover {
+    @apply card hover:border-accent/50 hover:bg-surface-lighter cursor-pointer transition-all duration-150;
+  }
+
+  .card-selected {
+    @apply card border-accent bg-surface-lighter ring-1 ring-accent/30;
+  }
+
+  .phase-badge {
+    @apply px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider;
+  }
+
+  .stat-box {
+    @apply flex flex-col items-center justify-center bg-surface rounded px-2 py-1 min-w-[40px];
+  }
+
+  .weapon-table {
+    @apply w-full text-sm;
+  }
+
+  .weapon-table th {
+    @apply text-left text-gray-400 font-medium pb-1 px-1 text-xs uppercase;
+  }
+
+  .weapon-table td {
+    @apply px-1 py-0.5 text-gray-200;
+  }
+}

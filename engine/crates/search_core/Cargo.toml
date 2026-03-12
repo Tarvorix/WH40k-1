@@ -11,4 +11,9 @@ wh40k_search_abstraction = { workspace = true }
 wh40k_search_ordering = { workspace = true }
 wh40k_transposition = { workspace = true }
 wh40k_eval_heuristic = { workspace = true }
+wh40k_eval_features = { workspace = true }
+wh40k_eval_nnue = { workspace = true }
 wh40k_command_system = { workspace = true }
+wh40k_dice = { workspace = true }
+wh40k_geometry = { workspace = true }
+wh40k_event_system = { workspace = true }

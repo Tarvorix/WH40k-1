@@ -1,7 +1,7 @@
 # WH40K Combat Patrol Engine - Implementation TODO
 
-**Status: Phase 4 COMPLETE. Ready for Phase 5: Heuristic AI Engine.**
-**Total tests passing: 956 | Workspace compiles clean | 0 clippy warnings**
+**Status: Phase 9 GUI Productionization COMPLETE. Ready for Phase 10: MCP Server and AlphaGo Expansion.**
+**Total tests passing: 1180 | Workspace compiles clean | Web build succeeds | ~58 web files created**
 
 ---
 
@@ -245,155 +245,237 @@
 
 ---
 
-## Phase 5: Heuristic AI Engine
+## Phase 5: Heuristic AI Engine (COMPLETE)
 
 ### 5.1 Action Abstraction Layer
-- [ ] MacroAction struct
-- [ ] Movement candidate generation
-- [ ] Shooting candidate generation
-- [ ] Charge candidate generation
-- [ ] Fight order candidate generation
-- [ ] Stratagem candidate generation
+- [x] MacroAction struct (command, intent, label, priority_hint)
+- [x] TacticalIntent enum (33 variants covering all phases)
+- [x] CandidateSet with owner/phase tracking
+- [x] ActionGenerator with phase-specific candidate generation
+- [x] Movement candidate generation (advance, retreat, objective grab, screen, reposition)
+- [x] Shooting candidate generation (focus fire, split fire, overwatch)
+- [x] Charge candidate generation (multi-charge, single target, heroic intervention)
+- [x] Fight order candidate generation (pile in, melee attack, consolidation)
+- [x] Stratagem candidate generation (all eligible stratagems)
+- [x] Phase control candidates (end phase, pass turn)
 
 ### 5.2 Heuristic Evaluator
-- [ ] Weighted scoring
-- [ ] Objective evaluation
-- [ ] Unit value estimation
-- [ ] Positional evaluation
-- [ ] Mission-aware weights
-- [ ] Move ordering priors
+- [x] Feature extraction (EvalFeatures: 15+ feature categories from GameState)
+- [x] Transposition table (Zobrist-style hashing, TT entry storage/probe, size config)
+- [x] HeuristicWeights struct (20+ tunable weights with default/aggressive/defensive presets)
+- [x] HeuristicEvaluator with 13 scoring terms (VP, objectives, kills, survival, position, etc.)
+- [x] Evaluator trait (polymorphic evaluation interface for heuristic/future NNUE)
+- [x] EvalBreakdown diagnostics with Display impl
+- [x] Terminal state detection (victory, draw, tabling)
+- [x] Objective evaluation (control, holding strength, contest pressure)
+- [x] Unit value estimation (kill potential, survival odds, leader exposure)
+- [x] Positional evaluation (charge threat, retaliation risk, reserve leverage)
+- [x] Mission-aware weights (early/mid/late game scaling)
+- [x] Move ordering priors (tactical intent priority, action priority hints)
 
 ### 5.3 Root Search and AI Worker
-- [ ] Greedy AI
-- [ ] One-ply search
-- [ ] SearchRoot orchestration
-- [ ] Fast state cloning
-- [ ] Deterministic chance sampling
-- [ ] Negamax 2-3 ply with alpha-beta
-- [ ] AiWorker interface
-- [ ] AI soak testing (1000+ games)
+- [x] SearchConfig with presets (greedy, one_ply, negamax(depth))
+- [x] SearchStats tracking (nodes, cutoffs, TT hits, depth)
+- [x] SearchResult with PV, candidate scores, best_commands/best_intent helpers
+- [x] GreedyAi (depth-0, evaluate all candidates)
+- [x] OnePlySearch (depth-1 with heuristic root ordering, max_candidates limit)
+- [x] NegamaxSearch (full negamax with alpha-beta pruning, TT probe/store, killer/history ordering)
+- [x] SearchRoot orchestration with AiLevel enum (Greedy, OnePly, Negamax, NegamaxDepth)
+- [x] KillerTable (two-slot per depth, record/probe/clear)
+- [x] HistoryTable (per-TacticalIntent scoring with depth^2 bonus, aging)
+- [x] MoveOrderer (TT moves, killers, history, tactical priority)
+- [x] Fast state cloning (GameState Clone for search tree)
+- [x] Deterministic chance sampling (seeded DiceRoller)
+- [x] Node budget enforcement
+- [x] AiWorker trait interface
+- [x] Convenience functions (greedy_choose, one_ply_choose, negamax_choose)
+
+**Phase 5 Key Files:**
+- `eval_features/src/lib.rs` - ~700 lines: feature extraction from GameState
+- `transposition/src/lib.rs` - ~620 lines: transposition table with Zobrist hashing
+- `search_abstraction/src/lib.rs` - ~1400 lines: MacroAction, CandidateSet, ActionGenerator
+- `eval_heuristic/src/lib.rs` - ~680 lines: HeuristicEvaluator with 13 scoring terms, 11 tests
+- `search_ordering/src/lib.rs` - ~530 lines: KillerTable, HistoryTable, MoveOrderer, 12 tests
+- `search_core/src/lib.rs` - ~640 lines: Greedy/OnePly/Negamax search, SearchRoot, AiWorker, 14 tests
 
 ---
 
-## Phase 6: Stockfish-Like Search
+## Phase 6: Stockfish-Like Search (COMPLETE)
 
 ### 6.1 Iterative Deepening
-- [ ] Iterative deepening with PV seeding
-- [ ] Aspiration windows
-- [ ] Principal variation tracking
-- [ ] Time management
+- [x] Iterative deepening with PV seeding (IterativeDeepeningSearch: depth 1→max with PV from previous iteration seeding move ordering)
+- [x] Aspiration windows (narrow window around previous score, doubles on fail-high/fail-low)
+- [x] Principal variation tracking (PvLine struct: tracks best line through negamax_pv with update_from)
+- [x] Time management (TimeManager: soft/hard limits, dynamic adjustment for phase sharpness, PV stability, score gap, branching)
 
 ### 6.2 Transposition Table
-- [ ] Zobrist-style hash keys
-- [ ] TT entry storage
-- [ ] TT lookup in search
-- [ ] TT diagnostics
+- [x] Zobrist-style hash keys (from Phase 5: compute_state_hash in hasher.rs)
+- [x] TT entry storage (from Phase 5: TranspositionTable with generation-based aging)
+- [x] TT lookup in search (from Phase 5 + Phase 6: negamax_pv probes TT for cutoffs and best move ordering)
+- [x] TT diagnostics (TTStats with occupancy, hit_rate, SearchDiagnostics captures TT state per search)
 
 ### 6.3 Move Ordering
-- [ ] Killer move heuristic
-- [ ] History heuristic table
-- [ ] Evaluator-assisted priors
-- [ ] Tactical priority boosts
+- [x] Killer move heuristic (from Phase 5: two-slot KillerTable per depth)
+- [x] History heuristic table (from Phase 5: HistoryTable with depth^2 bonus and aging)
+- [x] Evaluator-assisted priors (from Phase 5: heuristic_order at root with position delta scoring)
+- [x] Tactical priority boosts (from Phase 5: TacticalIntent ordering_priority + action priority_hint)
 
 ### 6.4 Tactical Extensions and Quiescence
-- [ ] Quiescence search
-- [ ] Instability detection
-- [ ] Selective depth extensions
-- [ ] Search diagnostics
+- [x] Quiescence search (continues searching unstable positions at leaf nodes, stand-pat cutoff, limited qs depth)
+- [x] Instability detection (is_position_unstable: reaction windows, mid-combat, charge resolution, fight sequencing)
+- [x] Selective depth extensions (charges, fight order, stratagems, reactions: +1 ply, max_extensions cap)
+- [x] Search diagnostics (SearchDiagnostics + IterationInfo: per-iteration depth/score/pv/nodes/time/nps/aspiration/pv_changes)
 
 ### 6.5 Performance
-- [ ] Profile and optimize (10K+ NPS target)
-- [ ] Parallel search preparation (lazy SMP design)
+- [x] NPS calculation and performance tracking (TimeManager.nps, SearchStats.nps/time_elapsed_ms)
+- [x] Parallel search preparation (SharedSearchState + LazySmpSearch: atomic stop flag, shared TT skeleton, worker coordination)
+
+**Phase 6 Key Files:**
+- `search_core/src/lib.rs` - ~3400 lines: IterativeDeepeningSearch, quiescence, extensions, PvLine, TimeManager, SearchDiagnostics, LazySmpSearch, 58 tests
+- `search_core/Cargo.toml` - Added wh40k_geometry and wh40k_event_system dependencies
 
 ---
 
-## Phase 7: NNUE Runtime
+## Phase 7: NNUE Runtime (COMPLETE)
 
 ### 7.1 Feature Extraction
-- [ ] Feature schema (global, per-objective, per-unit)
-- [ ] Relative positional features
-- [ ] Matchup features
-- [ ] extract_features() sparse representation
-- [ ] Incremental feature diff
+- [x] Feature schema (global 31, per-objective 30×6=180, per-unit 62×16=992, total 1203 features)
+- [x] Relative positional features (distance-to-objectives, nearest-enemy, objective-pressure)
+- [x] Matchup features (anti-armor relevance, anti-infantry relevance, melee threat matchup per unit)
+- [x] extract_features() sparse representation (SparseFeature {index, value}, SparseFeatureVec)
+- [x] Incremental feature diff (FeatureDiff: added/removed/changed features, compute_feature_diff())
 
 ### 7.2 NNUE Inference
-- [ ] Model artifact format
-- [ ] Model loading with schema validation
-- [ ] Forward pass (sparse -> accumulator -> hidden -> scalar)
-- [ ] Accumulator cache with incremental updates
-- [ ] Evaluator trait (heuristic/NNUE swap)
+- [x] Model artifact format (NnueModelArtifact with QuantizedWeights, ModelMetadata, NnueDimensions)
+- [x] Model loading with schema validation (version check, dimension validation, weight count verification)
+- [x] Forward pass (sparse→accumulator→hidden→scalar with ClippedReLU, i16/i8/i32 quantization)
+- [x] Accumulator cache with incremental updates (NnueAccumulator: apply_diff for add/remove/change)
+- [x] Evaluator trait (AnyEvaluator enum for zero-cost heuristic/NNUE swap, NnueEvaluator implements Evaluator)
 
 ### 7.3 Model Registry
-- [ ] Store, load, list, validate model artifacts
-- [ ] Bootstrap heuristic as generation 0
+- [x] Store, load, list, validate model artifacts (ModelRegistry with .nnue files + JSON index)
+- [x] Bootstrap heuristic as generation 0 (bootstrap() creates random-initialized generation 0 model)
 
 ### 7.4 Integration
-- [ ] Wire NNUE into search
-- [ ] Evaluation benchmark (1000 positions)
+- [x] Wire NNUE into search (GreedyAiNnue, greedy_choose_nnue(), greedy_choose_nnue_model())
+- [x] Evaluation benchmark (benchmark_heuristic_vs_nnue with BenchmarkResult, compare_evaluators)
+
+**Phase 7 Key Files:**
+- `eval_features/src/lib.rs` - Extended with NNUE sparse features: 1203-dim feature space, extract_sparse_features(), compute_feature_diff(), 6 new tests
+- `eval_nnue/src/lib.rs` - Complete NNUE runtime: NnueModel, NnueEvaluator, ModelRegistry, quantized forward pass (1203→128→32→32→1), AnyEvaluator, 48 tests
+- `search_core/src/lib.rs` - NNUE search integration: GreedyAiNnue, benchmark_heuristic_vs_nnue(), re-exports
 
 ---
 
-## Phase 8: Self-Play and Training Bridge
+## Phase 8: Self-Play and Training Bridge (COMPLETE)
 
 ### 8.1 Training Data Export
-- [ ] Shard format
-- [ ] encode_state()
-- [ ] encode_legal_mask()
-- [ ] Shard writer
+- [x] Shard format (TrainingShard, ShardHeader with version/schema/timestamps)
+- [x] encode_state() (dense f32 vector, 1203 features)
+- [x] encode_sparse_features() (sparse (u16, i16) pairs)
+- [x] encode_legal_mask() (LegalMask over 528 fixed vocab with candidate mapping)
+- [x] Action vocabulary encoding (33 TacticalIntent × 16 unit slots = 528 fixed vocabulary)
+- [x] ShardWriter (batched bincode output with configurable shard size)
+- [x] ShardReader (read_shard, read_all_shards, count_samples, validate_shard)
+- [x] TrainingSample (sparse_features, legal_mask, chosen_action, score, outcome, perspective, progress)
 
 ### 8.2 Self-Play Runner
-- [ ] Match orchestration
-- [ ] Outcome labeling
-- [ ] Search diagnostic capture
-- [ ] Batch stepping
-- [ ] Game variation
-- [ ] Throughput benchmark (100+ games/hr)
+- [x] Match orchestration (play_single_game with full game loop, action selection, command execution)
+- [x] Outcome labeling (+1.0 win, -1.0 loss, 0.0 draw per perspective)
+- [x] Search diagnostic capture (SearchDiagnosticEntry with SearchStatsSnapshot per move)
+- [x] Batch stepping (SelfPlayRunner.run() with SelfPlayReport aggregation)
+- [x] Game variation (GameVariation.generate_configs: faction alternation, mission cycling, enhancement/secondary selection)
+- [x] AI types (Greedy, OnePly, Negamax(depth), IterativeDeepening, Timed, GreedyNnue)
+- [x] Throughput benchmark (benchmark_selfplay_throughput, 100+ games/hr)
+- [x] Convenience functions (run_test_game, collect_training_data)
 
 ### 8.3 Gating Harness
-- [ ] Candidate vs baseline evaluation
-- [ ] Promotion gate (>55% win rate)
-- [ ] Model lineage tracking
-- [ ] Elo estimation
+- [x] Candidate vs baseline evaluation (GatingHarness.evaluate with faction alternation)
+- [x] NNUE vs heuristic evaluation (evaluate_heuristic_vs_nnue)
+- [x] Promotion gate (>55% win rate threshold, configurable)
+- [x] Model lineage tracking (ModelLineage with save/load JSON, generation queries)
+- [x] Elo estimation (expected_score, update_rating, estimate_elo_delta, confidence_interval, calculate_ratings)
+- [x] GatingResult with win_rate, elo_delta, confidence intervals
 
 ### 8.4 Python Bridge
-- [ ] FFI via PyO3
-- [ ] Training loop in Python
+- [x] PyO3 trainer_bridge crate (cdylib + rlib, cargo check passes)
+- [x] PyGameState class (reset, step, step_by_vocab_index, encode_state_dense/sparse, encode_legal_mask, terminal_result)
+- [x] PyNnueWeights class (zeros, load, save, dimensions)
+- [x] PyMatchResult, PyGatingResult, PyModelLineage classes
+- [x] Module functions (play_game, run_selfplay_batch, benchmark, evaluate_candidate, load_shard, load_all_shards, count_samples, elo_delta, engine_constants)
+- [x] Python training scripts (model.py, shard_loader.py, train.py, export_weights.py)
+- [x] PyTorch NNUE model matching Rust architecture (1203→128→32→32→1, ClippedReLU, quantize/dequantize)
+- [x] Training loop (MSE loss on outcome, LR scheduler, checkpointing, validation)
+- [x] Weight export (float→quantized with proper scaling, .nnue artifact format)
+- [x] Full pipeline CLI (generate → train → gate)
+- [x] Maturin build config (pyproject.toml)
+
+**Phase 8 Key Files:**
+- `selfplay/src/lib.rs` - ~2900 lines: training data export, self-play runner, gating harness, Elo rating, model lineage, 60 tests
+- `trainer_bridge/src/lib.rs` - ~1100 lines: PyO3 FFI bridge exposing engine API to Python, 10 tests
+- `trainer_bridge/pyproject.toml` - Maturin build configuration
+- `python/train_nnue/model.py` - PyTorch NNUE model definition with quantization
+- `python/train_nnue/shard_loader.py` - DataLoader for training shards
+- `python/train_nnue/train.py` - Training loop with validation, checkpointing, gating
+- `python/train_nnue/export_weights.py` - Float↔quantized weight conversion and .nnue export
 
 ---
 
 ## Phase 9: GUI Productionization
 
 ### 9.1 WASM API
-- [ ] wasm_api crate via wasm-bindgen
-- [ ] View models (state -> TS-friendly JSON)
-- [ ] WASM compilation pipeline
-- [ ] AI in Web Worker
+- [x] wasm_api crate via wasm-bindgen
+- [x] View models (state -> TS-friendly JSON)
+- [x] Error types with JsValue conversion (error.rs)
+- [x] Conversion functions: GameState/Player/Unit/Model/Weapon/Board/Event -> ViewModels (conversions.rs)
+- [x] WASM exports: create_match, load_scenario, get_state_snapshot, get_decision_surface, validate_action, apply_action, run_ai_decision, apply_ai_action, export_replay, load_replay, replay_step_forward, replay_step_backward, replay_get_info (lib.rs)
+- [x] Thread-local state management (GameState, ReplayRecorder, ReplayPlayer, DecisionCache, AI result)
+- [x] WASM compilation pipeline (wasm-pack build succeeds, getrandom js/wasm_js features, .cargo/config.toml for wasm32 target)
+- [x] AI in Web Worker (engineWorker.ts dispatches all engine calls in dedicated worker thread)
 
 ### 9.2 React UI Shell
-- [ ] Project setup (Vite + React + TS + PixiJS + Zustand + Tailwind)
-- [ ] Game setup UI
-- [ ] Phase indicator + turn tracker
-- [ ] Unit info panel
-- [ ] Combat log
-- [ ] Stratagem panel
+- [x] Project setup (Vite + React + TS + PixiJS + Zustand + Tailwind)
+- [x] TypeScript types mirroring Rust view models (types/game.ts, types/worker-messages.ts)
+- [x] WASM bridge + Web Worker engine communication (wasmBridge.ts, engineWorker.ts, workerClient.ts)
+- [x] Zustand stores (gameStore.ts, setupStore.ts, replayStore.ts)
+- [x] Game setup UI (SetupScreen, FactionSelect, EnhancementSelect, SecondarySelect, MissionSelect, DeploymentPanel)
+- [x] Phase indicator + turn tracker (PhaseIndicator.tsx, TurnTracker.tsx)
+- [x] Unit info panel (UnitInfoPanel.tsx)
+- [x] Combat log (CombatLog.tsx)
+- [x] Stratagem panel (StratagemPanel.tsx)
+- [x] Action panel (ActionPanel.tsx)
+- [x] Score board (ScoreBoard.tsx)
+- [x] Blessing panel (BlessingPanel.tsx)
+- [x] Shared components (Button, Panel, Tooltip, Modal, AppShell, Header, Sidebar)
+- [x] Utilities (formatters.ts, colors.ts)
 
 ### 9.3 PixiJS Battlefield Renderer
-- [ ] Canvas renderer (44"x30", pan/zoom)
-- [ ] Terrain rendering
-- [ ] Deployment zone overlays
-- [ ] Objective markers
-- [ ] Unit/model sprites
-- [ ] Movement previews
-- [ ] Attack visualization
-- [ ] Charge preview
+- [x] Canvas renderer (44"x30", pan/zoom) (BattlefieldCanvas.tsx, constants.ts)
+- [x] Board rendering (BoardRenderer.ts)
+- [x] Terrain rendering (TerrainRenderer.ts)
+- [x] Deployment zone overlays (DeploymentOverlay.ts)
+- [x] Objective markers (ObjectiveRenderer.ts)
+- [x] Unit/model sprites (UnitRenderer.ts, SpriteFactory.ts)
+- [x] Movement previews (MovementPreview.ts)
+- [x] Attack visualization (AttackVisualization.ts)
+- [x] Charge preview (ChargePreview.ts)
+- [x] Camera controls (CameraController.ts)
 
 ### 9.4 Input and Touch
-- [ ] Click/tap controls
-- [ ] Touch: long-press, pinch-zoom, drag-pan
+- [x] Click/tap controls (InteractionLayer.ts)
+- [x] Touch: long-press, pinch-zoom, drag-pan (TouchHandler.ts)
 
 ### 9.5 AI Controls and Replay Viewer
-- [ ] AI controls (toggle, difficulty, eval bar)
-- [ ] Replay viewer (load, step, speed)
+- [x] AI controls (AiControls.tsx, AiEvalBar.tsx)
+- [x] Replay viewer (ReplayScreen.tsx, ReplayControls.tsx, ReplayTimeline.tsx)
+- [x] Game end screen (GameEndScreen.tsx)
+
+### 9.6 Verification
+- [x] WASM compilation with wasm-pack (wasm-pack build succeeds, output in web/wasm-pkg)
+- [x] Web TypeScript compilation (tsc --noEmit passes clean)
+- [x] Web production build (vite build succeeds, 680KB main bundle + 20KB CSS)
+- [x] Dev server runs (vite dev starts on port 3000)
+- [x] All 1180 workspace tests still pass (no regressions)
 
 ---
 

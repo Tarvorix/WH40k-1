@@ -24,6 +24,7 @@ members = [
     "crates/search_core",
     "crates/eval_nnue",
     "crates/selfplay",
+    "crates/trainer_bridge",
     "crates/wasm_api",
     "crates/native_api",
     "crates/mcp_server",
@@ -81,6 +82,7 @@ wh40k_transposition = { path = "crates/transposition" }
 wh40k_search_core = { path = "crates/search_core" }
 wh40k_eval_nnue = { path = "crates/eval_nnue" }
 wh40k_selfplay = { path = "crates/selfplay" }
+wh40k_trainer_bridge = { path = "crates/trainer_bridge" }
 wh40k_wasm_api = { path = "crates/wasm_api" }
 wh40k_native_api = { path = "crates/native_api" }
 wh40k_mcp_server = { path = "crates/mcp_server" }

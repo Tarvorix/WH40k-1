@@ -8,3 +8,5 @@ authors.workspace = true
 wh40k_core_types = { workspace = true }
 wh40k_game_core = { workspace = true }
 wh40k_eval_heuristic = { workspace = true }
+wh40k_search_abstraction = { workspace = true }
+wh40k_eval_features = { workspace = true }

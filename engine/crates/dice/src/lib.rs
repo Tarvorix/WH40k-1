@@ -25,6 +25,22 @@ use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 use wh40k_core_types::DiceRollId;
 
+/// Create a SmallRng from a 32-byte seed in a platform-aware manner.
+/// On wasm32, SmallRng uses Xoshiro128++ which needs a 16-byte seed,
+/// so we truncate. On other platforms, SmallRng uses Xoshiro256++ (32 bytes).
+fn small_rng_from_seed_32(seed: [u8; 32]) -> SmallRng {
+    #[cfg(target_pointer_width = "32")]
+    {
+        let mut small_seed = [0u8; 16];
+        small_seed.copy_from_slice(&seed[..16]);
+        SmallRng::from_seed(small_seed)
+    }
+    #[cfg(not(target_pointer_width = "32"))]
+    {
+        SmallRng::from_seed(seed)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // SeedBundle
 // ---------------------------------------------------------------------------
@@ -333,7 +349,7 @@ impl DiceContext {
         state_fingerprint: u64,
         action_id: u32,
     ) -> Self {
-        let rng = SmallRng::from_seed(seed);
+        let rng = small_rng_from_seed_32(seed);
         Self {
             seed,
             stream_kind,
@@ -371,7 +387,7 @@ impl DiceContext {
     /// Ensure the RNG is initialized (needed after deserialization).
     fn ensure_rng(&mut self) {
         if self.rng.is_none() {
-            self.rng = Some(SmallRng::from_seed(self.seed));
+            self.rng = Some(small_rng_from_seed_32(self.seed));
             // Fast-forward through the number of resolutions already consumed
             // to restore the correct RNG state.
             let rng = self.rng.as_mut().unwrap();

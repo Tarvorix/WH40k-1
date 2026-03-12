@@ -6,9 +6,18 @@ authors.workspace = true
 
 [dependencies]
 serde = { workspace = true }
+serde_json = { workspace = true }
 bincode = { workspace = true }
+rand = { workspace = true }
+
 wh40k_core_types = { workspace = true }
 wh40k_game_core = { workspace = true }
 wh40k_search_core = { workspace = true }
 wh40k_replay = { workspace = true }
 wh40k_dice = { workspace = true }
+wh40k_eval_features = { workspace = true }
+wh40k_eval_heuristic = { workspace = true }
+wh40k_eval_nnue = { workspace = true }
+wh40k_search_abstraction = { workspace = true }
+wh40k_command_system = { workspace = true }
+wh40k_event_system = { workspace = true }
