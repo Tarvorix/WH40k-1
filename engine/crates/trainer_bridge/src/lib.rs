@@ -582,6 +582,7 @@ struct PyNnueWeights {
 impl PyNnueWeights {
     /// Create new weights with specified values.
     #[new]
+    #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (
         feature_weights,
         feature_biases,
@@ -674,7 +675,7 @@ impl PyNnueWeights {
             model_id: model_id.to_string(),
             generation,
             schema_version: FEATURE_SCHEMA_VERSION,
-            dimensions: dims.clone(),
+            dimensions: dims,
             description: description.to_string(),
             parent_model_id: None,
             training_positions: 0,
@@ -916,6 +917,7 @@ impl PyModelLineage {
     }
 
     /// Add a new lineage entry.
+    #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (
         model_id,
         generation,

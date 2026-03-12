@@ -177,7 +177,7 @@ impl TranspositionTable {
     ///
     /// # Arguments
     /// * `size` - Desired number of entries (will be rounded up to power of 2).
-    ///            Minimum size is 1024.
+    ///   Minimum size is 1024.
     pub fn new(size: usize) -> Self {
         let actual_size = size.max(1024).next_power_of_two();
         Self {

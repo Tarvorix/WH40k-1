@@ -639,7 +639,7 @@ fn extract_global_features(
         battle_round: round_num,
         phase: phase_to_u8(state.current_phase),
         vp_differential: own_player.vp.value() - enemy_player.vp.value(),
-        cp_differential: (own_player.cp.value() - enemy_player.cp.value()) as i8,
+        cp_differential: (own_player.cp.value() - enemy_player.cp.value()),
         own_models_remaining,
         enemy_models_remaining,
         own_model_ratio,

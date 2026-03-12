@@ -462,6 +462,12 @@ impl GreedyAi {
     }
 }
 
+impl Default for GreedyAi {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AiWorker for GreedyAi {
     fn choose_action(
         &mut self,
@@ -559,6 +565,12 @@ impl OnePlySearch {
             evaluator: HeuristicEvaluator::new(weights),
             config: SearchConfig::one_ply(),
         }
+    }
+}
+
+impl Default for OnePlySearch {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -899,29 +911,27 @@ impl NegamaxSearch {
 
             // Determine who decides next in the child state
             let child_perspective = child_state.decision_owner;
-            let score;
-
-            if child_perspective == perspective {
+            let score = if child_perspective == perspective {
                 // Same player continues (e.g., multiple decisions in a phase)
-                score = self.negamax(
+                self.negamax(
                     &child_state,
                     depth - 1,
                     alpha,
                     beta,
                     perspective,
                     ply + 1,
-                );
+                )
             } else {
                 // Opponent's turn - negate the score
-                score = -self.negamax(
+                -self.negamax(
                     &child_state,
                     depth - 1,
                     -beta,
                     -alpha,
                     child_perspective,
                     ply + 1,
-                );
-            }
+                )
+            };
 
             if score > best_score {
                 best_score = score;
@@ -975,6 +985,12 @@ impl NegamaxSearch {
         }
 
         best_score
+    }
+}
+
+impl Default for NegamaxSearch {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -1807,27 +1823,25 @@ impl IterativeDeepeningSearch {
 
             // Determine perspective for child
             let child_perspective = child_state.decision_owner;
-            let score;
-
-            if child_perspective == perspective {
-                score = self.quiescence(
+            let score = if child_perspective == perspective {
+                self.quiescence(
                     &child_state,
                     alpha,
                     beta,
                     perspective,
                     ply + 1,
                     qs_depth + 1,
-                );
+                )
             } else {
-                score = -self.quiescence(
+                -self.quiescence(
                     &child_state,
                     -beta,
                     -alpha,
                     child_perspective,
                     ply + 1,
                     qs_depth + 1,
-                );
-            }
+                )
+            };
 
             if score > alpha {
                 alpha = score;
@@ -1858,6 +1872,7 @@ impl IterativeDeepeningSearch {
     /// - Checks time management for early termination
     ///
     /// Source: implementation_v3.md Section 11.6
+    #[allow(clippy::too_many_arguments)]
     fn negamax_pv(
         &mut self,
         state: &GameState,
@@ -2039,12 +2054,11 @@ impl IterativeDeepeningSearch {
 
             // Determine who decides next in the child state
             let child_perspective = child_state.decision_owner;
-            let score;
 
             child_pv.clear();
 
-            if child_perspective == perspective {
-                score = self.negamax_pv(
+            let score = if child_perspective == perspective {
+                self.negamax_pv(
                     &child_state,
                     child_depth,
                     alpha,
@@ -2053,9 +2067,9 @@ impl IterativeDeepeningSearch {
                     ply + 1,
                     child_extensions,
                     &mut child_pv,
-                );
+                )
             } else {
-                score = -self.negamax_pv(
+                -self.negamax_pv(
                     &child_state,
                     child_depth,
                     -beta,
@@ -2064,8 +2078,8 @@ impl IterativeDeepeningSearch {
                     ply + 1,
                     child_extensions,
                     &mut child_pv,
-                );
-            }
+                )
+            };
 
             if score > best_score {
                 best_score = score;
@@ -2303,6 +2317,12 @@ impl IterativeDeepeningSearch {
     }
 }
 
+impl Default for IterativeDeepeningSearch {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AiWorker for IterativeDeepeningSearch {
     fn choose_action(
         &mut self,
@@ -2386,7 +2406,7 @@ impl AiWorker for IterativeDeepeningSearch {
             }
 
             // Record PV change detection
-            let pv_changed = if let Some(ref first_pv_move) = root_pv.moves.first() {
+            let pv_changed = if let Some(first_pv_move) = root_pv.moves.first() {
                 match previous_root_intent {
                     Some(prev_intent) => prev_intent != first_pv_move.intent,
                     None => true,
@@ -2905,7 +2925,7 @@ impl AiWorker for GreedyAiNnue {
             }
 
             let score = if applied {
-                self.evaluator.evaluate_position(&mut child_state, perspective)
+                self.evaluator.evaluate_position(&child_state, perspective)
             } else {
                 SCORE_LOSS + 1
             };

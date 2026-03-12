@@ -1437,11 +1437,7 @@ pub fn play_single_game(
     }
 
     // Finalize replay
-    let replay = if let Some(rec) = recorder {
-        Some(rec.finalize(&state))
-    } else {
-        None
-    };
+    let replay = recorder.map(|rec| rec.finalize(&state));
 
     let duration_ms = start_time.elapsed().as_millis() as u64;
 

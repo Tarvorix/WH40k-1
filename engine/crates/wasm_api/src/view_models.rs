@@ -350,28 +350,6 @@ pub struct ActionView {
 }
 
 // ---------------------------------------------------------------------------
-// Stratagems
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StratagemView {
-    /// Stratagem id.
-    pub id: u32,
-    /// Stratagem name.
-    pub name: String,
-    /// CP cost.
-    pub cp_cost: u8,
-    /// Phase when this stratagem can be used.
-    pub phase: String,
-    /// Description text.
-    pub description: String,
-    /// Whether the player can currently use this stratagem.
-    pub can_use: bool,
-    /// Reason it's blocked, if can_use is false.
-    pub reason: Option<String>,
-}
-
-// ---------------------------------------------------------------------------
 // AI result
 // ---------------------------------------------------------------------------
 

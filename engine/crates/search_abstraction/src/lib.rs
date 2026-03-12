@@ -1343,7 +1343,7 @@ fn classify_move_intent(
     }) {
         if let Some(enemy_pos) = enemy.reference_position() {
             let dist = distance(destination, enemy_pos).mils();
-            if dist <= 12_000 && dist >= 9_000 {
+            if (9_000..=12_000).contains(&dist) {
                 return TacticalIntent::StageCharge;
             }
         }

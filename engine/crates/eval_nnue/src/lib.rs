@@ -603,7 +603,7 @@ impl NnueModelArtifact {
         let dims = NnueDimensions::DEFAULT;
         let metadata = ModelMetadata::bootstrap(dims);
         let schema = NnueFeatureSchema::current();
-        let weights = QuantizedWeights::random_small(&dims, 0x40AAEE_B007);
+        let weights = QuantizedWeights::random_small(&dims, 0x40_AAEE_B007);
         Self::new(metadata, schema, weights)
     }
 }
@@ -687,9 +687,7 @@ impl NnueModel {
 
         // Step 1: Compute accumulator = bias + Σ(weight[i][j] * value[i])
         let mut accumulator = vec![0i32; dims.accumulator_size];
-        for j in 0..dims.accumulator_size {
-            accumulator[j] = self.weights.feature_biases[j];
-        }
+        accumulator.copy_from_slice(&self.weights.feature_biases[..dims.accumulator_size]);
         for feat in &sparse.features {
             let i = feat.index as usize;
             if i >= dims.input_size {
@@ -697,56 +695,55 @@ impl NnueModel {
             }
             let val = feat.value as i32;
             let weight_offset = i * dims.accumulator_size;
-            for j in 0..dims.accumulator_size {
-                accumulator[j] +=
-                    self.weights.feature_weights[weight_offset + j] as i32 * val;
+            for (acc_j, &w) in accumulator.iter_mut().zip(self.weights.feature_weights[weight_offset..weight_offset + dims.accumulator_size].iter()) {
+                *acc_j += w as i32 * val;
             }
         }
 
         // Apply scale and ClippedReLU to accumulator
         let clipped_acc: Vec<i32> = accumulator
             .iter()
-            .map(|&v| (v / FT_SCALE).max(0).min(QA))
+            .map(|&v| (v / FT_SCALE).clamp(0, QA))
             .collect();
 
         // Step 2: Hidden1 = bias + Σ(weight[j][k] * clipped_acc[j])
         let mut hidden1 = vec![0i32; dims.hidden1_size];
-        for k in 0..dims.hidden1_size {
-            hidden1[k] = self.weights.hidden1_biases[k];
-            for j in 0..dims.accumulator_size {
-                hidden1[k] +=
+        for (k, h1_k) in hidden1.iter_mut().enumerate() {
+            *h1_k = self.weights.hidden1_biases[k];
+            for (j, &ca_j) in clipped_acc.iter().enumerate() {
+                *h1_k +=
                     self.weights.hidden1_weights[j * dims.hidden1_size + k] as i32
-                        * clipped_acc[j];
+                        * ca_j;
             }
         }
 
         // Apply scale and ClippedReLU to hidden1
         let clipped_h1: Vec<i32> = hidden1
             .iter()
-            .map(|&v| (v / HIDDEN_SCALE).max(0).min(QA))
+            .map(|&v| (v / HIDDEN_SCALE).clamp(0, QA))
             .collect();
 
         // Step 3: Hidden2 = bias + Σ(weight[k][l] * clipped_h1[k])
         let mut hidden2 = vec![0i32; dims.hidden2_size];
-        for l in 0..dims.hidden2_size {
-            hidden2[l] = self.weights.hidden2_biases[l];
-            for k in 0..dims.hidden1_size {
-                hidden2[l] +=
+        for (l, h2_l) in hidden2.iter_mut().enumerate() {
+            *h2_l = self.weights.hidden2_biases[l];
+            for (k, &ch1_k) in clipped_h1.iter().enumerate() {
+                *h2_l +=
                     self.weights.hidden2_weights[k * dims.hidden2_size + l] as i32
-                        * clipped_h1[k];
+                        * ch1_k;
             }
         }
 
         // Apply scale and ClippedReLU to hidden2
         let clipped_h2: Vec<i32> = hidden2
             .iter()
-            .map(|&v| (v / HIDDEN_SCALE).max(0).min(QA))
+            .map(|&v| (v / HIDDEN_SCALE).clamp(0, QA))
             .collect();
 
         // Step 4: Output = bias + Σ(weight[l] * clipped_h2[l])
         let mut output = self.weights.output_bias;
-        for l in 0..dims.hidden2_size {
-            output += self.weights.output_weights[l] as i32 * clipped_h2[l];
+        for (&w, &ch2_l) in self.weights.output_weights[..dims.hidden2_size].iter().zip(clipped_h2.iter()) {
+            output += w as i32 * ch2_l;
         }
 
         // Step 5: Rescale to evaluation Score
@@ -763,43 +760,43 @@ impl NnueModel {
         let clipped_acc: Vec<i32> = accumulator
             .values
             .iter()
-            .map(|&v| (v / FT_SCALE).max(0).min(QA))
+            .map(|&v| (v / FT_SCALE).clamp(0, QA))
             .collect();
 
         // Hidden1
         let mut hidden1 = vec![0i32; dims.hidden1_size];
-        for k in 0..dims.hidden1_size {
-            hidden1[k] = self.weights.hidden1_biases[k];
-            for j in 0..dims.accumulator_size {
-                hidden1[k] +=
+        for (k, h1_k) in hidden1.iter_mut().enumerate() {
+            *h1_k = self.weights.hidden1_biases[k];
+            for (j, &ca_j) in clipped_acc.iter().enumerate() {
+                *h1_k +=
                     self.weights.hidden1_weights[j * dims.hidden1_size + k] as i32
-                        * clipped_acc[j];
+                        * ca_j;
             }
         }
         let clipped_h1: Vec<i32> = hidden1
             .iter()
-            .map(|&v| (v / HIDDEN_SCALE).max(0).min(QA))
+            .map(|&v| (v / HIDDEN_SCALE).clamp(0, QA))
             .collect();
 
         // Hidden2
         let mut hidden2 = vec![0i32; dims.hidden2_size];
-        for l in 0..dims.hidden2_size {
-            hidden2[l] = self.weights.hidden2_biases[l];
-            for k in 0..dims.hidden1_size {
-                hidden2[l] +=
+        for (l, h2_l) in hidden2.iter_mut().enumerate() {
+            *h2_l = self.weights.hidden2_biases[l];
+            for (k, &ch1_k) in clipped_h1.iter().enumerate() {
+                *h2_l +=
                     self.weights.hidden2_weights[k * dims.hidden2_size + l] as i32
-                        * clipped_h1[k];
+                        * ch1_k;
             }
         }
         let clipped_h2: Vec<i32> = hidden2
             .iter()
-            .map(|&v| (v / HIDDEN_SCALE).max(0).min(QA))
+            .map(|&v| (v / HIDDEN_SCALE).clamp(0, QA))
             .collect();
 
         // Output
         let mut output = self.weights.output_bias;
-        for l in 0..dims.hidden2_size {
-            output += self.weights.output_weights[l] as i32 * clipped_h2[l];
+        for (&w, &ch2_l) in self.weights.output_weights[..dims.hidden2_size].iter().zip(clipped_h2.iter()) {
+            output += w as i32 * ch2_l;
         }
 
         output * OUTPUT_SCALE / QA.max(1)
@@ -811,9 +808,7 @@ impl NnueModel {
         let mut acc = NnueAccumulator::new(dims.accumulator_size);
 
         // Initialize with biases
-        for j in 0..dims.accumulator_size {
-            acc.values[j] = self.weights.feature_biases[j];
-        }
+        acc.values[..dims.accumulator_size].copy_from_slice(&self.weights.feature_biases[..dims.accumulator_size]);
 
         // Add feature contributions
         for feat in &sparse.features {
@@ -823,9 +818,8 @@ impl NnueModel {
             }
             let val = feat.value as i32;
             let weight_offset = i * dims.accumulator_size;
-            for j in 0..dims.accumulator_size {
-                acc.values[j] +=
-                    self.weights.feature_weights[weight_offset + j] as i32 * val;
+            for (acc_j, &w) in acc.values[..dims.accumulator_size].iter_mut().zip(self.weights.feature_weights[weight_offset..weight_offset + dims.accumulator_size].iter()) {
+                *acc_j += w as i32 * val;
             }
         }
 
@@ -850,9 +844,8 @@ impl NnueModel {
             }
             let val = feat.value as i32;
             let weight_offset = i * dims.accumulator_size;
-            for j in 0..dims.accumulator_size {
-                acc.values[j] -=
-                    self.weights.feature_weights[weight_offset + j] as i32 * val;
+            for (acc_j, &w) in acc.values[..dims.accumulator_size].iter_mut().zip(self.weights.feature_weights[weight_offset..weight_offset + dims.accumulator_size].iter()) {
+                *acc_j -= w as i32 * val;
             }
         }
 
@@ -864,9 +857,8 @@ impl NnueModel {
             }
             let val = feat.value as i32;
             let weight_offset = i * dims.accumulator_size;
-            for j in 0..dims.accumulator_size {
-                acc.values[j] +=
-                    self.weights.feature_weights[weight_offset + j] as i32 * val;
+            for (acc_j, &w) in acc.values[..dims.accumulator_size].iter_mut().zip(self.weights.feature_weights[weight_offset..weight_offset + dims.accumulator_size].iter()) {
+                *acc_j += w as i32 * val;
             }
         }
 
@@ -878,9 +870,8 @@ impl NnueModel {
             }
             let delta = new_feat.value as i32 - old_feat.value as i32;
             let weight_offset = i * dims.accumulator_size;
-            for j in 0..dims.accumulator_size {
-                acc.values[j] +=
-                    self.weights.feature_weights[weight_offset + j] as i32 * delta;
+            for (acc_j, &w) in acc.values[..dims.accumulator_size].iter_mut().zip(self.weights.feature_weights[weight_offset..weight_offset + dims.accumulator_size].iter()) {
+                *acc_j += w as i32 * delta;
             }
         }
     }
@@ -1081,15 +1072,15 @@ impl Evaluator for NnueEvaluator {
 ///
 /// Usage in search:
 /// ```ignore
-/// let evaluator = AnyEvaluator::Nnue(NnueEvaluator::bootstrap());
+/// let evaluator = AnyEvaluator::Nnue(Box::new(NnueEvaluator::bootstrap()));
 /// // or
 /// let evaluator = AnyEvaluator::Heuristic(HeuristicEvaluator::with_defaults());
 /// ```
 pub enum AnyEvaluator {
     /// Traditional heuristic evaluator with weighted scoring terms.
     Heuristic(HeuristicEvaluator),
-    /// NNUE neural network evaluator.
-    Nnue(NnueEvaluator),
+    /// NNUE neural network evaluator (boxed to reduce enum size difference between variants).
+    Nnue(Box<NnueEvaluator>),
 }
 
 impl AnyEvaluator {
@@ -1100,12 +1091,12 @@ impl AnyEvaluator {
 
     /// Create a bootstrap NNUE evaluator.
     pub fn nnue_bootstrap() -> Self {
-        AnyEvaluator::Nnue(NnueEvaluator::bootstrap())
+        AnyEvaluator::Nnue(Box::new(NnueEvaluator::bootstrap()))
     }
 
     /// Create an NNUE evaluator from a model artifact.
     pub fn nnue_from_artifact(artifact: &NnueModelArtifact) -> Result<Self, NnueError> {
-        Ok(AnyEvaluator::Nnue(NnueEvaluator::from_artifact(artifact)?))
+        Ok(AnyEvaluator::Nnue(Box::new(NnueEvaluator::from_artifact(artifact)?)))
     }
 
     /// Check if this is a heuristic evaluator.

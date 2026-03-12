@@ -31,24 +31,24 @@ use crate::view_models::*;
 
 thread_local! {
     /// The active game state. `None` when no game is loaded.
-    static GAME_STATE: RefCell<Option<GameState>> = RefCell::new(None);
+    static GAME_STATE: RefCell<Option<GameState>> = const { RefCell::new(None) };
 
     /// Replay recorder for the current game. Created alongside the game state.
-    static REPLAY_RECORDER: RefCell<Option<ReplayRecorder>> = RefCell::new(None);
+    static REPLAY_RECORDER: RefCell<Option<ReplayRecorder>> = const { RefCell::new(None) };
 
     /// Replay player for replay playback mode.
-    static REPLAY_PLAYER: RefCell<Option<ReplayPlayer>> = RefCell::new(None);
+    static REPLAY_PLAYER: RefCell<Option<ReplayPlayer>> = const { RefCell::new(None) };
 
     /// Cached macro-actions from the last call to `get_decision_surface`.
     /// Indexed by the `ActionView::index` returned to JavaScript.
-    static DECISION_CACHE: RefCell<Vec<MacroAction>> = RefCell::new(Vec::new());
+    static DECISION_CACHE: RefCell<Vec<MacroAction>> = const { RefCell::new(Vec::new()) };
 
     /// The last AI search result, stored so `apply_ai_action` can execute it.
-    static AI_RESULT: RefCell<Option<SearchResult>> = RefCell::new(None);
+    static AI_RESULT: RefCell<Option<SearchResult>> = const { RefCell::new(None) };
 
     /// Cached reference to the ReplayFile when a replay is loaded.
     /// Kept separately because ReplayPlayer's replay field is private.
-    static REPLAY_FILE_CACHE: RefCell<Option<ReplayFile>> = RefCell::new(None);
+    static REPLAY_FILE_CACHE: RefCell<Option<ReplayFile>> = const { RefCell::new(None) };
 }
 
 // ===========================================================================
@@ -63,20 +63,6 @@ where
     GAME_STATE.with(|cell| {
         let borrow = cell.borrow();
         match borrow.as_ref() {
-            Some(state) => Ok(f(state)),
-            None => Err(WasmError::new("No game state loaded")),
-        }
-    })
-}
-
-/// Mutably access the game state or return an error.
-fn with_state_mut<F, T>(f: F) -> Result<T, WasmError>
-where
-    F: FnOnce(&mut GameState) -> T,
-{
-    GAME_STATE.with(|cell| {
-        let mut borrow = cell.borrow_mut();
-        match borrow.as_mut() {
             Some(state) => Ok(f(state)),
             None => Err(WasmError::new("No game state loaded")),
         }
@@ -517,7 +503,7 @@ pub fn replay_step_forward(count: u32) -> Result<String, JsValue> {
                 .as_ref()
                 .ok_or_else(|| WasmError::new("No replay file cached"))?;
             let view = replay_info_to_view(player, replay_file);
-            to_json(&view).map_err(|e| JsValue::from(WasmError::from(e)))
+            to_json(&view).map_err(JsValue::from)
         })
     }).map_err(|e: JsValue| e)
 }
@@ -560,7 +546,7 @@ pub fn replay_step_backward(count: u32) -> Result<String, JsValue> {
                 .as_ref()
                 .ok_or_else(|| WasmError::new("No replay file cached"))?;
             let view = replay_info_to_view(player, replay_file);
-            to_json(&view).map_err(|e| JsValue::from(WasmError::from(e)))
+            to_json(&view).map_err(JsValue::from)
         })
     }).map_err(|e: JsValue| e)
 }
@@ -587,7 +573,7 @@ pub fn replay_get_info() -> Result<String, JsValue> {
                 .as_ref()
                 .ok_or_else(|| WasmError::new("No replay file cached"))?;
             let view = replay_info_to_view(player, replay_file);
-            to_json(&view).map_err(|e| JsValue::from(WasmError::from(e)))
+            to_json(&view).map_err(JsValue::from)
         })
     }).map_err(|e: JsValue| e)
 }

@@ -180,33 +180,35 @@ impl HeuristicWeights {
     /// Create a weight set optimized for aggressive play.
     /// Emphasizes kill potential, charge threats, and offensive stratagems.
     pub fn aggressive() -> Self {
-        let mut w = Self::default();
-        w.kill_potential = 12;
-        w.charge_threat = 65;
-        w.survival_odds = 4;
-        w.retaliation_risk = -15;
-        w.objective_control = 100;
-        w
+        Self {
+            kill_potential: 12,
+            charge_threat: 65,
+            survival_odds: 4,
+            retaliation_risk: -15,
+            objective_control: 100,
+            ..Self::default()
+        }
     }
 
     /// Create a weight set optimized for defensive/objective play.
     /// Emphasizes objective holding, survival, and VP scoring.
     pub fn defensive() -> Self {
-        let mut w = Self::default();
-        w.objective_control = 150;
-        w.objective_holding_strength = 25;
-        w.survival_odds = 10;
-        w.kill_potential = 5;
-        w.charge_threat = 25;
-        w.retaliation_risk = -50;
-        w
+        Self {
+            objective_control: 150,
+            objective_holding_strength: 25,
+            survival_odds: 10,
+            kill_potential: 5,
+            charge_threat: 25,
+            retaliation_risk: -50,
+            ..Self::default()
+        }
     }
 
     /// Get the game-phase scaling factor for the current round.
     /// Returns a multiplier in thousandths (1000 = 1.0x).
     pub fn phase_scale(&self, battle_round: u8) -> i32 {
         match battle_round {
-            0 | 1 | 2 => self.early_game_scale,
+            0..=2 => self.early_game_scale,
             3 | 4 => self.mid_game_scale,
             _ => self.late_game_scale,
         }
