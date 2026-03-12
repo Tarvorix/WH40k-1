@@ -224,10 +224,7 @@ impl ReplayRecorder {
             seed_bundle,
             players,
             mission_id: state.scenario_id,
-            started_at: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            started_at: current_timestamp_secs(),
             ended_at: None,
             total_commands: 0,
             total_rounds: 0,
@@ -339,17 +336,27 @@ impl ReplayRecorder {
         self.frames.push(frame);
     }
 
+    /// Get a reference to the accumulated frames (non-consuming access for live inspection).
+    pub fn frames(&self) -> &[ReplayFrame] {
+        &self.frames
+    }
+
+    /// Get the total number of frames recorded so far.
+    pub fn frame_count(&self) -> usize {
+        self.frames.len()
+    }
+
+    /// Get a reference to the header metadata.
+    pub fn header(&self) -> &ReplayHeader {
+        &self.header
+    }
+
     /// Finalize the replay and produce a `ReplayFile`.
     ///
     /// Sets the end timestamp, final state hash, total command count,
     /// and extracts the outcome and scores from the final game state.
     pub fn finalize(mut self, state: &GameState) -> ReplayFile {
-        self.header.ended_at = Some(
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
-        );
+        self.header.ended_at = Some(current_timestamp_secs());
         self.header.total_commands = self.frames.len();
         self.header.total_rounds = state.battle_round.number();
         self.header.final_state_hash = Some(compute_state_hash(state));
@@ -1164,6 +1171,22 @@ impl ReplayDiff {
 ///
 /// This uses a simple hash of the serialized state. Once `game_core::hasher`
 /// is fully implemented, this can delegate to `state.compute_hash()`.
+/// Get the current Unix timestamp in seconds, compatible with both native and WASM targets.
+fn current_timestamp_secs() -> u64 {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        // js_sys::Date::now() returns milliseconds as f64
+        (js_sys::Date::now() / 1000.0) as u64
+    }
+}
+
 fn compute_state_hash(state: &GameState) -> u64 {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};

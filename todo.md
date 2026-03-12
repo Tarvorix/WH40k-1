@@ -1,7 +1,7 @@
 # WH40K Combat Patrol Engine - Implementation TODO
 
-**Status: Phase 9 GUI Productionization COMPLETE. Ready for Phase 10: MCP Server and AlphaGo Expansion.**
-**Total tests passing: 1180 | Workspace compiles clean | Web build succeeds | ~58 web files created**
+**Status: Phase 10 MCP Server and AlphaGo Expansion COMPLETE.**
+**Total tests passing: 1261 | Workspace compiles clean | Web build succeeds | ~58 web files created**
 
 ---
 
@@ -479,22 +479,45 @@
 
 ---
 
-## Phase 10: MCP Server and AlphaGo Expansion
+## Phase 10: MCP Server and AlphaGo Expansion (COMPLETE)
 
 ### 10.1 MCP Server
-- [ ] mcp_server crate (10 MCP tools)
-- [ ] Observation model (public, private, debug)
-- [ ] Session management
-- [ ] MCP protocol compliance
-- [ ] Cross-surface state verification
+- [x] mcp_server crate (10 MCP tools: create_session, load_scenario, get_observation, list_legal_actions, apply_action, step_until_decision, get_replay_log, get_score, reset, end_session)
+- [x] Observation model (Public, Player(N), Debug view modes with GameObservation, PlayerObservation, UnitObservation, ModelObservation, etc.)
+- [x] Session management (SessionManager with create/get/end, SessionConfig, cached action generation)
+- [x] MCP protocol compliance (JSON-RPC 2.0 over stdio, Content-Length framing, initialize/tools/list/tools/call)
+- [x] Cross-surface state verification (state hash in observations, replay frame verification)
+
+**Phase 10.1 Key Files:**
+- `mcp_server/src/protocol.rs` - JSON-RPC 2.0 types, MCP protocol types, 10 tool argument structs, tool definitions with JSON schemas, 11 tests
+- `mcp_server/src/error.rs` - McpError enum (14 variants), JSON-RPC/tool error conversion, 6 tests
+- `mcp_server/src/observation.rs` - ViewMode (Public/Player/Debug), GameObservation builder, 3 tests
+- `mcp_server/src/session.rs` - Session/SessionManager, scenario loading, action generation/execution, 11 tests
+- `mcp_server/src/tools.rs` - Tool dispatch, 10 handler implementations, AI stepping, 11 tests
+- `mcp_server/src/server.rs` - McpServer, stdio transport, message routing, 10 tests
+- `mcp_server/src/main.rs` - Binary entry point with tracing
 
 ### 10.2 Native CLI
-- [ ] CLI commands (play, benchmark, verify, selfplay)
-- [ ] Headless execution
+- [x] CLI commands (play, benchmark, verify, selfplay) with clap argument parsing
+- [x] Headless execution (AI vs AI games, performance benchmarks, replay verification, self-play data generation)
+
+**Phase 10.2 Key Files:**
+- `native_api/src/play.rs` - PlayConfig/PlayResult, run_play() game loop with AI search, replay export
+- `native_api/src/benchmark.rs` - BenchmarkConfig/BenchmarkResult, run_benchmark() with win/loss/VP statistics
+- `native_api/src/verify.rs` - VerifyConfig/VerifyResult, replay determinism verification
+- `native_api/src/selfplay_cmd.rs` - SelfPlayCmdConfig/Result, training data generation with ShardWriter
+- `native_api/src/main.rs` - Clap CLI with 4 subcommands
 
 ### 10.3 AlphaGo Expansion
-- [ ] Stabilize action vocabulary
-- [ ] Refine state tensor export
-- [ ] Policy/value training in Python
-- [ ] MCTS hybrid prototype
-- [ ] Policy-guided search experiments
+- [x] Stabilize action vocabulary (528 fixed vocab = 33 TacticalIntent × 16 unit slots, action_to_vocab_index, encode_legal_mask)
+- [x] Refine state tensor export (1203 sparse features, encode_state, encode_sparse_features for policy/value training)
+- [x] Policy/value training in Python (PolicyValueNet dual-head, PolicyValueLoss combined loss, quantization, JSON export)
+- [x] MCTS hybrid prototype (MctsSearch with PUCT selection, arena-based tree, Dirichlet noise, heuristic priors, AiWorker integration)
+- [x] Policy-guided search experiments (PolicyValueModel in Rust with quantized inference, MCTS training pipeline, AlphaGo-style generate→train→gate loop)
+
+**Phase 10.3 Key Files:**
+- `search_core/src/mcts.rs` - MctsConfig, MctsNode, MctsTree (arena), MctsSearch (PUCT/MCTS), AiWorker impl, Dirichlet noise, heuristic priors, 13 tests
+- `eval_nnue/src/lib.rs` - PolicyValueModel (quantized inference: 1203→128→64→528 policy + 64→1 value), masked_softmax, save/load JSON
+- `selfplay/src/lib.rs` - PolicyValueSample, PolicyValueShard, encode_policy_target, encode_uniform_policy_target
+- `python/train_nnue/policy_value_model.py` - PolicyValueNet (PyTorch), PolicyValueLoss, quantization, JSON export
+- `python/train_nnue/mcts_train.py` - Full AlphaGo training pipeline: PolicyValueShardDataset, train/validate epochs, LR scheduling, checkpointing, generate→train→gate pipeline, model inspection, CLI

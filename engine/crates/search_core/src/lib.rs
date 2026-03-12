@@ -2,13 +2,15 @@
 //!
 //! Root search engine and AI worker implementations.
 //! Provides multiple AI strength levels from simple greedy to
-//! deep negamax with alpha-beta pruning.
+//! deep negamax with alpha-beta pruning, plus MCTS for
+//! AlphaGo-style policy-guided search.
 //!
 //! # AI Implementations
 //!
 //! - [`GreedyAi`] - Picks the highest-evaluated move at depth 0 (fastest, weakest)
 //! - [`OnePlySearch`] - Evaluates all candidates at depth 1 (fast, moderate)
 //! - [`NegamaxSearch`] - Full negamax with alpha-beta pruning at depth 2-3 (slowest, strongest)
+//! - [`mcts::MctsSearch`] - Monte Carlo Tree Search with PUCT selection (AlphaGo-style)
 //!
 //! # Architecture
 //!
@@ -18,7 +20,9 @@
 //! - [`SearchResult`] - Result of a completed search
 //! - [`SearchStats`] - Statistics from the search process
 //!
-//! Source: implementation_v3.md Section 11 (Search Engine Design)
+//! Source: implementation_v3.md Section 11 (Search Engine Design), Phase 10
+
+pub mod mcts;
 
 use wh40k_core_types::{GameOutcome, Phase, PlayerId, SubPhase};
 use wh40k_command_system::Command;
@@ -2749,6 +2753,11 @@ pub enum AiLevel {
     IterativeDeepeningTimed(u64),
     /// Lazy SMP search (single-threaded for now, multi-thread ready).
     LazySmp,
+    /// MCTS: Monte Carlo Tree Search with PUCT selection.
+    /// Uses heuristic priors and value evaluation (AlphaGo-style).
+    Mcts,
+    /// MCTS with custom number of simulations.
+    MctsSimulations(u32),
 }
 
 impl SearchRoot {
@@ -2776,6 +2785,14 @@ impl SearchRoot {
             }
             AiLevel::LazySmp => {
                 Box::new(LazySmpSearch::new(SearchConfig::iterative_deepening(6)))
+            }
+            AiLevel::Mcts => {
+                Box::new(mcts::MctsSearch::new(mcts::MctsConfig::default_exploration()))
+            }
+            AiLevel::MctsSimulations(sims) => {
+                let mut config = mcts::MctsConfig::default_exploration();
+                config.num_simulations = sims;
+                Box::new(mcts::MctsSearch::new(config))
             }
         };
 
@@ -2993,6 +3010,28 @@ pub use wh40k_eval_nnue::{
     NnueModelArtifact as EvalNnueModelArtifact,
     ModelRegistry as EvalModelRegistry,
 };
+
+// ============================================================================
+// MCTS Integration
+// ============================================================================
+
+/// Run MCTS search with default exploration config (800 simulations).
+pub fn mcts_choose(state: &GameState, perspective: PlayerId) -> Option<SearchResult> {
+    mcts::mcts_choose(state, perspective)
+}
+
+/// Run fast MCTS search (100 simulations).
+pub fn mcts_choose_fast(state: &GameState, perspective: PlayerId) -> Option<SearchResult> {
+    mcts::mcts_choose_fast(state, perspective)
+}
+
+/// Run competition-strength MCTS (1600 simulations, low temperature).
+pub fn mcts_choose_competition(state: &GameState, perspective: PlayerId) -> Option<SearchResult> {
+    mcts::mcts_choose_competition(state, perspective)
+}
+
+/// Re-export MCTS types for convenient access.
+pub use mcts::{MctsSearch, MctsConfig};
 
 // ============================================================================
 // Tests

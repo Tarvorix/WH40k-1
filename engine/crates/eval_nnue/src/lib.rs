@@ -1438,6 +1438,300 @@ pub fn compare_evaluators(
 }
 
 // ============================================================================
+// Policy/Value Model (Dual-Head Network for AlphaGo-Style Training)
+// ============================================================================
+
+/// Action vocabulary size for the policy head (33 intents x 16 unit slots).
+pub const ACTION_VOCAB_SIZE: usize = 528;
+
+/// Dimensions for the policy/value dual-head network.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct PolicyValueDimensions {
+    /// Input feature size (same as NNUE: 1203).
+    pub input_size: usize,
+    /// Shared trunk hidden layer size.
+    pub trunk_size: usize,
+    /// Policy head hidden layer size.
+    pub policy_hidden_size: usize,
+    /// Policy head output size (ACTION_VOCAB_SIZE = 528).
+    pub policy_output_size: usize,
+    /// Value head hidden layer size.
+    pub value_hidden_size: usize,
+    /// Value head output size (1 scalar in [-1, 1]).
+    pub value_output_size: usize,
+}
+
+impl PolicyValueDimensions {
+    /// Default dimensions matching the Python training architecture.
+    pub const DEFAULT: PolicyValueDimensions = PolicyValueDimensions {
+        input_size: 1203,
+        trunk_size: 128,
+        policy_hidden_size: 64,
+        policy_output_size: ACTION_VOCAB_SIZE,
+        value_hidden_size: 64,
+        value_output_size: 1,
+    };
+
+    /// Total number of weights in the policy/value model.
+    pub fn total_weight_count(&self) -> usize {
+        // Trunk: input -> trunk
+        let trunk_weights = self.input_size * self.trunk_size + self.trunk_size;
+        // Policy head: trunk -> policy_hidden -> policy_output
+        let policy_weights = self.trunk_size * self.policy_hidden_size + self.policy_hidden_size
+            + self.policy_hidden_size * self.policy_output_size + self.policy_output_size;
+        // Value head: trunk -> value_hidden -> value_output
+        let value_weights = self.trunk_size * self.value_hidden_size + self.value_hidden_size
+            + self.value_hidden_size * self.value_output_size + self.value_output_size;
+        trunk_weights + policy_weights + value_weights
+    }
+}
+
+/// Quantized weights for the policy/value model.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PolicyValueWeights {
+    /// Trunk weights: input_size x trunk_size (i16 quantized).
+    pub trunk_weights: Vec<i16>,
+    /// Trunk biases: trunk_size (i32).
+    pub trunk_biases: Vec<i32>,
+    /// Policy hidden weights: trunk_size x policy_hidden_size (i8).
+    pub policy_hidden_weights: Vec<i8>,
+    /// Policy hidden biases: policy_hidden_size (i32).
+    pub policy_hidden_biases: Vec<i32>,
+    /// Policy output weights: policy_hidden_size x policy_output_size (i8).
+    pub policy_output_weights: Vec<i8>,
+    /// Policy output biases: policy_output_size (i32).
+    pub policy_output_biases: Vec<i32>,
+    /// Value hidden weights: trunk_size x value_hidden_size (i8).
+    pub value_hidden_weights: Vec<i8>,
+    /// Value hidden biases: value_hidden_size (i32).
+    pub value_hidden_biases: Vec<i32>,
+    /// Value output weights: value_hidden_size x 1 (i8).
+    pub value_output_weights: Vec<i8>,
+    /// Value output bias: 1 (i32).
+    pub value_output_bias: i32,
+}
+
+/// A policy/value model for AlphaGo-style MCTS.
+#[derive(Debug, Clone)]
+pub struct PolicyValueModel {
+    pub dims: PolicyValueDimensions,
+    pub weights: PolicyValueWeights,
+}
+
+impl PolicyValueModel {
+    /// Create a new model with random initialization (for bootstrap).
+    pub fn bootstrap() -> Self {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+
+        let dims = PolicyValueDimensions::DEFAULT;
+
+        let trunk_weights: Vec<i16> = (0..dims.input_size * dims.trunk_size)
+            .map(|_| rng.gen_range(-10..=10))
+            .collect();
+        let trunk_biases = vec![0i32; dims.trunk_size];
+
+        let policy_hidden_weights: Vec<i8> = (0..dims.trunk_size * dims.policy_hidden_size)
+            .map(|_| rng.gen_range(-5..=5))
+            .collect();
+        let policy_hidden_biases = vec![0i32; dims.policy_hidden_size];
+
+        let policy_output_weights: Vec<i8> = (0..dims.policy_hidden_size * dims.policy_output_size)
+            .map(|_| rng.gen_range(-5..=5))
+            .collect();
+        let policy_output_biases = vec![0i32; dims.policy_output_size];
+
+        let value_hidden_weights: Vec<i8> = (0..dims.trunk_size * dims.value_hidden_size)
+            .map(|_| rng.gen_range(-5..=5))
+            .collect();
+        let value_hidden_biases = vec![0i32; dims.value_hidden_size];
+
+        let value_output_weights: Vec<i8> = (0..dims.value_hidden_size)
+            .map(|_| rng.gen_range(-5..=5))
+            .collect();
+
+        Self {
+            dims,
+            weights: PolicyValueWeights {
+                trunk_weights,
+                trunk_biases,
+                policy_hidden_weights,
+                policy_hidden_biases,
+                policy_output_weights,
+                policy_output_biases,
+                value_hidden_weights,
+                value_hidden_biases,
+                value_output_weights,
+                value_output_bias: 0,
+            },
+        }
+    }
+
+    /// Run inference: given sparse features, return (policy_logits, value).
+    /// Policy logits are raw (pre-softmax) scores over ACTION_VOCAB_SIZE.
+    /// Value is in [-1, 1] (tanh activation).
+    pub fn infer(&self, sparse_features: &[(u16, i16)]) -> (Vec<f32>, f32) {
+        let dims = &self.dims;
+        let w = &self.weights;
+
+        // 1. Compute trunk activations (sparse input -> trunk)
+        let mut trunk = vec![0i32; dims.trunk_size];
+        for &(idx, val) in sparse_features {
+            if (idx as usize) < dims.input_size {
+                let base = idx as usize * dims.trunk_size;
+                for j in 0..dims.trunk_size {
+                    trunk[j] += w.trunk_weights[base + j] as i32 * val as i32;
+                }
+            }
+        }
+        // Add biases and apply ClippedReLU
+        for j in 0..dims.trunk_size {
+            trunk[j] = (trunk[j] / FT_SCALE + w.trunk_biases[j]).max(0).min(QA);
+        }
+
+        // 2. Policy head
+        // trunk -> policy_hidden (ClippedReLU)
+        let mut policy_hidden = vec![0i32; dims.policy_hidden_size];
+        for j in 0..dims.policy_hidden_size {
+            let mut sum = 0i32;
+            for k in 0..dims.trunk_size {
+                sum += trunk[k] * w.policy_hidden_weights[k * dims.policy_hidden_size + j] as i32;
+            }
+            policy_hidden[j] = (sum / HIDDEN_SCALE + w.policy_hidden_biases[j]).max(0).min(QA);
+        }
+
+        // policy_hidden -> policy_output (raw logits, no activation)
+        let mut policy_logits = vec![0f32; dims.policy_output_size];
+        for j in 0..dims.policy_output_size {
+            let mut sum = 0i32;
+            for k in 0..dims.policy_hidden_size {
+                sum += policy_hidden[k] * w.policy_output_weights[k * dims.policy_output_size + j] as i32;
+            }
+            policy_logits[j] = (sum as f32 / (HIDDEN_SCALE as f32 * QA as f32))
+                + w.policy_output_biases[j] as f32 / 1000.0;
+        }
+
+        // 3. Value head
+        // trunk -> value_hidden (ClippedReLU)
+        let mut value_hidden = vec![0i32; dims.value_hidden_size];
+        for j in 0..dims.value_hidden_size {
+            let mut sum = 0i32;
+            for k in 0..dims.trunk_size {
+                sum += trunk[k] * w.value_hidden_weights[k * dims.value_hidden_size + j] as i32;
+            }
+            value_hidden[j] = (sum / HIDDEN_SCALE + w.value_hidden_biases[j]).max(0).min(QA);
+        }
+
+        // value_hidden -> scalar (tanh activation)
+        let mut value_sum = 0i32;
+        for k in 0..dims.value_hidden_size {
+            value_sum += value_hidden[k] * w.value_output_weights[k] as i32;
+        }
+        let value_raw = value_sum as f32 / (HIDDEN_SCALE as f32 * QA as f32)
+            + w.value_output_bias as f32 / 1000.0;
+        let value = value_raw.tanh();
+
+        (policy_logits, value)
+    }
+
+    /// Get policy probabilities (softmax of logits) masked by legal actions.
+    pub fn policy_probs(&self, sparse_features: &[(u16, i16)], legal_mask: &[bool]) -> Vec<f32> {
+        let (logits, _) = self.infer(sparse_features);
+        masked_softmax(&logits, legal_mask)
+    }
+
+    /// Get value estimate from the model.
+    pub fn value(&self, sparse_features: &[(u16, i16)]) -> f32 {
+        let (_, value) = self.infer(sparse_features);
+        value
+    }
+
+    /// Save model to a file.
+    pub fn save(&self, path: &Path) -> Result<(), NnueError> {
+        let data = serde_json::to_string_pretty(self)
+            .map_err(|e| NnueError::SerializationError(e.to_string()))?;
+        std::fs::write(path, data)
+            .map_err(NnueError::IoError)?;
+        Ok(())
+    }
+
+    /// Load model from a file.
+    pub fn load(path: &Path) -> Result<Self, NnueError> {
+        let data = std::fs::read_to_string(path)
+            .map_err(NnueError::IoError)?;
+        let model: PolicyValueModel = serde_json::from_str(&data)
+            .map_err(|e| NnueError::SerializationError(e.to_string()))?;
+        Ok(model)
+    }
+}
+
+impl Serialize for PolicyValueModel {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("PolicyValueModel", 2)?;
+        state.serialize_field("dims", &self.dims)?;
+        state.serialize_field("weights", &self.weights)?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for PolicyValueModel {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct PolicyValueModelData {
+            dims: PolicyValueDimensions,
+            weights: PolicyValueWeights,
+        }
+        let data = PolicyValueModelData::deserialize(deserializer)?;
+        Ok(PolicyValueModel {
+            dims: data.dims,
+            weights: data.weights,
+        })
+    }
+}
+
+/// Compute softmax over logits, masking out illegal actions.
+fn masked_softmax(logits: &[f32], legal_mask: &[bool]) -> Vec<f32> {
+    assert_eq!(logits.len(), legal_mask.len());
+
+    let max_logit = logits.iter()
+        .zip(legal_mask.iter())
+        .filter(|(_, &legal)| legal)
+        .map(|(&l, _)| l)
+        .fold(f32::NEG_INFINITY, f32::max);
+
+    if max_logit == f32::NEG_INFINITY {
+        // No legal actions - return uniform over all
+        let n = logits.len() as f32;
+        return vec![1.0 / n; logits.len()];
+    }
+
+    let mut probs: Vec<f32> = logits.iter()
+        .zip(legal_mask.iter())
+        .map(|(&l, &legal)| {
+            if legal {
+                (l - max_logit).exp()
+            } else {
+                0.0
+            }
+        })
+        .collect();
+
+    let sum: f32 = probs.iter().sum();
+    if sum > 0.0 {
+        probs.iter_mut().for_each(|p| *p /= sum);
+    }
+
+    probs
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -2217,5 +2511,95 @@ mod tests {
             "Full ({}) vs incremental ({}) scores must match",
             full_score, inc_score
         );
+    }
+
+    // ========================================================================
+    // PolicyValueModel tests (Phase 10)
+    // ========================================================================
+
+    #[test]
+    fn test_policy_value_dimensions() {
+        let dims = PolicyValueDimensions::DEFAULT;
+        assert_eq!(dims.input_size, 1203);
+        assert_eq!(dims.trunk_size, 128);
+        assert_eq!(dims.policy_output_size, ACTION_VOCAB_SIZE);
+        assert_eq!(dims.value_output_size, 1);
+        assert!(dims.total_weight_count() > 0);
+    }
+
+    #[test]
+    fn test_policy_value_model_bootstrap() {
+        let model = PolicyValueModel::bootstrap();
+        assert_eq!(model.dims.input_size, 1203);
+        assert_eq!(model.dims.policy_output_size, 528);
+        assert_eq!(model.weights.trunk_weights.len(), 1203 * 128);
+        assert_eq!(model.weights.policy_output_weights.len(), 64 * 528);
+        assert_eq!(model.weights.value_output_weights.len(), 64);
+    }
+
+    #[test]
+    fn test_policy_value_inference() {
+        let model = PolicyValueModel::bootstrap();
+
+        // Create some sparse features
+        let features = vec![
+            (0u16, 100i16),
+            (10, 50),
+            (100, 75),
+            (500, 30),
+        ];
+
+        let (logits, value) = model.infer(&features);
+        assert_eq!(logits.len(), ACTION_VOCAB_SIZE);
+        assert!(value >= -1.0 && value <= 1.0, "Value {} should be in [-1,1]", value);
+    }
+
+    #[test]
+    fn test_policy_value_empty_features() {
+        let model = PolicyValueModel::bootstrap();
+        let features: Vec<(u16, i16)> = Vec::new();
+
+        let (logits, value) = model.infer(&features);
+        assert_eq!(logits.len(), ACTION_VOCAB_SIZE);
+        assert!(value >= -1.0 && value <= 1.0);
+    }
+
+    #[test]
+    fn test_masked_softmax_basic() {
+        let logits = vec![1.0, 2.0, 3.0, 4.0];
+        let mask = vec![true, true, true, true];
+        let probs = masked_softmax(&logits, &mask);
+        assert_eq!(probs.len(), 4);
+        let sum: f32 = probs.iter().sum();
+        assert!((sum - 1.0).abs() < 0.01);
+        assert!(probs[3] > probs[2]);
+    }
+
+    #[test]
+    fn test_masked_softmax_with_illegal() {
+        let logits = vec![1.0, 100.0, 3.0, 4.0];
+        let mask = vec![true, false, true, true];
+        let probs = masked_softmax(&logits, &mask);
+        assert!((probs[1]).abs() < 0.001, "Illegal action should have ~0 probability");
+        let legal_sum: f32 = probs.iter().zip(mask.iter()).filter(|(_, &l)| l).map(|(p, _)| p).sum();
+        assert!((legal_sum - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_policy_probs() {
+        let model = PolicyValueModel::bootstrap();
+        let features = vec![(0u16, 100i16), (10, 50)];
+        let mut legal_mask = vec![false; ACTION_VOCAB_SIZE];
+        legal_mask[0] = true;
+        legal_mask[5] = true;
+        legal_mask[10] = true;
+
+        let probs = model.policy_probs(&features, &legal_mask);
+        assert_eq!(probs.len(), ACTION_VOCAB_SIZE);
+        let sum: f32 = probs.iter().sum();
+        assert!((sum - 1.0).abs() < 0.01);
+        // Illegal actions should have 0 probability
+        assert_eq!(probs[1], 0.0);
+        assert_eq!(probs[2], 0.0);
     }
 }

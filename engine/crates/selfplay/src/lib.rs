@@ -2559,6 +2559,136 @@ impl GatingHarness {
 }
 
 // ============================================================================
+// Policy Target Encoding (Phase 10: AlphaGo Expansion)
+// ============================================================================
+
+/// A training sample for policy/value training (dual-head network).
+/// Extends TrainingSample with policy target from MCTS visit distribution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PolicyValueSample {
+    /// Sparse features for the position (same as TrainingSample).
+    pub sparse_features: Vec<(u16, i16)>,
+    /// Legal action mask over ACTION_VOCAB_SIZE (528).
+    pub legal_mask: LegalMask,
+    /// Policy target: probability distribution over ACTION_VOCAB_SIZE.
+    /// From MCTS visit counts (normalized). Zero for illegal actions.
+    pub policy_target: Vec<f32>,
+    /// Value target: game outcome from this position's perspective.
+    /// +1.0 = win, -1.0 = loss, 0.0 = draw.
+    pub value_target: f32,
+    /// Which player's perspective this sample is from.
+    pub perspective: u32,
+    /// Game progress (0.0 = start, 1.0 = end).
+    pub progress: f32,
+    /// Optional search score at this position.
+    pub search_score: Option<i32>,
+}
+
+/// Encode a policy target from MCTS visit distribution over candidates.
+/// Maps candidate-level visit proportions to the fixed 528-action vocabulary.
+pub fn encode_policy_target(
+    visit_distribution: &[(usize, f32)],
+    candidates: &[wh40k_search_abstraction::MacroAction],
+    state: &GameState,
+    perspective: PlayerId,
+) -> Vec<f32> {
+    let mut policy = vec![0.0f32; ACTION_VOCAB_SIZE];
+
+    for &(candidate_idx, visit_prob) in visit_distribution {
+        if candidate_idx >= candidates.len() {
+            continue;
+        }
+        let action = &candidates[candidate_idx];
+        let vocab_idx = action_to_vocab_index(action, state, perspective);
+        if (vocab_idx as usize) < ACTION_VOCAB_SIZE {
+            policy[vocab_idx as usize] += visit_prob;
+        }
+    }
+
+    // Ensure it sums to 1.0
+    let sum: f32 = policy.iter().sum();
+    if sum > 0.0 {
+        policy.iter_mut().for_each(|p| *p /= sum);
+    }
+
+    policy
+}
+
+/// Encode a uniform policy target over legal actions (for initial training).
+pub fn encode_uniform_policy_target(
+    candidates: &[wh40k_search_abstraction::MacroAction],
+    state: &GameState,
+    perspective: PlayerId,
+) -> Vec<f32> {
+    let n = candidates.len();
+    if n == 0 {
+        return vec![0.0f32; ACTION_VOCAB_SIZE];
+    }
+
+    let uniform_prob = 1.0 / n as f32;
+    let distribution: Vec<(usize, f32)> = (0..n).map(|i| (i, uniform_prob)).collect();
+    encode_policy_target(&distribution, candidates, state, perspective)
+}
+
+/// Schema version for the policy/value training data format.
+pub const POLICY_VALUE_FORMAT_VERSION: u32 = 1;
+
+/// Shard for policy/value training samples.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PolicyValueShard {
+    pub format_version: u32,
+    pub engine_version: String,
+    pub samples: Vec<PolicyValueSample>,
+}
+
+impl PolicyValueShard {
+    /// Create a new shard.
+    pub fn new(samples: Vec<PolicyValueSample>) -> Self {
+        Self {
+            format_version: POLICY_VALUE_FORMAT_VERSION,
+            engine_version: ENGINE_VERSION.to_string(),
+            samples,
+        }
+    }
+
+    /// Save shard to file as JSON.
+    pub fn save_json(&self, path: &std::path::Path) -> Result<(), SelfPlayError> {
+        let json = serde_json::to_string(self)
+            .map_err(|e| SelfPlayError::SerializationError(e.to_string()))?;
+        std::fs::write(path, json)
+            .map_err(SelfPlayError::IoError)?;
+        Ok(())
+    }
+
+    /// Save shard to file as bincode.
+    pub fn save_bincode(&self, path: &std::path::Path) -> Result<(), SelfPlayError> {
+        let data = bincode::serialize(self)
+            .map_err(|e| SelfPlayError::SerializationError(e.to_string()))?;
+        std::fs::write(path, data)
+            .map_err(SelfPlayError::IoError)?;
+        Ok(())
+    }
+
+    /// Load shard from JSON file.
+    pub fn load_json(path: &std::path::Path) -> Result<Self, SelfPlayError> {
+        let data = std::fs::read_to_string(path)
+            .map_err(SelfPlayError::IoError)?;
+        let shard: Self = serde_json::from_str(&data)
+            .map_err(|e| SelfPlayError::SerializationError(e.to_string()))?;
+        Ok(shard)
+    }
+
+    /// Load shard from bincode file.
+    pub fn load_bincode(path: &std::path::Path) -> Result<Self, SelfPlayError> {
+        let data = std::fs::read(path)
+            .map_err(SelfPlayError::IoError)?;
+        let shard: Self = bincode::deserialize(&data)
+            .map_err(|e| SelfPlayError::SerializationError(e.to_string()))?;
+        Ok(shard)
+    }
+}
+
+// ============================================================================
 // Convenience Functions
 // ============================================================================
 
