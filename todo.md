@@ -172,13 +172,16 @@
 - [x] Custodes secondaries: Raise the Vexillas (3VP both edge objectives, BR3+, max 9), Consecrated Ground (+3VP kill / -1VP model loss)
 
 ### 3.4 Mission Scoring Runtime
-- [x] Primary scoring framework (score_primary_objectives dispatches to mission-specific scorers)
-- [x] Mission 1 - Clash of Patrols (5VP per objective BR2-5)
-- [x] Mission 2 - Archeotech Recovery (5VP per objective + 10VP endgame center objective)
-- [x] Mission 3 - Forward Outpost (5VP per objective + 10VP enemy DZ objective bonus)
-- [x] Mission 4 - Scorched Earth (5VP per objective + 10VP raze mechanic)
-- [x] Mission 5 - Sweeping Raid (5VP per objective + 5VP per enemy territory endgame)
-- [x] Mission 6 - Display of Might (5VP per objective + 5VP CHARACTER claimed bonus)
+- [x] Primary scoring framework (score_primary_objectives dispatches to mission-specific scorers with ScoringTiming parameter)
+- [x] ScoringTiming enum (EndOfCommandPhase, EndOfTurn) for BR5 split timing across missions
+- [x] Mission 1 - Clash of Patrols: Take and Hold, 5VP/objective (max 15VP) BR2-5, BR5 split timing, Retrieve Intelligence rule (WARLORD + controlled objective = 1CP, each objective once)
+- [x] Mission 2 - Archeotech Recovery: Recover Archeotech, 5VP/objective (max 15VP) BR2-5, Irradiated Power Cells (NML objectives removed BR3-5), +10VP last NML objective
+- [x] Mission 3 - Forward Outpost: Vital Ground, 5VP/NML obj + 10VP enemy DZ obj (max 15VP), BR5 split timing, Sabotage Enemy Comms (block Command Re-roll)
+- [x] Mission 4 - Scorched Earth: Raze and Ruin threshold scoring (5VP control 1+ / 5VP control more / 10VP razed), BR5 split timing, raze validation (Attacker can't raze A, Defender can't raze B, no enemies within 3")
+- [x] Mission 5 - Sweeping Raid: Priority Targets, 5VP/objective (max 15VP) BR2-4 only, Supply Lines (4+ D6 = 1CP), end-of-battle bonus (Attacker 5VP C/10VP D, Defender 5VP B/10VP A)
+- [x] Mission 6 - Display of Might: Symbolic Sites, 5VP×4 scoring categories (max 20VP), BR5 split timing, Break Their Spirit (Insane Bravery within 6" WARLORD), Claim Sites (CHARACTER on NML objectives)
+- [x] create_mission() lookup by MissionId (1-6)
+- [x] All missions: EndOfCommandPhase scoring per CP_Rules.md, Round 5 second player at end of turn via ScoringTiming
 - [x] End-of-game scoring (calculate_end_of_game_score: mission bonuses + Battle Ready 10VP)
 - [x] Winner determination (determine_winner: VP comparison)
 
@@ -521,3 +524,72 @@
 - `selfplay/src/lib.rs` - PolicyValueSample, PolicyValueShard, encode_policy_target, encode_uniform_policy_target
 - `python/train_nnue/policy_value_model.py` - PolicyValueNet (PyTorch), PolicyValueLoss, quantization, JSON export
 - `python/train_nnue/mcts_train.py` - Full AlphaGo training pipeline: PolicyValueShardDataset, train/validate epochs, LR scheduling, checkpointing, generate→train→gate pipeline, model inspection, CLI
+
+---
+
+## Content Audit & Corrections (Post-Phase 10)
+
+### Fabricated Content Fix
+- [x] Removed 3 fabricated BlessingOfKhorne variants (WrathfulDevotion, WarpBlades, UnbridledBloodlust) — only 3 per Frenzied_Reavers.md
+- [x] Renamed RageFuelledInvaders → RageFuelledInvigoration per Frenzied_Reavers.md
+- [x] Removed 2 fabricated KaTahStance variants (Salvus, Kaptaris) — only Dacatarai + Rendax per Custodes.md
+- [x] Fixed blessing effects: RageFuelledInvigoration = pile-in/consolidation 6", TotalCarnage = fight on death 4+, MartialExcellence = Sustained Hits 1
+- [x] Fixed UI setupStore.ts: all enhancement names, secondary objectives, mission names/descriptions sourced from faction YAMLs and CP_Rules.md
+- [x] Fixed mission_runtime scoring timing: EndOfTurn → EndOfCommandPhase per CP_Rules.md
+- [x] Implemented all 6 missions in mission_runtime with correct rules, scoring, and special rules per CP_Rules.md Section 13
+- [x] All references updated across event_system, faction_runtime, game_core/executor.rs
+- [x] 29 mission_runtime tests passing, all engine tests passing
+
+### Core Rules Audit Fixes (40k_revised.md)
+- [x] CRITICAL: Fixed battle-shock pass/fail inversion in phase.rs — was `roll <= Ld` (wrong), now `roll >= Ld` per §4.2
+- [x] Added Benefit of Cover AP 0 restriction in combat.rs — Sv 3+ or better models don't get cover vs AP 0 per §13.1
+- [x] Fixed Hazardous damage in combat.rs — was 3 MW for CHARACTER/MONSTER/VEHICLE and 1 MW for others, now flat 3 MW for all per §11.13
+- [x] Added advance move distance validation in validator.rs — checks M + advance_roll per §5.4
+- [x] Added 4 new cover tests (AP 0 denied for Sv 3+, AP 0 allowed for Sv 4+, AP-1 allowed for Sv 3+, AP 0 denied for Sv 2+)
+- [x] Updated hazardous test to verify infantry also takes 3 MW
+- [x] All workspace tests passing (217 game_core tests, 1200+ total)
+
+### Scoring Logic Fixes (scoring.rs) — ALL 6 Missions Fully Implemented
+- [x] Added ScoringTiming enum (EndOfCommandPhase, EndOfTurn) for BR5 split timing
+- [x] Added players_to_score() helper for BR5 1st/2nd player timing logic
+- [x] Updated score_primary_objectives() to accept ScoringTiming parameter
+- [x] Added MissionProgress tracking fields: retrieved_intelligence_objectives, razed_this_turn, command_reroll_blocked, symbolic_site_claims
+
+**Mission 1 - Clash of Patrols (Take and Hold):**
+- [x] score_clash_of_patrols(): Rewritten with 5VP per objective, max 15VP cap, BR5 split timing
+- [x] evaluate_retrieve_intelligence(): New — from BR2, select controlled objective, gain 1CP if WARLORD on battlefield, each objective once only
+
+**Mission 2 - Archeotech Recovery (Recover Archeotech):**
+- [x] score_archeotech_recovery(): Added 15VP cap per CP_Rules.md
+- [x] score_archeotech_endgame(): Fixed to check remaining NML objectives (was incorrectly using center objective)
+
+**Mission 3 - Forward Outpost (Vital Ground):**
+- [x] score_forward_outpost(): CORRECTED formula — 5VP per NML objective + 10VP for enemy DZ objective (max 15VP). Was wrongly 5VP per any objective + 10VP bonus. Added BR5 split timing
+- [x] evaluate_sabotage_enemy_comms(): New — if controlling opponent's DZ objective at end of turn, blocks opponent's Command Re-roll until end of battle
+
+**Mission 4 - Scorched Earth (Raze and Ruin):**
+- [x] score_scorched_earth(): COMPLETELY REWRITTEN to threshold-based scoring per CP_Rules.md:
+  - 5VP if control 1+ objectives
+  - 5VP if control more objectives than opponent
+  - 10VP if razed an objective this turn
+  - Added BR5 split timing
+- [x] validate_raze_objective(): New — full raze validation: BR2+, 2+ objectives remain, must control, no enemies within 3", Attacker can't raze A, Defender can't raze B
+- [x] score_raze_objective(): Updated — now returns tracking event (0VP), 10VP incorporated into threshold scoring
+
+**Mission 5 - Sweeping Raid (Priority Targets):**
+- [x] score_sweeping_raid(): Fixed to BR 2-4 only (was BR 2-5), added max 15VP cap
+- [x] score_sweeping_raid_endgame(): Fixed to use specific objective labels — Attacker 5VP for C + 10VP for D, Defender 5VP for B + 10VP for A
+- [x] evaluate_supply_lines(): Added Command Phase mechanic — if controlling own DZ objective, roll D6, on 4+ gain 1CP
+- [x] Added is_objective_in_own_dz() helper function
+
+**Mission 6 - Display of Might (Symbolic Sites):**
+- [x] score_display_of_might(): Rewritten with 4 threshold-based categories (5VP each, max 20VP), added BR5 split timing:
+  - Category 1: Control 1+ objectives → 5VP
+  - Category 2: Control 2+ objectives → 5VP
+  - Category 3: 1+ symbolic sites (NML objectives) claimed by CHARACTER → 5VP
+  - Category 4: Same CHARACTER claimed same site for 2+ consecutive turns → 5VP
+- [x] record_display_of_might_claims(): Added claim recording function for tracking CHARACTER claims across rounds
+
+**Tests:**
+- [x] 46 scoring tests passing (25 new tests covering all 6 missions, VP caps, BR5 split timing, raze validation, sabotage comms)
+- [x] All workspace tests passing (1200+ total, 0 failures)

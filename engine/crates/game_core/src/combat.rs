@@ -774,7 +774,9 @@ fn determine_best_save(
     let mut modified_armor = armor_save.modified_by_ap(ap);
 
     // Benefit of Cover: +1 to armor save (improvement cap = save can't be better than base)
-    if has_cover && modified_armor.value() > 1 {
+    // 40k_revised.md §13.1: Models with Save 3+ or better do NOT get Benefit of Cover against AP 0
+    let cover_denied = ap == ArmorPenetration::ZERO && armor_save.value() <= 3;
+    if has_cover && !cover_denied && modified_armor.value() > 1 {
         modified_armor = ArmorSave(modified_armor.value().saturating_sub(1));
         // Cap: can't improve beyond the unmodified save
         if modified_armor.value() < armor_save.value() {
@@ -1162,10 +1164,9 @@ pub fn apply_mortal_wounds_carry_over(
 
 /// Resolve Hazardous tests after a unit has attacked with Hazardous weapons.
 ///
-/// Roll D6 per Hazardous weapon used. On a 1, the bearer suffers 3 mortal wounds
-/// (1 mortal wound if not CHARACTER/MONSTER/VEHICLE).
+/// Roll D6 per Hazardous weapon used. On a 1, the bearer suffers 3 mortal wounds.
 ///
-/// Source: 40k_revised.md - "HAZARDOUS"
+/// Source: 40k_revised.md §11.13 - "HAZARDOUS"
 pub fn resolve_hazardous_tests(
     models: &mut [ModelState],
     hazardous_count: u8,
@@ -1176,11 +1177,8 @@ pub fn resolve_hazardous_tests(
 ) -> Vec<ModelId> {
     let mut models_destroyed = Vec::new();
 
-    let is_heavy = attacker_keywords.has(Keyword::Character)
-        || attacker_keywords.has(Keyword::Monster)
-        || attacker_keywords.has(Keyword::Vehicle);
-
-    let mortal_damage = if is_heavy { 3 } else { 1 };
+    // 40k_revised.md §11.13: Unit suffers 3 mortal wounds on failed Hazardous test
+    let mortal_damage = 3;
 
     for _ in 0..hazardous_count {
         let (roll, _) = dice.roll_d6(RollPurpose::HazardousTest {
@@ -1567,15 +1565,59 @@ mod tests {
     }
 
     #[test]
-    fn test_determine_best_save_cover_cant_exceed_base() {
+    fn test_determine_best_save_cover_denied_ap0_sv3plus() {
+        // 40k_revised.md §13.1: Sv 3+ or better does NOT get cover against AP 0
         let (save, save_type) = determine_best_save(
             ArmorSave::THREE_PLUS,
             ArmorPenetration::ZERO,
             None,
             true,
         );
-        // 3+ with AP0 = 3+, cover would make 2+ but cap to base 3+
+        // 3+ with AP0 = 3+, cover is denied because Sv 3+ and AP 0
         assert_eq!(save, 3);
+        assert_eq!(save_type, SaveType::Armour);
+    }
+
+    #[test]
+    fn test_determine_best_save_cover_allowed_ap0_sv4plus() {
+        // 40k_revised.md §13.1: Sv 4+ or worse DOES get cover against AP 0
+        let (save, save_type) = determine_best_save(
+            ArmorSave::FOUR_PLUS,
+            ArmorPenetration::ZERO,
+            None,
+            true,
+        );
+        // 4+ with AP0 = 4+, cover gives +1 = 3+ (but capped to base 4+)
+        // Actually: 4+ with AP0 = 4+, cover -1 = 3+, but cap to base 4+ applies
+        assert_eq!(save, 4);
+        assert_eq!(save_type, SaveType::Armour);
+    }
+
+    #[test]
+    fn test_determine_best_save_cover_allowed_sv3plus_with_ap() {
+        // Sv 3+ WITH AP-1 still gets cover (restriction only applies to AP 0)
+        let (save, save_type) = determine_best_save(
+            ArmorSave::THREE_PLUS,
+            ArmorPenetration::MINUS_1,
+            None,
+            true,
+        );
+        // 3+ with AP-1 = 4+, cover gives +1 = 3+ (equals base, allowed)
+        assert_eq!(save, 3);
+        assert_eq!(save_type, SaveType::Armour);
+    }
+
+    #[test]
+    fn test_determine_best_save_cover_denied_sv2plus_ap0() {
+        // Sv 2+ also denied cover against AP 0
+        let (save, save_type) = determine_best_save(
+            ArmorSave::TWO_PLUS,
+            ArmorPenetration::ZERO,
+            None,
+            true,
+        );
+        // 2+ with AP0 = 2+, cover denied
+        assert_eq!(save, 2);
         assert_eq!(save_type, SaveType::Armour);
     }
 
@@ -1760,9 +1802,9 @@ mod tests {
     // === Hazardous tests ===
 
     #[test]
-    fn test_resolve_hazardous_basic() {
-        // Run many seeds to verify hazardous works both ways
-        for seed in 0..20u8 {
+    fn test_resolve_hazardous_infantry_takes_3_mortals() {
+        // 40k_revised.md §11.13: ALL models take 3 mortal wounds on hazardous failure
+        for seed in 0..50u8 {
             let mut dice = test_dice_with_seed(seed);
             let mut models = vec![make_defender_model(100, 3)];
             let mut events = Vec::new();
@@ -1776,15 +1818,24 @@ mod tests {
                 &mut events,
             );
 
-            // If roll was 1, model should take 1 mortal wound (Infantry, not CHARACTER/MONSTER/VEHICLE)
-            // Whether model survives depends on the roll
+            // Check for mortal wound events — if failed, should be 3 MW
+            let mw_events: Vec<_> = events.iter().filter(|e| {
+                matches!(e, GameEvent::MortalWoundsInflicted { .. })
+            }).collect();
+
+            if !mw_events.is_empty() {
+                if let GameEvent::MortalWoundsInflicted { wounds, .. } = mw_events[0] {
+                    assert_eq!(*wounds, 3);
+                }
+            }
+
             assert!(destroyed.len() <= 1);
         }
     }
 
     #[test]
     fn test_resolve_hazardous_character_takes_3_mortals() {
-        // CHARACTER/MONSTER/VEHICLE takes 3 mortal wounds on hazardous failure
+        // CHARACTER also takes 3 mortal wounds on hazardous failure
         for seed in 0..50u8 {
             let mut dice = test_dice_with_seed(seed);
             let mut models = vec![ModelState::new(

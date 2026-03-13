@@ -192,8 +192,8 @@ impl PhaseStateMachine {
             unit.base_leadership.value()
         };
 
-        // In 10th edition: fail if roll > Leadership value
-        let passed = roll_total <= leadership;
+        // 40k_revised.md §4.2: roll ≥ Ld = passed, roll < Ld = failed
+        let passed = roll_total >= leadership;
         let result = if passed {
             BattleShockResult::Passed
         } else {

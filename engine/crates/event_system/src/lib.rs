@@ -82,17 +82,16 @@ impl fmt::Display for EffectId {
 }
 
 /// Ka'tah martial stance for Adeptus Custodes.
-/// Source: Custodes.md - Ka-tah Stances
+/// Source: Custodes.md - Martial Ka'tah
+///
+/// Each time a unit with this ability is selected to fight, choose one stance.
+/// The selected stance is active until that unit finishes making its attacks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum KaTahStance {
-    /// Dacatarai: +1 to Sustained Hits
+    /// Dacatarai: Melee weapons have [SUSTAINED HITS 1]
     Dacatarai,
-    /// Rendax: +1 to Wound rolls against MONSTER / VEHICLE
+    /// Rendax: Melee weapons have [LETHAL HITS]
     Rendax,
-    /// Salvus: re-roll Advance and Charge rolls
-    Salvus,
-    /// Kaptaris: benefit of cover while in your deployment zone
-    Kaptaris,
 }
 
 impl fmt::Display for KaTahStance {
@@ -100,8 +99,6 @@ impl fmt::Display for KaTahStance {
         match self {
             KaTahStance::Dacatarai => write!(f, "Dacatarai"),
             KaTahStance::Rendax => write!(f, "Rendax"),
-            KaTahStance::Salvus => write!(f, "Salvus"),
-            KaTahStance::Kaptaris => write!(f, "Kaptaris"),
         }
     }
 }
@@ -145,32 +142,36 @@ impl Default for ActiveBlessings {
 }
 
 /// Individual Blessings of Khorne options.
-/// Source: Frenzied_Reavers.md - Blessings of Khorne table
+///
+/// Source: Frenzied_Reavers.md - Blessings of Khorne
+///
+/// At the start of each battle round, roll 5D6. Allocate dice to activate up
+/// to two Blessings. Each Blessing can only be activated once per round. Active
+/// Blessings apply to all units with this ability until the end of the battle round.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BlessingOfKhorne {
-    /// Rage-fuelled Invaders: +2" to Move, Pile In 6", Consolidate 6"
-    RageFuelledInvaders,
-    /// Wrathful Devotion: 5+ Feel No Pain
-    WrathfulDevotion,
-    /// Martial Excellence: Critical Hit on 5+
-    MartialExcellence,
-    /// Total Carnage: +1 Attack to melee weapons
+    /// Rage-fuelled Invigoration (Double 2+):
+    /// Each time a model makes a Pile-in or Consolidation move, it can move
+    /// up to 6" instead of up to 3".
+    RageFuelledInvigoration,
+    /// Total Carnage (Double 2+):
+    /// Each time a model is destroyed by a melee attack, if it has not fought
+    /// this phase, roll one D6: on a 4+, do not remove it from play. The
+    /// destroyed model can fight after the attacking unit has finished making
+    /// its attacks, and is then removed from play.
     TotalCarnage,
-    /// Warp Blades: +1 AP to melee weapons
-    WarpBlades,
-    /// Unbridled Bloodlust: Fight on Death on 4+
-    UnbridledBloodlust,
+    /// Martial Excellence (Double 4+ or Triple any):
+    /// Melee weapons equipped by models in this unit have the
+    /// [SUSTAINED HITS 1] ability.
+    MartialExcellence,
 }
 
 impl fmt::Display for BlessingOfKhorne {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BlessingOfKhorne::RageFuelledInvaders => write!(f, "Rage-fuelled Invaders"),
-            BlessingOfKhorne::WrathfulDevotion => write!(f, "Wrathful Devotion"),
-            BlessingOfKhorne::MartialExcellence => write!(f, "Martial Excellence"),
+            BlessingOfKhorne::RageFuelledInvigoration => write!(f, "Rage-fuelled Invigoration"),
             BlessingOfKhorne::TotalCarnage => write!(f, "Total Carnage"),
-            BlessingOfKhorne::WarpBlades => write!(f, "Warp Blades"),
-            BlessingOfKhorne::UnbridledBloodlust => write!(f, "Unbridled Bloodlust"),
+            BlessingOfKhorne::MartialExcellence => write!(f, "Martial Excellence"),
         }
     }
 }
@@ -2391,7 +2392,7 @@ mod tests {
             GameEvent::BlessingsOfKhorneRolled {
                 dice: vec![1, 3, 4, 5, 6],
                 active_blessings: ActiveBlessings::from_blessings(vec![
-                    BlessingOfKhorne::WrathfulDevotion,
+                    BlessingOfKhorne::RageFuelledInvigoration,
                     BlessingOfKhorne::TotalCarnage,
                 ]),
             },
@@ -3403,7 +3404,7 @@ mod tests {
             GameEvent::BlessingsOfKhorneRolled {
                 dice: vec![1, 2, 3, 5, 6],
                 active_blessings: ActiveBlessings::from_blessings(vec![
-                    BlessingOfKhorne::WrathfulDevotion,
+                    BlessingOfKhorne::RageFuelledInvigoration,
                     BlessingOfKhorne::MartialExcellence,
                 ]),
             },
@@ -3419,7 +3420,7 @@ mod tests {
             &events[0].event
         {
             assert_eq!(dice.len(), 5);
-            assert!(active_blessings.has(&BlessingOfKhorne::WrathfulDevotion));
+            assert!(active_blessings.has(&BlessingOfKhorne::RageFuelledInvigoration));
             assert!(active_blessings.has(&BlessingOfKhorne::MartialExcellence));
             assert!(!active_blessings.has(&BlessingOfKhorne::TotalCarnage));
         } else {
@@ -3505,10 +3506,9 @@ mod tests {
 
     #[test]
     fn test_ka_tah_stance_display() {
+        // Source: Custodes.md - Martial Ka'tah (only Dacatarai and Rendax)
         assert_eq!(format!("{}", KaTahStance::Dacatarai), "Dacatarai");
         assert_eq!(format!("{}", KaTahStance::Rendax), "Rendax");
-        assert_eq!(format!("{}", KaTahStance::Salvus), "Salvus");
-        assert_eq!(format!("{}", KaTahStance::Kaptaris), "Kaptaris");
     }
 
     #[test]
@@ -3517,10 +3517,10 @@ mod tests {
         assert!(blessings.active.is_empty());
 
         blessings.add(BlessingOfKhorne::TotalCarnage);
-        blessings.add(BlessingOfKhorne::WarpBlades);
+        blessings.add(BlessingOfKhorne::MartialExcellence);
         assert!(blessings.has(&BlessingOfKhorne::TotalCarnage));
-        assert!(blessings.has(&BlessingOfKhorne::WarpBlades));
-        assert!(!blessings.has(&BlessingOfKhorne::WrathfulDevotion));
+        assert!(blessings.has(&BlessingOfKhorne::MartialExcellence));
+        assert!(!blessings.has(&BlessingOfKhorne::RageFuelledInvigoration));
 
         // No duplicates
         blessings.add(BlessingOfKhorne::TotalCarnage);
@@ -3611,13 +3611,18 @@ mod tests {
 
     #[test]
     fn test_blessing_of_khorne_display() {
+        // Source: Frenzied_Reavers.md - Blessings of Khorne
         assert_eq!(
-            format!("{}", BlessingOfKhorne::RageFuelledInvaders),
-            "Rage-fuelled Invaders"
+            format!("{}", BlessingOfKhorne::RageFuelledInvigoration),
+            "Rage-fuelled Invigoration"
         );
         assert_eq!(
-            format!("{}", BlessingOfKhorne::UnbridledBloodlust),
-            "Unbridled Bloodlust"
+            format!("{}", BlessingOfKhorne::TotalCarnage),
+            "Total Carnage"
+        );
+        assert_eq!(
+            format!("{}", BlessingOfKhorne::MartialExcellence),
+            "Martial Excellence"
         );
     }
 

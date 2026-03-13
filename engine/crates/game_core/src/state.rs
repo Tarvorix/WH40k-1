@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 
 use wh40k_core_types::{
     BattleRound, CommandPoints, EnhancementId, FactionId, GameOutcome,
-    MissionId, Phase, PlayerId, SecondaryObjectiveId, StratagemId, SubPhase, UnitId,
+    MissionId, ObjectiveId, Phase, PlayerId, SecondaryObjectiveId, StratagemId, SubPhase, UnitId,
     VictoryPoints,
 };
 use wh40k_dice::DiceRoller;
@@ -581,6 +581,28 @@ pub struct MissionProgress {
 
     /// Score history per round: (round number, VP scored that round).
     pub round_scores: Vec<(BattleRound, VictoryPoints)>,
+
+    /// Display of Might: symbolic site claim history.
+    /// Each entry: (round, objective_id, character_unit_id) — records which
+    /// CHARACTER model claimed which symbolic site in which round.
+    /// Source: CP_Rules.md - Mission 6: Display of Might, Claim Sites rule
+    pub symbolic_site_claims: Vec<(u8, ObjectiveId, UnitId)>,
+
+    /// Clash of Patrols Retrieve Intelligence: objectives already selected
+    /// by either player (each can only be selected once per battle).
+    /// Source: CP_Rules.md - Mission 1: Clash of Patrols
+    pub retrieved_intelligence_objectives: Vec<ObjectiveId>,
+
+    /// Scorched Earth: whether this player razed an objective this turn.
+    /// Reset at the start of each turn by the phase system.
+    /// Source: CP_Rules.md - Mission 4: Scorched Earth
+    pub razed_this_turn: bool,
+
+    /// Forward Outpost Sabotage Enemy Comms: whether this player's
+    /// Command Re-roll Stratagem is blocked (until end of battle).
+    /// Set when opponent controls your DZ objective at end of their turn.
+    /// Source: CP_Rules.md - Mission 3: Forward Outpost
+    pub command_reroll_blocked: bool,
 }
 
 impl MissionProgress {

@@ -156,33 +156,21 @@ impl BlessingValidator {
         }
 
         // Validate each allocation against its blessing requirement
+        // Source: Frenzied_Reavers.md - Blessings of Khorne
         for alloc in allocations {
             let valid = match alloc.blessing {
-                BlessingOfKhorne::RageFuelledInvaders => {
-                    // Requires Double (2+)
+                BlessingOfKhorne::RageFuelledInvigoration => {
+                    // Requires Double (2+): two dice showing same value, both 2+
                     Self::check_double_two_plus(dice, &alloc.dice_indices)
                 }
-                BlessingOfKhorne::WrathfulDevotion => {
-                    // Requires Double (2+)
+                BlessingOfKhorne::TotalCarnage => {
+                    // Requires Double (2+): two dice showing same value, both 2+
                     Self::check_double_two_plus(dice, &alloc.dice_indices)
                 }
                 BlessingOfKhorne::MartialExcellence => {
                     // Requires Double (4+) or Triple (any)
                     Self::check_double_four_plus(dice, &alloc.dice_indices)
                         || Self::check_triple_any(dice, &alloc.dice_indices)
-                }
-                BlessingOfKhorne::TotalCarnage => {
-                    // Requires Double (4+) or Triple (any)
-                    Self::check_double_four_plus(dice, &alloc.dice_indices)
-                        || Self::check_triple_any(dice, &alloc.dice_indices)
-                }
-                BlessingOfKhorne::WarpBlades => {
-                    // Requires Triple (any)
-                    Self::check_triple_any(dice, &alloc.dice_indices)
-                }
-                BlessingOfKhorne::UnbridledBloodlust => {
-                    // Requires Triple (any)
-                    Self::check_triple_any(dice, &alloc.dice_indices)
                 }
             };
 
@@ -372,32 +360,42 @@ impl FactionRuntime {
     }
 
     /// Create active effects for a specific Blessing of Khorne.
+    ///
+    /// Source: Frenzied_Reavers.md - Blessings of Khorne
     fn create_blessing_effects(state: &mut GameState, blessing: BlessingOfKhorne) -> Vec<ActiveEffect> {
         let round = state.battle_round;
         let phase = state.current_phase;
         let counter_base = state.next_counter() as u32;
 
         match blessing {
-            BlessingOfKhorne::RageFuelledInvaders => {
-                // +2" to Move, Pile In 6", Consolidate 6"
+            BlessingOfKhorne::RageFuelledInvigoration => {
+                // Source: Frenzied_Reavers.md - Rage-fuelled Invigoration
+                // Each time a model makes a Pile-in or Consolidation move,
+                // it can move up to 6" instead of up to 3".
+                // Uses ModifyMovement(3000) = +3" to pile-in/consolidation (3" → 6")
+                // Same pattern as The Gilded Spear stratagem.
                 vec![ActiveEffect {
                     id: counter_base,
-                    source: EffectSource::Blessing("Rage-fuelled Invaders".to_string()),
+                    source: EffectSource::Blessing("Rage-fuelled Invigoration".to_string()),
                     target: EffectTarget::Global,
-                    effect_type: EffectType::ModifyMovement(2000), // +2" in mils
+                    effect_type: EffectType::ModifyMovement(3000), // +3" to pile-in/consolidation
                     duration: EffectDuration::UntilEndOfBattleRound,
                     stacking: StackingBehavior::Unique,
                     applied_round: round,
                     applied_phase: phase,
                 }]
             }
-            BlessingOfKhorne::WrathfulDevotion => {
-                // 5+ Feel No Pain
+            BlessingOfKhorne::TotalCarnage => {
+                // Source: Frenzied_Reavers.md - Total Carnage
+                // Each time a model is destroyed by a melee attack, if it has
+                // not fought this phase, roll one D6: on a 4+, do not remove it
+                // from play. It can fight after the attacking unit finishes, then
+                // is removed.
                 vec![ActiveEffect {
                     id: counter_base,
-                    source: EffectSource::Blessing("Wrathful Devotion".to_string()),
+                    source: EffectSource::Blessing("Total Carnage".to_string()),
                     target: EffectTarget::Global,
-                    effect_type: EffectType::GrantFeelNoPain(5),
+                    effect_type: EffectType::GrantFightOnDeath(4),
                     duration: EffectDuration::UntilEndOfBattleRound,
                     stacking: StackingBehavior::BestOnly,
                     applied_round: round,
@@ -405,53 +403,16 @@ impl FactionRuntime {
                 }]
             }
             BlessingOfKhorne::MartialExcellence => {
-                // Critical Hit on 5+
+                // Source: Frenzied_Reavers.md - Martial Excellence
+                // Melee weapons equipped by models in this unit have the
+                // [SUSTAINED HITS 1] ability.
                 vec![ActiveEffect {
                     id: counter_base,
                     source: EffectSource::Blessing("Martial Excellence".to_string()),
                     target: EffectTarget::Global,
-                    effect_type: EffectType::GrantCriticalHitOn(5),
-                    duration: EffectDuration::UntilEndOfBattleRound,
-                    stacking: StackingBehavior::BestOnly,
-                    applied_round: round,
-                    applied_phase: phase,
-                }]
-            }
-            BlessingOfKhorne::TotalCarnage => {
-                // +1 Attack to melee weapons
-                vec![ActiveEffect {
-                    id: counter_base,
-                    source: EffectSource::Blessing("Total Carnage".to_string()),
-                    target: EffectTarget::Global,
-                    effect_type: EffectType::ModifyAttacks(1),
+                    effect_type: EffectType::GrantSustainedHits(1),
                     duration: EffectDuration::UntilEndOfBattleRound,
                     stacking: StackingBehavior::Unique,
-                    applied_round: round,
-                    applied_phase: phase,
-                }]
-            }
-            BlessingOfKhorne::WarpBlades => {
-                // +1 AP to melee weapons (AP modifier is negative, so -1 more AP)
-                vec![ActiveEffect {
-                    id: counter_base,
-                    source: EffectSource::Blessing("Warp Blades".to_string()),
-                    target: EffectTarget::Global,
-                    effect_type: EffectType::ModifyAP(-1),
-                    duration: EffectDuration::UntilEndOfBattleRound,
-                    stacking: StackingBehavior::Unique,
-                    applied_round: round,
-                    applied_phase: phase,
-                }]
-            }
-            BlessingOfKhorne::UnbridledBloodlust => {
-                // Fight on Death on 4+
-                vec![ActiveEffect {
-                    id: counter_base,
-                    source: EffectSource::Blessing("Unbridled Bloodlust".to_string()),
-                    target: EffectTarget::Global,
-                    effect_type: EffectType::GrantFightOnDeath(4),
-                    duration: EffectDuration::UntilEndOfBattleRound,
-                    stacking: StackingBehavior::BestOnly,
                     applied_round: round,
                     applied_phase: phase,
                 }]
@@ -476,11 +437,10 @@ impl FactionRuntime {
         }
 
         // Validate the stance name
+        // Source: Custodes.md - Martial Ka'tah (only Dacatarai and Rendax)
         let katah_stance = match stance {
             "Dacatarai" => KaTahStance::Dacatarai,
             "Rendax" => KaTahStance::Rendax,
-            "Salvus" => KaTahStance::Salvus,
-            "Kaptaris" => KaTahStance::Kaptaris,
             _ => {
                 return Err(FactionRuntimeError::InvalidStance(format!(
                     "Unknown Ka'tah stance: {}",
@@ -494,11 +454,13 @@ impl FactionRuntime {
         let effect_id = state.next_counter() as u32;
 
         // Create the appropriate effect for the stance
+        // Source: Custodes.md - Martial Ka'tah
         let effect = match katah_stance {
             KaTahStance::Dacatarai => ActiveEffect {
                 id: effect_id,
                 source: EffectSource::KaTah("Dacatarai".to_string()),
                 target: EffectTarget::Unit(unit_id),
+                // Dacatarai: Melee weapons have [SUSTAINED HITS 1]
                 effect_type: EffectType::GrantSustainedHits(1),
                 duration: EffectDuration::UntilEndOfFightSequence,
                 stacking: StackingBehavior::Additive,
@@ -509,28 +471,9 @@ impl FactionRuntime {
                 id: effect_id,
                 source: EffectSource::KaTah("Rendax".to_string()),
                 target: EffectTarget::Unit(unit_id),
+                // Rendax: Melee weapons have [LETHAL HITS]
                 effect_type: EffectType::GrantLethalHits,
                 duration: EffectDuration::UntilEndOfFightSequence,
-                stacking: StackingBehavior::Unique,
-                applied_round: round,
-                applied_phase: phase,
-            },
-            KaTahStance::Salvus => ActiveEffect {
-                id: effect_id,
-                source: EffectSource::KaTah("Salvus".to_string()),
-                target: EffectTarget::Unit(unit_id),
-                effect_type: EffectType::GrantRerollCharge,
-                duration: EffectDuration::UntilEndOfBattleRound,
-                stacking: StackingBehavior::Unique,
-                applied_round: round,
-                applied_phase: phase,
-            },
-            KaTahStance::Kaptaris => ActiveEffect {
-                id: effect_id,
-                source: EffectSource::KaTah("Kaptaris".to_string()),
-                target: EffectTarget::Unit(unit_id),
-                effect_type: EffectType::GrantBenefitOfCover,
-                duration: EffectDuration::UntilEndOfBattleRound,
                 stacking: StackingBehavior::Unique,
                 applied_round: round,
                 applied_phase: phase,
@@ -723,29 +666,20 @@ mod tests {
             ]),
             faction_ability: AbilitySchema {
                 name: "Martial Ka'tah".to_string(),
-                description: "Choose a Ka'tah stance when selected to fight".to_string(),
+                description: "Each time a unit with this ability is selected to fight, choose one stance. The selected stance is active until that unit finishes making its attacks.".to_string(),
                 ability_type: AbilityType::FactionAbility,
+                // Source: Custodes.md - Martial Ka'tah (Dacatarai and Rendax only)
                 effects: vec![RulePrimitive::StanceChoice {
                     stances: vec![
                         StanceDef {
                             name: "Dacatarai".to_string(),
                             effects: vec![],
-                            description: "+1 Sustained Hits".to_string(),
+                            description: "Melee weapons have [SUSTAINED HITS 1].".to_string(),
                         },
                         StanceDef {
                             name: "Rendax".to_string(),
                             effects: vec![],
-                            description: "Lethal Hits vs MONSTER/VEHICLE".to_string(),
-                        },
-                        StanceDef {
-                            name: "Salvus".to_string(),
-                            effects: vec![],
-                            description: "Re-roll Advance and Charge".to_string(),
-                        },
-                        StanceDef {
-                            name: "Kaptaris".to_string(),
-                            effects: vec![],
-                            description: "Benefit of Cover in deployment zone".to_string(),
+                            description: "Melee weapons have [LETHAL HITS].".to_string(),
                         },
                     ],
                 }],
@@ -826,11 +760,9 @@ mod tests {
         assert_eq!(instance.faction_id, FactionId::new(1));
         assert_eq!(instance.name, "Tristraen's Gilded Blades");
         assert_eq!(instance.faction_ability_name, "Martial Ka'tah");
-        assert_eq!(instance.available_stances.len(), 4);
+        assert_eq!(instance.available_stances.len(), 2);
         assert!(instance.available_stances.contains(&"Dacatarai".to_string()));
         assert!(instance.available_stances.contains(&"Rendax".to_string()));
-        assert!(instance.available_stances.contains(&"Salvus".to_string()));
-        assert!(instance.available_stances.contains(&"Kaptaris".to_string()));
         assert!(instance.active_blessings.is_empty());
         assert_eq!(instance.enhancements.len(), 2);
     }
@@ -897,7 +829,7 @@ mod tests {
     fn test_validate_allocation_valid_single_blessing() {
         let dice = vec![3, 3, 5, 2, 1];
         let allocations = vec![BlessingAllocation {
-            blessing: BlessingOfKhorne::RageFuelledInvaders,
+            blessing: BlessingOfKhorne::RageFuelledInvigoration,
             dice_indices: vec![0, 1],
         }];
         assert!(BlessingValidator::validate_allocation(&dice, &allocations).is_ok());
@@ -912,7 +844,7 @@ mod tests {
                 dice_indices: vec![0, 1], // Double 4+
             },
             BlessingAllocation {
-                blessing: BlessingOfKhorne::RageFuelledInvaders,
+                blessing: BlessingOfKhorne::RageFuelledInvigoration,
                 dice_indices: vec![3, 4], // Double 2+
             },
         ];
@@ -921,10 +853,10 @@ mod tests {
 
     #[test]
     fn test_validate_allocation_too_many_blessings() {
-        let dice = vec![3, 3, 4, 4, 5];
+        let dice = vec![3, 3, 4, 4, 4];
         let allocations = vec![
             BlessingAllocation {
-                blessing: BlessingOfKhorne::RageFuelledInvaders,
+                blessing: BlessingOfKhorne::RageFuelledInvigoration,
                 dice_indices: vec![0, 1],
             },
             BlessingAllocation {
@@ -932,7 +864,7 @@ mod tests {
                 dice_indices: vec![2, 3],
             },
             BlessingAllocation {
-                blessing: BlessingOfKhorne::WrathfulDevotion,
+                blessing: BlessingOfKhorne::TotalCarnage,
                 dice_indices: vec![4],
             },
         ];
@@ -943,14 +875,14 @@ mod tests {
 
     #[test]
     fn test_validate_allocation_duplicate_dice() {
-        let dice = vec![3, 3, 5, 2, 1];
+        let dice = vec![3, 3, 5, 5, 1];
         let allocations = vec![
             BlessingAllocation {
-                blessing: BlessingOfKhorne::RageFuelledInvaders,
+                blessing: BlessingOfKhorne::RageFuelledInvigoration,
                 dice_indices: vec![0, 1],
             },
             BlessingAllocation {
-                blessing: BlessingOfKhorne::WrathfulDevotion,
+                blessing: BlessingOfKhorne::TotalCarnage,
                 dice_indices: vec![1, 2], // Index 1 already used!
             },
         ];
@@ -963,7 +895,7 @@ mod tests {
     fn test_validate_allocation_invalid_dice_index() {
         let dice = vec![3, 3, 5, 2, 1];
         let allocations = vec![BlessingAllocation {
-            blessing: BlessingOfKhorne::RageFuelledInvaders,
+            blessing: BlessingOfKhorne::RageFuelledInvigoration,
             dice_indices: vec![0, 5], // Index 5 out of bounds
         }];
         let result = BlessingValidator::validate_allocation(&dice, &allocations);
@@ -975,7 +907,7 @@ mod tests {
     fn test_validate_allocation_requirement_not_met() {
         let dice = vec![3, 5, 2, 1, 4];
         let allocations = vec![BlessingAllocation {
-            blessing: BlessingOfKhorne::RageFuelledInvaders,
+            blessing: BlessingOfKhorne::RageFuelledInvigoration,
             dice_indices: vec![0, 1], // 3 and 5 - not a pair!
         }];
         let result = BlessingValidator::validate_allocation(&dice, &allocations);
@@ -984,24 +916,25 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_allocation_warp_blades_triple() {
+    fn test_validate_allocation_martial_excellence_triple() {
+        // Martial Excellence accepts Triple (any) as well as Double (4+)
         let dice = vec![5, 5, 5, 2, 1];
         let allocations = vec![BlessingAllocation {
-            blessing: BlessingOfKhorne::WarpBlades,
+            blessing: BlessingOfKhorne::MartialExcellence,
             dice_indices: vec![0, 1, 2],
         }];
         assert!(BlessingValidator::validate_allocation(&dice, &allocations).is_ok());
     }
 
     #[test]
-    fn test_validate_allocation_warp_blades_double_fails() {
-        let dice = vec![5, 5, 3, 2, 1];
+    fn test_validate_allocation_total_carnage_double_two_plus() {
+        // Total Carnage requires Double (2+)
+        let dice = vec![3, 3, 5, 2, 1];
         let allocations = vec![BlessingAllocation {
-            blessing: BlessingOfKhorne::WarpBlades,
-            dice_indices: vec![0, 1], // Only a double, not a triple
+            blessing: BlessingOfKhorne::TotalCarnage,
+            dice_indices: vec![0, 1], // 3,3 = valid double 2+
         }];
-        let result = BlessingValidator::validate_allocation(&dice, &allocations);
-        assert!(result.is_err());
+        assert!(BlessingValidator::validate_allocation(&dice, &allocations).is_ok());
     }
 
     // === check_a_worthy_skull ===

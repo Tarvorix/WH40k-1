@@ -118,8 +118,8 @@ impl CommandValidator {
             Command::NormalMove { unit_id, destination } => {
                 Self::validate_normal_move(state, *unit_id, *destination)
             }
-            Command::AdvanceMove { unit_id, destination, .. } => {
-                Self::validate_advance_move(state, *unit_id, *destination)
+            Command::AdvanceMove { unit_id, destination, advance_roll } => {
+                Self::validate_advance_move(state, *unit_id, *destination, *advance_roll)
             }
             Command::FallBack { unit_id, destination } => {
                 Self::validate_fall_back(state, *unit_id, *destination)
@@ -396,6 +396,7 @@ impl CommandValidator {
         state: &GameState,
         unit_id: wh40k_core_types::UnitId,
         destination: wh40k_core_types::Position,
+        advance_roll: u8,
     ) -> CommandValidationResult {
         if state.current_phase != Phase::Movement {
             return CommandValidationResult::illegal("AdvanceMove is only valid in the Movement phase");
@@ -423,6 +424,23 @@ impl CommandValidator {
 
         if !state.board.contains(destination) {
             return CommandValidationResult::illegal("Destination is outside the board");
+        }
+
+        // 40k_revised.md §5.4: Advance = M + D6 roll
+        if let Some(current_pos) = unit.reference_position() {
+            let distance = current_pos.distance(destination);
+            let base_move = unit.base_movement.distance();
+            let advance_bonus = wh40k_core_types::Inches::from_inches(advance_roll as i32);
+            let max_advance = base_move + advance_bonus;
+            if distance > max_advance {
+                return CommandValidationResult::illegal_with_ref(
+                    format!(
+                        "Advance distance ({}) exceeds M + advance roll ({})",
+                        distance, max_advance
+                    ),
+                    "40k_revised.md - Advance: M characteristic + D6 roll",
+                );
+            }
         }
 
         CommandValidationResult::Legal

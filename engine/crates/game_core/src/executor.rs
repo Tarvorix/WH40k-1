@@ -324,11 +324,10 @@ impl CommandExecutor {
                 state.turn_flags.set_ka_tah_stance(*unit_id, stance.clone());
                 Ok(vec![GameEvent::KaTahStanceChosen {
                     unit: *unit_id,
+                    // Source: Custodes.md - Martial Ka'tah (Dacatarai and Rendax only)
                     stance: match stance.as_str() {
                         "Dacatarai" => wh40k_event_system::KaTahStance::Dacatarai,
                         "Rendax" => wh40k_event_system::KaTahStance::Rendax,
-                        "Salvus" => wh40k_event_system::KaTahStance::Salvus,
-                        "Kaptaris" => wh40k_event_system::KaTahStance::Kaptaris,
                         _ => wh40k_event_system::KaTahStance::Dacatarai,
                     },
                 }])
@@ -1121,7 +1120,7 @@ impl CommandExecutor {
 
             match alloc.blessing_name.as_str() {
                 "Rage-fuelled Invigoration" => {
-                    active.add(BlessingOfKhorne::RageFuelledInvaders);
+                    active.add(BlessingOfKhorne::RageFuelledInvigoration);
                 }
                 "Total Carnage" => {
                     active.add(BlessingOfKhorne::TotalCarnage);
@@ -1368,7 +1367,7 @@ impl CommandExecutor {
                         // Rendax: Lethal Hits on melee weapons
                         effective_abilities.add(wh40k_core_types::WeaponAbility::LethalHits);
                     }
-                    _ => {} // Salvus and Kaptaris are defensive/other; no melee weapon ability
+                    _ => {} // Only Dacatarai and Rendax per Custodes.md
                 }
             }
 

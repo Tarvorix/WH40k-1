@@ -223,13 +223,17 @@ impl MissionRuntime {
     }
 
     /// Determine the scoring schedule from a mission schema.
+    ///
+    /// Source: CP_Rules.md - All missions score at end of Command Phase,
+    /// except round 5 second player scores at end of turn.
     fn determine_scoring_schedule(_mission: &MissionSchema) -> Vec<ScoringSchedule> {
-        // Default CP scoring: 5VP per objective at end of each player's turn,
-        // from round 2 through round 5
+        // Default CP scoring: 5VP per objective at end of Command phase,
+        // from round 2 through round 5.
+        // Source: CP_Rules.md Section 13 - all 6 missions use this pattern.
         vec![ScoringSchedule {
             from_round: 2,
             to_round: 5,
-            timing: ScoringPhase::EndOfTurn,
+            timing: ScoringPhase::EndOfCommandPhase,
             vp_per_objective: 5,
         }]
     }
@@ -554,11 +558,30 @@ impl MissionRuntime {
         ]
     }
 
+    /// Create a mission instance by its ID (1-6).
+    ///
+    /// Returns None if the mission ID is not recognized.
+    /// Source: CP_Rules.md Section 13 — all 6 Combat Patrol missions.
+    pub fn create_mission(mission_id: MissionId) -> Option<MissionInstance> {
+        match mission_id.raw() {
+            1 => Some(Self::create_clash_of_patrols()),
+            2 => Some(Self::create_archeotech_recovery()),
+            3 => Some(Self::create_forward_outpost()),
+            4 => Some(Self::create_scorched_earth()),
+            5 => Some(Self::create_sweeping_raid()),
+            6 => Some(Self::create_display_of_might()),
+            _ => None,
+        }
+    }
+
     /// Create the Clash of Patrols mission (Mission 1).
     ///
-    /// Source: CP_Rules.md - Mission 1:
-    /// - 4 objective markers
-    /// - 5VP per objective controlled at end of each player's turn (BR2-5)
+    /// Source: CP_Rules.md Section 13, Mission 1:
+    /// - Primary: Take and Hold — 5VP per objective controlled at end of Command Phase (BR2-5)
+    /// - Round 5 second player scores at end of turn
+    /// - Mission Rule: Retrieve Intelligence — From BR2, select controlled objective in Command
+    ///   phase; if WARLORD is on battlefield, gain 1CP. Each objective once only (by either player).
+    /// - Deployment: Search & Destroy style with 4 objectives
     pub fn create_clash_of_patrols() -> MissionInstance {
         MissionInstance {
             mission_id: MissionId::new(1),
@@ -601,13 +624,362 @@ impl MissionRuntime {
             scoring_schedule: vec![ScoringSchedule {
                 from_round: 2,
                 to_round: 5,
-                timing: ScoringPhase::EndOfTurn,
+                timing: ScoringPhase::EndOfCommandPhase,
                 vp_per_objective: 5,
             }],
             primary_scoring_rules: Vec::new(),
-            special_rules: Vec::new(),
+            special_rules: vec![
+                "Retrieve Intelligence: From BR2, in Command phase select one controlled objective. If WARLORD on battlefield, gain 1CP. Each objective once only (by either player).".to_string(),
+            ],
             rounds: 5,
-            description: "Control objective markers to score victory points. 5VP per objective controlled at the end of each player's turn from Battle Round 2 onwards.".to_string(),
+            description: "Take and Hold — 5VP per objective controlled at end of Command phase from BR2. Max 15VP per scoring. Round 5 second player scores at end of turn.".to_string(),
+        }
+    }
+
+    /// Create the Archeotech Recovery mission (Mission 2).
+    ///
+    /// Source: CP_Rules.md Section 13, Mission 2:
+    /// - Primary: Recover Archeotech — 5VP per objective at end of Command Phase (BR2-5)
+    /// - End of battle: +10VP if controlling last No Man's Land objective
+    /// - Mission Rule: Irradiated Power Cells — BR3: Defender selects NML objective = Gamma.
+    ///   BR4: Gamma removed, Attacker selects remaining NML objective = Beta. BR5: Beta removed.
+    /// - Deployment: Cross deployment with objectives in NML and deployment zones
+    pub fn create_archeotech_recovery() -> MissionInstance {
+        MissionInstance {
+            mission_id: MissionId::new(2),
+            name: "Archeotech Recovery".to_string(),
+            objectives: vec![
+                ObjectiveInfo {
+                    id: ObjectiveId::new(0),
+                    position: Position::from_inches(11, 6),
+                    zone: ObjectiveZone::AttackerZone,
+                    special_rules: Vec::new(),
+                    label: "A".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+                ObjectiveInfo {
+                    id: ObjectiveId::new(1),
+                    position: Position::from_inches(33, 24),
+                    zone: ObjectiveZone::DefenderZone,
+                    special_rules: Vec::new(),
+                    label: "B".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+                ObjectiveInfo {
+                    id: ObjectiveId::new(2),
+                    position: Position::from_inches(15, 15),
+                    zone: ObjectiveZone::NoMansLand,
+                    special_rules: Vec::new(),
+                    label: "C".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+                ObjectiveInfo {
+                    id: ObjectiveId::new(3),
+                    position: Position::from_inches(29, 15),
+                    zone: ObjectiveZone::NoMansLand,
+                    special_rules: Vec::new(),
+                    label: "D".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+            ],
+            deployment_config: DeploymentConfig {
+                map_id: 2,
+                attacker_zone: "Cross deployment — corner to corner, attacker quadrant".to_string(),
+                defender_zone: "Cross deployment — corner to corner, defender quadrant".to_string(),
+                no_mans_land: "Diagonal strip between deployment zones".to_string(),
+            },
+            scoring_schedule: vec![ScoringSchedule {
+                from_round: 2,
+                to_round: 5,
+                timing: ScoringPhase::EndOfCommandPhase,
+                vp_per_objective: 5,
+            }],
+            primary_scoring_rules: Vec::new(),
+            special_rules: vec![
+                "Irradiated Power Cells: Start of BR3, Defender selects one NML objective = Gamma. Start of BR4, Gamma removed; Attacker selects one remaining NML objective = Beta. Start of BR5, Beta removed.".to_string(),
+                "End of battle: If you control the last No Man's Land objective, score +10VP.".to_string(),
+            ],
+            rounds: 5,
+            description: "Recover Archeotech — 5VP per objective controlled at end of Command phase from BR2. Max 15VP per scoring. NML objectives removed rounds 3-5 via Irradiated Power Cells. +10VP for controlling last NML objective at end of battle.".to_string(),
+        }
+    }
+
+    /// Create the Forward Outpost mission (Mission 3).
+    ///
+    /// Source: CP_Rules.md Section 13, Mission 3:
+    /// - Primary: Vital Ground — 5VP per NML objective, 10VP for enemy DZ objective (max 15VP)
+    /// - End of Command Phase BR2-4, BR5 1st player same, BR5 2nd player end of turn
+    /// - Mission Rule: Sabotage Enemy Comms — At end of your turn, if you control objective in
+    ///   opponent's DZ, opponent cannot use Command Re-roll Stratagem for rest of battle.
+    /// - Deployment: 2 NML objectives + 1 in each deployment zone
+    pub fn create_forward_outpost() -> MissionInstance {
+        MissionInstance {
+            mission_id: MissionId::new(3),
+            name: "Forward Outpost".to_string(),
+            objectives: vec![
+                ObjectiveInfo {
+                    id: ObjectiveId::new(0),
+                    position: Position::from_inches(22, 6),
+                    zone: ObjectiveZone::AttackerZone,
+                    special_rules: Vec::new(),
+                    label: "A".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+                ObjectiveInfo {
+                    id: ObjectiveId::new(1),
+                    position: Position::from_inches(22, 24),
+                    zone: ObjectiveZone::DefenderZone,
+                    special_rules: Vec::new(),
+                    label: "B".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+                ObjectiveInfo {
+                    id: ObjectiveId::new(2),
+                    position: Position::from_inches(11, 15),
+                    zone: ObjectiveZone::NoMansLand,
+                    special_rules: Vec::new(),
+                    label: "C".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+                ObjectiveInfo {
+                    id: ObjectiveId::new(3),
+                    position: Position::from_inches(33, 15),
+                    zone: ObjectiveZone::NoMansLand,
+                    special_rules: Vec::new(),
+                    label: "D".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+            ],
+            deployment_config: DeploymentConfig {
+                map_id: 3,
+                attacker_zone: "9\" deep along one long edge".to_string(),
+                defender_zone: "9\" deep along opposite long edge".to_string(),
+                no_mans_land: "12\" center strip between deployment zones".to_string(),
+            },
+            scoring_schedule: vec![ScoringSchedule {
+                from_round: 2,
+                to_round: 5,
+                timing: ScoringPhase::EndOfCommandPhase,
+                vp_per_objective: 5,
+            }],
+            primary_scoring_rules: Vec::new(),
+            special_rules: vec![
+                "Vital Ground scoring: 5VP per No Man's Land objective controlled. 10VP for controlling objective in enemy deployment zone. Max 15VP per scoring.".to_string(),
+                "Sabotage Enemy Comms: At end of your turn, if you control objective in opponent's deployment zone, opponent cannot use Command Re-roll Stratagem for rest of battle.".to_string(),
+            ],
+            rounds: 5,
+            description: "Vital Ground — 5VP per No Man's Land objective, 10VP for enemy deployment zone objective at end of Command phase from BR2. Max 15VP per scoring. Round 5 second player scores at end of turn.".to_string(),
+        }
+    }
+
+    /// Create the Scorched Earth mission (Mission 4).
+    ///
+    /// Source: CP_Rules.md Section 13, Mission 4:
+    /// - Primary: Raze and Ruin — 5VP if control 1+, 5VP if control more than opponent,
+    ///   10VP if razed an objective this turn
+    /// - End of Command Phase BR2-4, BR5 1st player same, BR5 2nd player end of turn
+    /// - Mission Rule: Raze and Ruin — From BR2, at start of Command phase if 2+ objectives
+    ///   remain, select one you control (no enemies within 3") to raze (remove from battlefield).
+    ///   Attacker cannot raze A, Defender cannot raze B.
+    /// - Deployment: Multiple objectives with protected home objectives
+    pub fn create_scorched_earth() -> MissionInstance {
+        MissionInstance {
+            mission_id: MissionId::new(4),
+            name: "Scorched Earth".to_string(),
+            objectives: vec![
+                ObjectiveInfo {
+                    id: ObjectiveId::new(0),
+                    position: Position::from_inches(11, 6),
+                    zone: ObjectiveZone::AttackerZone,
+                    special_rules: vec!["Attacker cannot raze this objective".to_string()],
+                    label: "A".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+                ObjectiveInfo {
+                    id: ObjectiveId::new(1),
+                    position: Position::from_inches(33, 24),
+                    zone: ObjectiveZone::DefenderZone,
+                    special_rules: vec!["Defender cannot raze this objective".to_string()],
+                    label: "B".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+                ObjectiveInfo {
+                    id: ObjectiveId::new(2),
+                    position: Position::from_inches(15, 15),
+                    zone: ObjectiveZone::NoMansLand,
+                    special_rules: Vec::new(),
+                    label: "C".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+                ObjectiveInfo {
+                    id: ObjectiveId::new(3),
+                    position: Position::from_inches(29, 15),
+                    zone: ObjectiveZone::NoMansLand,
+                    special_rules: Vec::new(),
+                    label: "D".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+            ],
+            deployment_config: DeploymentConfig {
+                map_id: 4,
+                attacker_zone: "9\" deep along one long edge".to_string(),
+                defender_zone: "9\" deep along opposite long edge".to_string(),
+                no_mans_land: "12\" center strip between deployment zones".to_string(),
+            },
+            scoring_schedule: vec![ScoringSchedule {
+                from_round: 2,
+                to_round: 5,
+                timing: ScoringPhase::EndOfCommandPhase,
+                vp_per_objective: 5,
+            }],
+            primary_scoring_rules: Vec::new(),
+            special_rules: vec![
+                "Raze and Ruin: From BR2, at start of Command phase, if 2+ objectives remain, you may select one you control to raze (no enemy units within 3\"). Razed objective is removed. Attacker cannot raze objective A. Defender cannot raze objective B.".to_string(),
+                "Scoring: 5VP if you control 1+ objectives. 5VP if you control more objectives than opponent. 10VP if you razed an objective this turn.".to_string(),
+            ],
+            rounds: 5,
+            description: "Raze and Ruin — 5VP if control 1+ objectives, 5VP if control more than opponent, 10VP if razed an objective this turn. Scoring at end of Command phase from BR2. Round 5 second player scores at end of turn.".to_string(),
+        }
+    }
+
+    /// Create the Sweeping Raid mission (Mission 5).
+    ///
+    /// Source: CP_Rules.md Section 13, Mission 5:
+    /// - Primary: Priority Targets — 5VP per objective at end of Command Phase (BR2-4)
+    /// - End of battle: Attacker 5VP for C, 10VP for D. Defender 5VP for B, 10VP for A.
+    /// - Mission Rule: Supply Lines — Start of Command phase, if you control your DZ objective,
+    ///   roll 1D6; on 4+, gain 1CP.
+    /// - Deployment: 4 objectives
+    pub fn create_sweeping_raid() -> MissionInstance {
+        MissionInstance {
+            mission_id: MissionId::new(5),
+            name: "Sweeping Raid".to_string(),
+            objectives: vec![
+                ObjectiveInfo {
+                    id: ObjectiveId::new(0),
+                    position: Position::from_inches(11, 6),
+                    zone: ObjectiveZone::AttackerZone,
+                    special_rules: vec!["End of battle: Defender scores 10VP if controlling this".to_string()],
+                    label: "A".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+                ObjectiveInfo {
+                    id: ObjectiveId::new(1),
+                    position: Position::from_inches(33, 6),
+                    zone: ObjectiveZone::AttackerZone,
+                    special_rules: vec!["End of battle: Defender scores 5VP if controlling this".to_string()],
+                    label: "B".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+                ObjectiveInfo {
+                    id: ObjectiveId::new(2),
+                    position: Position::from_inches(11, 24),
+                    zone: ObjectiveZone::DefenderZone,
+                    special_rules: vec!["End of battle: Attacker scores 5VP if controlling this".to_string()],
+                    label: "C".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+                ObjectiveInfo {
+                    id: ObjectiveId::new(3),
+                    position: Position::from_inches(33, 24),
+                    zone: ObjectiveZone::DefenderZone,
+                    special_rules: vec!["End of battle: Attacker scores 10VP if controlling this".to_string()],
+                    label: "D".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+            ],
+            deployment_config: DeploymentConfig {
+                map_id: 5,
+                attacker_zone: "9\" deep along one long edge".to_string(),
+                defender_zone: "9\" deep along opposite long edge".to_string(),
+                no_mans_land: "12\" center strip between deployment zones".to_string(),
+            },
+            scoring_schedule: vec![ScoringSchedule {
+                from_round: 2,
+                to_round: 4,
+                timing: ScoringPhase::EndOfCommandPhase,
+                vp_per_objective: 5,
+            }],
+            primary_scoring_rules: Vec::new(),
+            special_rules: vec![
+                "Supply Lines: At start of Command phase, if you control your deployment zone objective, roll 1D6. On 4+, gain 1CP.".to_string(),
+                "End of battle bonus: Attacker scores 5VP for objective C, 10VP for objective D. Defender scores 5VP for objective B, 10VP for objective A.".to_string(),
+            ],
+            rounds: 5,
+            description: "Priority Targets — 5VP per objective controlled at end of Command phase from BR2-4. Max 15VP per scoring. End of battle: Attacker 5VP for C, 10VP for D; Defender 5VP for B, 10VP for A.".to_string(),
+        }
+    }
+
+    /// Create the Display of Might mission (Mission 6).
+    ///
+    /// Source: CP_Rules.md Section 13, Mission 6:
+    /// - Primary: Symbolic Sites — End of Command Phase BR2-4, BR5 1st/2nd player:
+    ///   5VP each for: control 1+ objectives; control 2+ objectives; 1+ symbolic sites claimed
+    ///   by your model; same model has claimed site for 2+ consecutive turns
+    /// - Mission Rule: Break Their Spirit — Insane Bravery can only be used if target unit
+    ///   is within 6" of your WARLORD
+    /// - Mission Rule: Claim Sites — NML objectives are symbolic sites. End of Command phase,
+    ///   if you control a symbolic site with 1+ CHARACTER models within range, that site is
+    ///   claimed by those models while they remain within range.
+    /// - Deployment: NML objectives + deployment zone objectives
+    pub fn create_display_of_might() -> MissionInstance {
+        MissionInstance {
+            mission_id: MissionId::new(6),
+            name: "Display of Might".to_string(),
+            objectives: vec![
+                ObjectiveInfo {
+                    id: ObjectiveId::new(0),
+                    position: Position::from_inches(22, 6),
+                    zone: ObjectiveZone::AttackerZone,
+                    special_rules: Vec::new(),
+                    label: "A".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+                ObjectiveInfo {
+                    id: ObjectiveId::new(1),
+                    position: Position::from_inches(22, 24),
+                    zone: ObjectiveZone::DefenderZone,
+                    special_rules: Vec::new(),
+                    label: "B".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+                ObjectiveInfo {
+                    id: ObjectiveId::new(2),
+                    position: Position::from_inches(11, 15),
+                    zone: ObjectiveZone::NoMansLand,
+                    special_rules: vec!["Symbolic site".to_string()],
+                    label: "C".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+                ObjectiveInfo {
+                    id: ObjectiveId::new(3),
+                    position: Position::from_inches(33, 15),
+                    zone: ObjectiveZone::NoMansLand,
+                    special_rules: vec!["Symbolic site".to_string()],
+                    label: "D".to_string(),
+                    control_range: Inches::from_inches(3),
+                },
+            ],
+            deployment_config: DeploymentConfig {
+                map_id: 6,
+                attacker_zone: "9\" deep along one long edge".to_string(),
+                defender_zone: "9\" deep along opposite long edge".to_string(),
+                no_mans_land: "12\" center strip between deployment zones".to_string(),
+            },
+            scoring_schedule: vec![ScoringSchedule {
+                from_round: 2,
+                to_round: 5,
+                timing: ScoringPhase::EndOfCommandPhase,
+                vp_per_objective: 5,
+            }],
+            primary_scoring_rules: Vec::new(),
+            special_rules: vec![
+                "Break Their Spirit: Insane Bravery can only be used if the target unit is within 6\" of your WARLORD.".to_string(),
+                "Claim Sites: NML objectives are symbolic sites. At end of Command phase, if you control a symbolic site with 1+ CHARACTER models within range, that site is claimed by those models while they remain within range.".to_string(),
+                "Scoring: 5VP each for: control 1+ objectives; control 2+ objectives; 1+ symbolic sites claimed by your model; same model has claimed site for 2+ consecutive turns. Max 20VP per scoring.".to_string(),
+            ],
+            rounds: 5,
+            description: "Symbolic Sites — 5VP each for controlling objectives, claiming symbolic sites with CHARACTERs, and maintaining claims across turns. End of Command phase from BR2. Round 5 second player scores at end of turn.".to_string(),
         }
     }
 }
@@ -758,15 +1130,21 @@ mod tests {
     fn test_clash_of_patrols_creation() {
         let mission = MissionRuntime::create_clash_of_patrols();
         assert_eq!(mission.name, "Clash of Patrols");
+        assert_eq!(mission.mission_id, MissionId::new(1));
         assert_eq!(mission.objectives.len(), 4);
         assert_eq!(mission.rounds, 5);
 
-        // Check scoring schedule
+        // Check scoring schedule — must be EndOfCommandPhase per CP_Rules.md
         assert_eq!(mission.scoring_schedule.len(), 1);
         let sched = &mission.scoring_schedule[0];
         assert_eq!(sched.from_round, 2);
         assert_eq!(sched.to_round, 5);
+        assert_eq!(sched.timing, ScoringPhase::EndOfCommandPhase);
         assert_eq!(sched.vp_per_objective, 5);
+
+        // Check Retrieve Intelligence mission rule
+        assert_eq!(mission.special_rules.len(), 1);
+        assert!(mission.special_rules[0].contains("Retrieve Intelligence"));
     }
 
     #[test]
@@ -1068,5 +1446,257 @@ mod tests {
 
         let err = MissionError::GameNotInProgress;
         assert!(err.to_string().contains("Game not in progress"));
+    }
+
+    // === create_mission lookup ===
+
+    #[test]
+    fn test_create_mission_lookup() {
+        // All 6 missions should be found
+        for id in 1..=6 {
+            let result = MissionRuntime::create_mission(MissionId::new(id));
+            assert!(result.is_some(), "Mission {} should exist", id);
+            let mission = result.unwrap();
+            assert_eq!(mission.mission_id, MissionId::new(id));
+        }
+
+        // ID 0 and 7 should not exist
+        assert!(MissionRuntime::create_mission(MissionId::new(0)).is_none());
+        assert!(MissionRuntime::create_mission(MissionId::new(7)).is_none());
+    }
+
+    // === Archeotech Recovery (Mission 2) ===
+
+    #[test]
+    fn test_archeotech_recovery_creation() {
+        let mission = MissionRuntime::create_archeotech_recovery();
+        assert_eq!(mission.name, "Archeotech Recovery");
+        assert_eq!(mission.mission_id, MissionId::new(2));
+        assert_eq!(mission.objectives.len(), 4);
+        assert_eq!(mission.rounds, 5);
+
+        // Scoring: EndOfCommandPhase BR2-5
+        assert_eq!(mission.scoring_schedule.len(), 1);
+        let sched = &mission.scoring_schedule[0];
+        assert_eq!(sched.from_round, 2);
+        assert_eq!(sched.to_round, 5);
+        assert_eq!(sched.timing, ScoringPhase::EndOfCommandPhase);
+        assert_eq!(sched.vp_per_objective, 5);
+
+        // Deployment: cross deployment (map_id 2)
+        assert_eq!(mission.deployment_config.map_id, 2);
+
+        // Mission rules: Irradiated Power Cells + end-of-battle bonus
+        assert_eq!(mission.special_rules.len(), 2);
+        assert!(mission.special_rules[0].contains("Irradiated Power Cells"));
+        assert!(mission.special_rules[1].contains("+10VP"));
+    }
+
+    #[test]
+    fn test_archeotech_recovery_objectives() {
+        let mission = MissionRuntime::create_archeotech_recovery();
+        let zones: Vec<ObjectiveZone> = mission.objectives.iter().map(|o| o.zone).collect();
+        assert_eq!(zones[0], ObjectiveZone::AttackerZone);
+        assert_eq!(zones[1], ObjectiveZone::DefenderZone);
+        assert_eq!(zones[2], ObjectiveZone::NoMansLand);
+        assert_eq!(zones[3], ObjectiveZone::NoMansLand);
+    }
+
+    // === Forward Outpost (Mission 3) ===
+
+    #[test]
+    fn test_forward_outpost_creation() {
+        let mission = MissionRuntime::create_forward_outpost();
+        assert_eq!(mission.name, "Forward Outpost");
+        assert_eq!(mission.mission_id, MissionId::new(3));
+        assert_eq!(mission.objectives.len(), 4);
+        assert_eq!(mission.rounds, 5);
+
+        // Scoring: EndOfCommandPhase BR2-5
+        assert_eq!(mission.scoring_schedule.len(), 1);
+        let sched = &mission.scoring_schedule[0];
+        assert_eq!(sched.from_round, 2);
+        assert_eq!(sched.to_round, 5);
+        assert_eq!(sched.timing, ScoringPhase::EndOfCommandPhase);
+
+        // Mission rules: Vital Ground scoring + Sabotage Enemy Comms
+        assert_eq!(mission.special_rules.len(), 2);
+        assert!(mission.special_rules[0].contains("Vital Ground"));
+        assert!(mission.special_rules[0].contains("10VP"));
+        assert!(mission.special_rules[1].contains("Sabotage Enemy Comms"));
+        assert!(mission.special_rules[1].contains("Command Re-roll"));
+    }
+
+    #[test]
+    fn test_forward_outpost_objectives() {
+        let mission = MissionRuntime::create_forward_outpost();
+        let zones: Vec<ObjectiveZone> = mission.objectives.iter().map(|o| o.zone).collect();
+        assert_eq!(zones[0], ObjectiveZone::AttackerZone);
+        assert_eq!(zones[1], ObjectiveZone::DefenderZone);
+        assert_eq!(zones[2], ObjectiveZone::NoMansLand);
+        assert_eq!(zones[3], ObjectiveZone::NoMansLand);
+    }
+
+    // === Scorched Earth (Mission 4) ===
+
+    #[test]
+    fn test_scorched_earth_creation() {
+        let mission = MissionRuntime::create_scorched_earth();
+        assert_eq!(mission.name, "Scorched Earth");
+        assert_eq!(mission.mission_id, MissionId::new(4));
+        assert_eq!(mission.objectives.len(), 4);
+        assert_eq!(mission.rounds, 5);
+
+        // Scoring: EndOfCommandPhase BR2-5
+        assert_eq!(mission.scoring_schedule.len(), 1);
+        let sched = &mission.scoring_schedule[0];
+        assert_eq!(sched.timing, ScoringPhase::EndOfCommandPhase);
+
+        // Mission rules: Raze and Ruin + Scoring details
+        assert_eq!(mission.special_rules.len(), 2);
+        assert!(mission.special_rules[0].contains("Raze and Ruin"));
+        assert!(mission.special_rules[0].contains("Attacker cannot raze objective A"));
+        assert!(mission.special_rules[0].contains("Defender cannot raze objective B"));
+    }
+
+    #[test]
+    fn test_scorched_earth_objective_restrictions() {
+        let mission = MissionRuntime::create_scorched_earth();
+        // Objective A has restriction for Attacker
+        assert!(!mission.objectives[0].special_rules.is_empty());
+        assert!(mission.objectives[0].special_rules[0].contains("Attacker cannot raze"));
+        // Objective B has restriction for Defender
+        assert!(!mission.objectives[1].special_rules.is_empty());
+        assert!(mission.objectives[1].special_rules[0].contains("Defender cannot raze"));
+        // C and D have no restrictions
+        assert!(mission.objectives[2].special_rules.is_empty());
+        assert!(mission.objectives[3].special_rules.is_empty());
+    }
+
+    // === Sweeping Raid (Mission 5) ===
+
+    #[test]
+    fn test_sweeping_raid_creation() {
+        let mission = MissionRuntime::create_sweeping_raid();
+        assert_eq!(mission.name, "Sweeping Raid");
+        assert_eq!(mission.mission_id, MissionId::new(5));
+        assert_eq!(mission.objectives.len(), 4);
+        assert_eq!(mission.rounds, 5);
+
+        // Scoring: EndOfCommandPhase BR2-4 only (end of battle has separate bonus)
+        assert_eq!(mission.scoring_schedule.len(), 1);
+        let sched = &mission.scoring_schedule[0];
+        assert_eq!(sched.from_round, 2);
+        assert_eq!(sched.to_round, 4);
+        assert_eq!(sched.timing, ScoringPhase::EndOfCommandPhase);
+        assert_eq!(sched.vp_per_objective, 5);
+
+        // Mission rules: Supply Lines + End of battle bonus
+        assert_eq!(mission.special_rules.len(), 2);
+        assert!(mission.special_rules[0].contains("Supply Lines"));
+        assert!(mission.special_rules[0].contains("4+"));
+        assert!(mission.special_rules[0].contains("1CP"));
+        assert!(mission.special_rules[1].contains("End of battle"));
+    }
+
+    #[test]
+    fn test_sweeping_raid_end_of_battle_bonus() {
+        let mission = MissionRuntime::create_sweeping_raid();
+        // Objectives have end-of-battle bonus rules
+        // A: Defender 10VP, B: Defender 5VP, C: Attacker 5VP, D: Attacker 10VP
+        assert!(mission.objectives[0].special_rules[0].contains("Defender scores 10VP"));
+        assert!(mission.objectives[1].special_rules[0].contains("Defender scores 5VP"));
+        assert!(mission.objectives[2].special_rules[0].contains("Attacker scores 5VP"));
+        assert!(mission.objectives[3].special_rules[0].contains("Attacker scores 10VP"));
+    }
+
+    // === Display of Might (Mission 6) ===
+
+    #[test]
+    fn test_display_of_might_creation() {
+        let mission = MissionRuntime::create_display_of_might();
+        assert_eq!(mission.name, "Display of Might");
+        assert_eq!(mission.mission_id, MissionId::new(6));
+        assert_eq!(mission.objectives.len(), 4);
+        assert_eq!(mission.rounds, 5);
+
+        // Scoring: EndOfCommandPhase BR2-5
+        assert_eq!(mission.scoring_schedule.len(), 1);
+        let sched = &mission.scoring_schedule[0];
+        assert_eq!(sched.timing, ScoringPhase::EndOfCommandPhase);
+
+        // Mission rules: Break Their Spirit + Claim Sites + Scoring
+        assert_eq!(mission.special_rules.len(), 3);
+        assert!(mission.special_rules[0].contains("Break Their Spirit"));
+        assert!(mission.special_rules[0].contains("Insane Bravery"));
+        assert!(mission.special_rules[0].contains("6\""));
+        assert!(mission.special_rules[1].contains("Claim Sites"));
+        assert!(mission.special_rules[1].contains("CHARACTER"));
+        assert!(mission.special_rules[2].contains("Scoring"));
+    }
+
+    #[test]
+    fn test_display_of_might_symbolic_sites() {
+        let mission = MissionRuntime::create_display_of_might();
+        // NML objectives (C, D) are symbolic sites
+        assert!(mission.objectives[2].special_rules.contains(&"Symbolic site".to_string()));
+        assert!(mission.objectives[3].special_rules.contains(&"Symbolic site".to_string()));
+        // DZ objectives (A, B) are not symbolic sites
+        assert!(mission.objectives[0].special_rules.is_empty());
+        assert!(mission.objectives[1].special_rules.is_empty());
+    }
+
+    // === All missions have consistent structure ===
+
+    #[test]
+    fn test_all_missions_have_correct_structure() {
+        let missions = vec![
+            MissionRuntime::create_clash_of_patrols(),
+            MissionRuntime::create_archeotech_recovery(),
+            MissionRuntime::create_forward_outpost(),
+            MissionRuntime::create_scorched_earth(),
+            MissionRuntime::create_sweeping_raid(),
+            MissionRuntime::create_display_of_might(),
+        ];
+
+        let expected_names = [
+            "Clash of Patrols",
+            "Archeotech Recovery",
+            "Forward Outpost",
+            "Scorched Earth",
+            "Sweeping Raid",
+            "Display of Might",
+        ];
+
+        for (i, mission) in missions.iter().enumerate() {
+            assert_eq!(mission.mission_id, MissionId::new((i + 1) as u32));
+            assert_eq!(mission.name, expected_names[i]);
+            assert_eq!(mission.rounds, 5, "Mission {} should have 5 rounds", mission.name);
+            assert_eq!(mission.objectives.len(), 4, "Mission {} should have 4 objectives", mission.name);
+            assert!(!mission.scoring_schedule.is_empty(), "Mission {} should have scoring schedule", mission.name);
+            assert!(!mission.special_rules.is_empty(), "Mission {} should have special rules", mission.name);
+
+            // All missions score at EndOfCommandPhase
+            for sched in &mission.scoring_schedule {
+                assert_eq!(
+                    sched.timing,
+                    ScoringPhase::EndOfCommandPhase,
+                    "Mission {} should score at EndOfCommandPhase",
+                    mission.name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_all_missions_serialize() {
+        for id in 1..=6u32 {
+            let mission = MissionRuntime::create_mission(MissionId::new(id)).unwrap();
+            let json = serde_json::to_string(&mission).unwrap();
+            let back: MissionInstance = serde_json::from_str(&json).unwrap();
+            assert_eq!(back.mission_id, MissionId::new(id));
+            assert_eq!(back.name, mission.name);
+            assert_eq!(back.objectives.len(), mission.objectives.len());
+        }
     }
 }

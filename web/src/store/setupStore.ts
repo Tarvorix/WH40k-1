@@ -10,35 +10,35 @@ export const FACTIONS = {
 // Enhancement IDs
 export const ENHANCEMENTS = {
   CUSTODES: [
-    { id: 0, name: 'Ceaseless Hunter', description: 'Blade Champion re-rolls Advance and Charge rolls.' },
-    { id: 1, name: 'Unstoppable Destroyer', description: 'Blade Champion: melee attacks of S7+, AP-3 gain [DEVASTATING WOUNDS].' },
+    { id: 0, name: 'Watchman of Terra', description: 'While the bearer is within Engagement Range of one or more enemy units, its Objective Control characteristic is 4.' },
+    { id: 1, name: 'Warrior Exemplar', description: 'Each time the bearer destroys an enemy unit, roll one D6. On a 3+, you gain 1CP.' },
   ],
   WORLD_EATERS: [
-    { id: 0, name: 'Berzerker Glaive', description: 'Master of Executions gains +1 to hit on the charge.' },
-    { id: 1, name: 'Helm of Brazen Ire', description: 'Master of Executions: 4+ Feel No Pain against mortal wounds.' },
+    { id: 0, name: 'Fearsome Presence', description: 'While the bearer is not Battle-shocked, it has an Objective Control characteristic of 5.' },
+    { id: 1, name: 'Bane of the Craven', description: 'Each time an enemy unit (excluding MONSTERS and VEHICLES) within Engagement Range of the bearer Falls Back, all models in that unit must take a Desperate Escape test. If Battle-shocked, subtract 1 from each test.' },
   ],
 } as const;
 
 // Secondary Objective IDs
 export const SECONDARIES = {
   CUSTODES: [
-    { id: 0, name: 'Auric Mortalis', description: 'Score VP for destroying enemy CHARACTER units.' },
-    { id: 1, name: 'Warrior of the Imperium', description: 'Score VP for controlling objectives in enemy territory.' },
+    { id: 0, name: 'Raise the Vexillas', description: 'From battle round 3 onwards, at the end of your turn, score 3VP if you control both the objective marker closest to your battlefield edge and the one closest to your opponent\'s edge.' },
+    { id: 1, name: 'Consecrated Ground', description: 'Each time an enemy unit is destroyed, score 3VP. Each time an Adeptus Custodes model is destroyed, lose 1VP. Minimum 0VP total.' },
   ],
   WORLD_EATERS: [
-    { id: 0, name: 'Blood Tithe', description: 'Score VP for destroying enemy units in the Fight phase.' },
-    { id: 1, name: 'Skull Throne', description: 'Score VP for destroying the most expensive enemy unit.' },
+    { id: 0, name: 'Champions of Khorne', description: 'From round 2 onwards, at end of your Command phase: score 2VP if one objective in No Man\'s Land is controlled with a non-Battle-shocked CHARACTER nearby; 3VP if two such objectives.' },
+    { id: 1, name: 'Skull Takers', description: 'At the end of the Fight phase, for each CHARACTER model that destroyed one or more enemy units that phase, score 3VP. Maximum 12VP.' },
   ],
 } as const;
 
-// Mission definitions
+// Mission definitions (from CP_Rules.md Section 2.2)
 export const MISSIONS = [
-  { id: 0, name: 'Sites of Power', description: 'Control objectives to score VP. Central objective is worth double.' },
-  { id: 1, name: 'Supply Drop', description: 'Objectives appear at the start of rounds 2 and 4.' },
-  { id: 2, name: 'Purge the Foe', description: 'Score VP for each enemy unit destroyed. Bonus for tabling.' },
-  { id: 3, name: 'The Ritual', description: 'Score VP by performing actions on objectives.' },
-  { id: 4, name: 'Scorched Earth', description: 'Score VP for controlling or razing objectives.' },
-  { id: 5, name: 'Take and Hold', description: 'Score VP for each objective you control at the end of your turn.' },
+  { id: 0, name: 'Clash of Patrols', description: 'Take and Hold — 5VP per objective controlled from round 2. Retrieve Intelligence: select a controlled objective in Command phase for 1CP (each objective once only).' },
+  { id: 1, name: 'Archeotech Recovery', description: 'Recover Archeotech — 5VP per objective from round 2. Irradiated Power Cells remove No Man\'s Land objectives in rounds 3-5. Control the last one for +10VP.' },
+  { id: 2, name: 'Forward Outpost', description: 'Vital Ground — 5VP per No Man\'s Land objective, 10VP for enemy deployment zone objective. Sabotage Enemy Comms: control opponent\'s objective to block their Command Re-roll.' },
+  { id: 3, name: 'Scorched Earth', description: 'Raze and Ruin — 5VP per objective from round 2. You may raze a controlled objective (no enemies within 3") to remove it and score 5VP.' },
+  { id: 4, name: 'Sweeping Raid', description: 'Priority Targets — 5VP per objective from round 2. End of battle bonus for specific objectives. Supply Lines: 4+ on D6 for 1CP if you control your deployment zone objective.' },
+  { id: 5, name: 'Display of Might', description: 'Symbolic Sites — 5VP each for controlling objectives, claiming symbolic sites with CHARACTERs, and maintaining claims across turns. Break Their Spirit limits Insane Bravery to within 6" of WARLORD.' },
 ] as const;
 
 type SetupStep = 'faction_select' | 'enhancement_select' | 'secondary_select' | 'mission_select' | 'ready';
