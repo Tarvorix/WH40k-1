@@ -47,6 +47,12 @@ pub fn compute_state_hash(state: &GameState) -> u64 {
     // --- Board ---
     hash_board(&mut hasher, &state.board);
 
+    // --- Deployment config ---
+    state.deployment_config.is_some().hash(&mut hasher);
+    if let Some(ref config) = state.deployment_config {
+        hash_deployment_config(&mut hasher, config);
+    }
+
     // --- Active effects (Vec - stable order) ---
     hasher.write_usize(state.active_effects.len());
     for effect in &state.active_effects {
@@ -311,6 +317,9 @@ fn hash_turn_flags(hasher: &mut ahash::AHasher, flags: &crate::state::TurnFlags)
     // declared_charge_targets: HashMap<UnitId, Vec<UnitId>> - sort by key
     hash_sorted_map(hasher, &flags.declared_charge_targets);
 
+    // charge_roll_results: HashMap<UnitId, u8> - sort by key
+    hash_sorted_map(hasher, &flags.charge_roll_results);
+
     // ka_tah_stances: HashMap<UnitId, String> - sort by key
     hash_sorted_map(hasher, &flags.ka_tah_stances);
 
@@ -321,6 +330,27 @@ fn hash_turn_flags(hasher: &mut ahash::AHasher, flags: &crate::state::TurnFlags)
     hasher.write_usize(flags.fight_on_death_queue.len());
     for model_id in &flags.fight_on_death_queue {
         model_id.hash(hasher);
+    }
+}
+
+/// Hash the DeploymentConfig.
+fn hash_deployment_config(
+    hasher: &mut ahash::AHasher,
+    config: &wh40k_geometry::DeploymentConfig,
+) {
+    config.map_type.hash(hasher);
+    config.attacker_zone.player.hash(hasher);
+    config.attacker_zone.map_type.hash(hasher);
+    // Hash polygon vertices
+    hasher.write_usize(config.attacker_zone.polygon.vertices.len());
+    for v in &config.attacker_zone.polygon.vertices {
+        v.hash(hasher);
+    }
+    config.defender_zone.player.hash(hasher);
+    config.defender_zone.map_type.hash(hasher);
+    hasher.write_usize(config.defender_zone.polygon.vertices.len());
+    for v in &config.defender_zone.polygon.vertices {
+        v.hash(hasher);
     }
 }
 
@@ -377,6 +407,7 @@ mod tests {
             ],
             units: Vec::new(),
             board: wh40k_geometry::Board::combat_patrol(),
+            deployment_config: None,
             event_bus: wh40k_event_system::EventBus::new(),
             command_history: wh40k_command_system::CommandHistory::new(),
             dice_roller,

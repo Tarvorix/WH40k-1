@@ -26,6 +26,7 @@ export interface PlayerView {
   secondary_vp: number;
   enhancement_choice: number | null;
   secondary_choice: number | null;
+  patrol_squad_choice: number | null;
   first_turn: boolean;
   active_blessings: string[];
   blessing_dice: number[];
@@ -236,7 +237,10 @@ export interface ValidationResultView {
 }
 
 // Difficulty levels for AI
-export type AiDifficulty = 'greedy' | 'one_ply' | 'negamax_2' | 'negamax_3';
+export type AiDifficulty =
+  | 'Basic_Recruit' | 'Basic_Battle_Ready' | 'Basic_Veteran' | 'Basic_Elite'
+  | 'Perturabo_Shallow' | 'Perturabo_Regular' | 'Perturabo_Deep'
+  | 'Alpharius_Shallow' | 'Alpharius_Regular' | 'Alpharius_Deep';
 
 // Screen routing
 export type Screen = 'setup' | 'play' | 'replay' | 'game_end';

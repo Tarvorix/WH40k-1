@@ -14,7 +14,7 @@
 
 use wh40k_core_types::{
     AllocationStatus, ArmorPenetration, ArmorSave, AttackCount, Damage,
-    InvulnerableSave, Keyword, KeywordSet, ModelId, SaveResult, SaveType, Skill,
+    InvulnerableSave, KeywordSet, ModelId, SaveResult, SaveType, Skill,
     Strength, Toughness, UnitId, WeaponAbilitySet, WeaponId, WeaponProfile,
     WeaponType,
 };
@@ -71,8 +71,8 @@ pub struct AttackContext {
     pub indirect_fire_no_los: bool,
     /// Whether this attack is an Overwatch (only hit on 6s).
     pub is_overwatch: bool,
-    /// Whether the target has Stealth (attacks from >12" suffer -1 to hit).
-    /// Source: 40k_revised.md - "STEALTH"
+    /// Whether the target has Stealth (all ranged attacks suffer -1 to hit).
+    /// Source: 40k_revised.md §12.7 - "STEALTH"
     pub target_has_stealth: bool,
     /// Distance from attacker to target in mils (for Stealth range check).
     pub distance_mils: i32,
@@ -84,6 +84,14 @@ pub struct AttackContext {
     pub bonus_fnp: u8,
     /// Critical hit threshold override (e.g., Martial Excellence = 5+). 0 = default (6).
     pub critical_hit_threshold: u8,
+    /// Whether the Command Re-roll stratagem is active for the attacker's owner.
+    /// When true, the first failed hit, wound, or damage roll may be re-rolled.
+    /// Source: 40k_revised.md §15.2 - "Command Re-roll"
+    pub command_reroll_active: bool,
+    /// Whether the Command Re-roll stratagem is active for the defender's owner.
+    /// When true, the first failed saving throw may be re-rolled.
+    /// Source: 40k_revised.md §15.2 - "Command Re-roll"
+    pub defender_command_reroll_active: bool,
 }
 
 /// Result of resolving a single attack (one die through the pipeline).
@@ -120,6 +128,12 @@ pub struct AttackBatchResult {
     pub devastating_mortal_wounds: u8,
     /// Whether Hazardous tests need to be resolved.
     pub hazardous_weapons_used: u8,
+    /// Whether the attacker's Command Re-roll stratagem was consumed during this batch.
+    /// Source: 40k_revised.md §15.2 - "Command Re-roll"
+    pub command_reroll_consumed: bool,
+    /// Whether the defender's Command Re-roll stratagem was consumed during this batch.
+    /// Source: 40k_revised.md §15.2 - "Command Re-roll"
+    pub defender_command_reroll_consumed: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -140,8 +154,12 @@ pub fn resolve_attack_batch(
     let mut events = Vec::new();
     let mut models_destroyed: Vec<ModelId> = Vec::new();
     let mut wounds_inflicted: Vec<(ModelId, u8)> = Vec::new();
-    let mut devastating_mortal_pool: u8 = 0;
     let mut hazardous_count: u8 = 0;
+
+    // Command Re-roll: track whether the re-roll is still available (consumed once per phase)
+    // Source: 40k_revised.md §15.2 - "Command Re-roll"
+    let mut command_reroll_available = ctx.command_reroll_active;
+    let mut defender_command_reroll_available = ctx.defender_command_reroll_active;
 
     // Track Hazardous weapons used
     if ctx.effective_abilities.has_hazardous() {
@@ -156,13 +174,13 @@ pub fn resolve_attack_batch(
     let mut successful_wounds: Vec<SuccessfulWound> = Vec::new();
 
     for _attack_idx in 0..total_attacks {
-        let result = resolve_single_attack(ctx, dice, &mut events);
+        let result = resolve_single_attack(ctx, dice, &mut events, &mut command_reroll_available);
 
         // Process Sustained Hits extra hits
         if result.hit_success && result.sustained_extra_hits > 0 {
             for _ in 0..result.sustained_extra_hits {
                 // Sustained Hits generate extra hits that still need wound rolls
-                let extra_wound = resolve_wound_roll(ctx, dice, &mut events);
+                let extra_wound = resolve_wound_roll(ctx, dice, &mut events, &mut command_reroll_available);
                 if extra_wound.wound_success {
                     successful_wounds.push(extra_wound);
                 }
@@ -181,16 +199,20 @@ pub fn resolve_attack_batch(
 
     // Step 7: Allocate wounds and resolve saves/damage
     // Separate devastating wounds (mortal, no save) from normal wounds
+    // Each devastating wound is tracked individually — excess MW lost per model per DW attack
+    // Source: 40k_revised.md §11.12 - "DEVASTATING WOUNDS"
     let mut normal_wounds: Vec<&SuccessfulWound> = Vec::new();
+    let mut devastating_wound_damages: Vec<u8> = Vec::new();
     for wound in &successful_wounds {
         if wound.devastating_wound {
             // Devastating Wounds: weapon damage as mortal wounds, no save allowed
-            let damage = resolve_damage_value(&ctx.weapon, ctx.within_half_range, dice);
-            devastating_mortal_pool += damage;
+            let damage = resolve_damage_value_simple(&ctx.weapon, ctx.within_half_range, dice);
+            devastating_wound_damages.push(damage);
         } else {
             normal_wounds.push(wound);
         }
     }
+    let devastating_mortal_pool: u8 = devastating_wound_damages.iter().sum();
 
     // Resolve normal wounds: allocate -> save -> damage
     for _wound in &normal_wounds {
@@ -230,7 +252,36 @@ pub fn resolve_attack_batch(
             },
         });
 
-        let save_passed = roll != 1 && roll >= save_value; // Unmodified 1 always fails
+        let mut save_roll = roll;
+        let save_passed_initial = roll != 1 && roll >= save_value; // Unmodified 1 always fails
+
+        // Command Re-roll: defender re-rolls a failed save
+        // Source: 40k_revised.md §15.2 - "Command Re-roll"
+        let save_passed = if !save_passed_initial && defender_command_reroll_available {
+            // Re-roll the save die
+            let (reroll, _reroll_id) = dice.roll_d6(RollPurpose::SaveRoll {
+                defender_unit: ctx.defender_id.raw(),
+                model_id: model_id.raw(),
+                save_type: match save_type {
+                    SaveType::Armour => wh40k_dice::SaveRollType::Armour,
+                    SaveType::Invulnerable => wh40k_dice::SaveRollType::Invulnerable,
+                },
+            });
+            defender_command_reroll_available = false;
+            // Defender is the opponent of the attacker in a 2-player game
+            let defender_player = wh40k_core_types::PlayerId::new(1 - ctx.attacker_owner.raw());
+            events.push(GameEvent::CommandRerollUsed {
+                player: defender_player,
+                roll_type: "save".to_string(),
+                original_roll: roll,
+                new_roll: reroll,
+            });
+            save_roll = reroll;
+            reroll != 1 && reroll >= save_value
+        } else {
+            save_passed_initial
+        };
+
         let save_result = if save_passed {
             SaveResult::Saved
         } else {
@@ -239,8 +290,8 @@ pub fn resolve_attack_batch(
 
         events.push(GameEvent::SaveRollMade {
             defender: ctx.defender_id,
-            roll,
-            modified: roll as i8, // save_value already accounts for AP
+            roll: save_roll,
+            modified: save_roll as i8, // save_value already accounts for AP
             save_type,
             result: save_result,
         });
@@ -250,7 +301,7 @@ pub fn resolve_attack_batch(
         }
 
         // Save failed: resolve damage
-        let damage = resolve_damage_value(&ctx.weapon, ctx.within_half_range, dice);
+        let damage = resolve_damage_value(&ctx.weapon, ctx.within_half_range, dice, &mut command_reroll_available, ctx.attacker_owner, &mut events);
 
         // Apply damage to the target model with Feel No Pain
         let actual_damage = apply_damage_with_fnp(
@@ -283,20 +334,26 @@ pub fn resolve_attack_batch(
         }
     }
 
-    // Apply devastating mortal wounds pool
-    if devastating_mortal_pool > 0 {
+    // Apply devastating wound mortal wounds individually per attack
+    // Each devastating wound's mortal wounds are applied separately; excess is lost
+    // per model for each individual devastating wound attack.
+    // Source: 40k_revised.md §11.12 - "DEVASTATING WOUNDS", §8.7 - "MORTAL WOUNDS"
+    for dw_damage in &devastating_wound_damages {
+        if *dw_damage == 0 {
+            continue;
+        }
         let source = format!("Devastating Wounds ({})", ctx.weapon.name);
         events.push(GameEvent::MortalWoundsInflicted {
             target_unit: ctx.defender_id,
-            wounds: devastating_mortal_pool,
+            wounds: *dw_damage,
             source: source.clone(),
         });
 
-        // Allocate mortal wounds to models (excess damage is lost per model,
-        // as per Devastating Wounds / Hazardous mortal wound rules)
+        // Apply this individual devastating wound's mortal wounds
+        // Excess damage is lost when a model is destroyed (per §8.7)
         apply_mortal_wounds_devastating(
             defender_models,
-            devastating_mortal_pool,
+            *dw_damage,
             &mut models_destroyed,
             &mut wounds_inflicted,
             &mut events,
@@ -314,6 +371,8 @@ pub fn resolve_attack_batch(
         models_destroyed,
         devastating_mortal_wounds: devastating_mortal_pool,
         hazardous_weapons_used: hazardous_count,
+        command_reroll_consumed: ctx.command_reroll_active && !command_reroll_available,
+        defender_command_reroll_consumed: ctx.defender_command_reroll_active && !defender_command_reroll_available,
     }
 }
 
@@ -364,14 +423,18 @@ struct SuccessfulWound {
 }
 
 /// Resolve a single attack through hit and wound rolls.
+///
+/// `command_reroll_available` tracks whether the attacker's Command Re-roll can still be used.
+/// When consumed, it is set to false.
 fn resolve_single_attack(
     ctx: &AttackContext,
     dice: &mut DiceRoller,
     events: &mut Vec<GameEvent>,
+    command_reroll_available: &mut bool,
 ) -> SingleAttackResult {
     // Step 2: Hit Roll
     let (hit_roll, is_critical_hit, hit_success, sustained_extra) =
-        resolve_hit_roll(ctx, dice, events);
+        resolve_hit_roll(ctx, dice, events, command_reroll_available);
 
     if !hit_success {
         return SingleAttackResult {
@@ -401,7 +464,7 @@ fn resolve_single_attack(
         };
     }
 
-    let wound_result = resolve_wound_roll(ctx, dice, events);
+    let wound_result = resolve_wound_roll(ctx, dice, events, command_reroll_available);
 
     SingleAttackResult {
         hit_roll: Some(hit_roll),
@@ -419,11 +482,15 @@ fn resolve_single_attack(
 ///
 /// Returns (roll_value, is_critical, hit_success, sustained_extra_hits).
 ///
+/// If the hit fails and Command Re-roll is available, the roll is re-rolled
+/// once and the re-roll is consumed.
+///
 /// Source: 40k_revised.md - "HIT ROLLS"
 fn resolve_hit_roll(
     ctx: &AttackContext,
     dice: &mut DiceRoller,
     events: &mut Vec<GameEvent>,
+    command_reroll_available: &mut bool,
 ) -> (u8, bool, bool, u8) {
     // Torrent: automatic hit, no roll needed
     if ctx.effective_abilities.has_torrent() {
@@ -444,16 +511,83 @@ fn resolve_hit_roll(
         weapon_id: ctx.weapon.id.raw(),
     });
 
-    // Unmodified 1 always fails
-    if roll == 1 {
+    // Evaluate the initial hit result
+    let result = evaluate_hit_roll(ctx, roll);
+
+    // Command Re-roll: if hit failed and re-roll is available, try again
+    // Source: 40k_revised.md §15.2 - "Command Re-roll"
+    if !result.hit_success && *command_reroll_available {
+        let (reroll, _reroll_id) = dice.roll_d6(RollPurpose::HitRoll {
+            attacker_unit: ctx.attacker_id.raw(),
+            target_unit: ctx.defender_id.raw(),
+            weapon_id: ctx.weapon.id.raw(),
+        });
+        *command_reroll_available = false;
+        events.push(GameEvent::CommandRerollUsed {
+            player: ctx.attacker_owner,
+            roll_type: "hit".to_string(),
+            original_roll: roll,
+            new_roll: reroll,
+        });
+        let reroll_result = evaluate_hit_roll(ctx, reroll);
         events.push(GameEvent::HitRollMade {
             attacker: ctx.attacker_id,
-            roll,
-            modified: 1,
-            is_critical: false,
-            result: RollResult::Failure,
+            roll: reroll,
+            modified: reroll_result.modified_roll as i8,
+            is_critical: reroll_result.is_critical,
+            result: if reroll_result.hit_success {
+                RollResult::Success
+            } else {
+                RollResult::Failure
+            },
         });
-        return (roll, false, false, 0);
+        return (
+            reroll,
+            reroll_result.is_critical && reroll_result.hit_success,
+            reroll_result.hit_success,
+            reroll_result.sustained_extra,
+        );
+    }
+
+    events.push(GameEvent::HitRollMade {
+        attacker: ctx.attacker_id,
+        roll,
+        modified: result.modified_roll as i8,
+        is_critical: result.is_critical,
+        result: if result.hit_success {
+            RollResult::Success
+        } else {
+            RollResult::Failure
+        },
+    });
+
+    (
+        roll,
+        result.is_critical && result.hit_success,
+        result.hit_success,
+        result.sustained_extra,
+    )
+}
+
+/// Internal result of evaluating a hit roll against the context.
+struct HitRollEvaluation {
+    is_critical: bool,
+    hit_success: bool,
+    modified_roll: u8,
+    sustained_extra: u8,
+}
+
+/// Evaluate a hit roll (pure logic, no side effects).
+/// Used by both the initial roll and the Command Re-roll path.
+fn evaluate_hit_roll(ctx: &AttackContext, roll: u8) -> HitRollEvaluation {
+    // Unmodified 1 always fails
+    if roll == 1 {
+        return HitRollEvaluation {
+            is_critical: false,
+            hit_success: false,
+            modified_roll: 1,
+            sustained_extra: 0,
+        };
     }
 
     // Critical hit check: normally unmodified 6, but can be overridden
@@ -474,49 +608,38 @@ fn resolve_hit_roll(
         hit_modifier += 1;
     }
 
-    // Assault after advancing: no hit modifier penalty in base rules
-    // (it just allows shooting, no penalty)
-
     // Overwatch: only hits on unmodified 6
     if ctx.is_overwatch {
         let success = roll == 6;
-        events.push(GameEvent::HitRollMade {
-            attacker: ctx.attacker_id,
-            roll,
-            modified: roll as i8,
-            is_critical,
-            result: if success {
-                RollResult::Success
-            } else {
-                RollResult::Failure
-            },
-        });
         let sustained_extra = if success && is_critical {
             ctx.effective_abilities.total_sustained_hits()
         } else {
             0
         };
-        return (roll, is_critical && success, success, sustained_extra);
+        return HitRollEvaluation {
+            is_critical: is_critical && success,
+            hit_success: success,
+            modified_roll: roll,
+            sustained_extra,
+        };
     }
 
     // Indirect Fire (no LOS): -1 to hit, and unmodified 1-3 always fail
     if ctx.indirect_fire_no_los {
         hit_modifier -= 1;
         if roll <= 3 {
-            events.push(GameEvent::HitRollMade {
-                attacker: ctx.attacker_id,
-                roll,
-                modified: roll as i8 + hit_modifier,
+            return HitRollEvaluation {
                 is_critical: false,
-                result: RollResult::Failure,
-            });
-            return (roll, false, false, 0);
+                hit_success: false,
+                modified_roll: (roll as i8 + hit_modifier).max(1) as u8,
+                sustained_extra: 0,
+            };
         }
     }
 
-    // Stealth: -1 to hit if target has Stealth and distance > 12"
-    // Source: 40k_revised.md - "STEALTH"
-    if ctx.target_has_stealth && ctx.distance_mils > 12_000 {
+    // Stealth: -1 to hit if target has Stealth (all ranges)
+    // Source: 40k_revised.md §12.7 - "STEALTH"
+    if ctx.target_has_stealth {
         hit_modifier -= 1;
     }
 
@@ -543,28 +666,25 @@ fn resolve_hit_roll(
         0
     };
 
-    events.push(GameEvent::HitRollMade {
-        attacker: ctx.attacker_id,
-        roll,
-        modified: modified_roll as i8,
+    HitRollEvaluation {
         is_critical,
-        result: if hit_success {
-            RollResult::Success
-        } else {
-            RollResult::Failure
-        },
-    });
-
-    (roll, is_critical && hit_success, hit_success, sustained_extra)
+        hit_success,
+        modified_roll,
+        sustained_extra,
+    }
 }
 
 /// Resolve a wound roll.
+///
+/// If the wound fails and Command Re-roll is available (and Twin-linked hasn't
+/// already re-rolled), the roll is re-rolled once and the re-roll is consumed.
 ///
 /// Source: 40k_revised.md - "WOUND ROLLS"
 fn resolve_wound_roll(
     ctx: &AttackContext,
     dice: &mut DiceRoller,
     events: &mut Vec<GameEvent>,
+    command_reroll_available: &mut bool,
 ) -> SuccessfulWound {
     let (roll, _roll_id) = dice.roll_d6(RollPurpose::WoundRoll {
         attacker_unit: ctx.attacker_id.raw(),
@@ -572,20 +692,115 @@ fn resolve_wound_roll(
         weapon_id: ctx.weapon.id.raw(),
     });
 
-    // Unmodified 1 always fails
-    if roll == 1 {
+    // Evaluate the wound roll
+    let eval = evaluate_wound_roll(ctx, roll);
+
+    // Twin-Linked: re-roll failed wound rolls (takes priority over Command Re-roll)
+    if !eval.wound_success && ctx.effective_abilities.has_twin_linked() {
+        let (reroll, _reroll_id) = dice.roll_d6(RollPurpose::WoundRoll {
+            attacker_unit: ctx.attacker_id.raw(),
+            target_unit: ctx.defender_id.raw(),
+            weapon_id: ctx.weapon.id.raw(),
+        });
+
+        let reroll_eval = evaluate_wound_roll(ctx, reroll);
+
         events.push(GameEvent::WoundRollMade {
             attacker: ctx.attacker_id,
-            roll,
-            modified: 1,
-            is_critical: false,
-            result: RollResult::Failure,
+            roll: reroll,
+            modified: reroll_eval.modified_roll as i8,
+            is_critical: reroll_eval.is_critical_wound,
+            result: if reroll_eval.wound_success {
+                RollResult::Success
+            } else {
+                RollResult::Failure
+            },
         });
+
         return SuccessfulWound {
-            wound_roll: Some(roll),
+            wound_roll: Some(reroll),
+            is_critical_wound: reroll_eval.is_critical_wound,
+            wound_success: reroll_eval.wound_success,
+            devastating_wound: reroll_eval.devastating,
+        };
+    }
+
+    // Command Re-roll: if wound failed and re-roll is available, try again
+    // Source: 40k_revised.md §15.2 - "Command Re-roll"
+    if !eval.wound_success && *command_reroll_available {
+        let (reroll, _reroll_id) = dice.roll_d6(RollPurpose::WoundRoll {
+            attacker_unit: ctx.attacker_id.raw(),
+            target_unit: ctx.defender_id.raw(),
+            weapon_id: ctx.weapon.id.raw(),
+        });
+        *command_reroll_available = false;
+        events.push(GameEvent::CommandRerollUsed {
+            player: ctx.attacker_owner,
+            roll_type: "wound".to_string(),
+            original_roll: roll,
+            new_roll: reroll,
+        });
+
+        let reroll_eval = evaluate_wound_roll(ctx, reroll);
+
+        events.push(GameEvent::WoundRollMade {
+            attacker: ctx.attacker_id,
+            roll: reroll,
+            modified: reroll_eval.modified_roll as i8,
+            is_critical: reroll_eval.is_critical_wound,
+            result: if reroll_eval.wound_success {
+                RollResult::Success
+            } else {
+                RollResult::Failure
+            },
+        });
+
+        return SuccessfulWound {
+            wound_roll: Some(reroll),
+            is_critical_wound: reroll_eval.is_critical_wound,
+            wound_success: reroll_eval.wound_success,
+            devastating_wound: reroll_eval.devastating,
+        };
+    }
+
+    events.push(GameEvent::WoundRollMade {
+        attacker: ctx.attacker_id,
+        roll,
+        modified: eval.modified_roll as i8,
+        is_critical: eval.is_critical_wound,
+        result: if eval.wound_success {
+            RollResult::Success
+        } else {
+            RollResult::Failure
+        },
+    });
+
+    SuccessfulWound {
+        wound_roll: Some(roll),
+        is_critical_wound: eval.is_critical_wound,
+        wound_success: eval.wound_success,
+        devastating_wound: eval.devastating,
+    }
+}
+
+/// Internal result of evaluating a wound roll against the context.
+struct WoundRollEvaluation {
+    is_critical_wound: bool,
+    wound_success: bool,
+    modified_roll: u8,
+    devastating: bool,
+}
+
+/// Evaluate a wound roll (pure logic, no side effects).
+/// Used by both the initial roll and the Command Re-roll / Twin-linked re-roll paths.
+fn evaluate_wound_roll(ctx: &AttackContext, roll: u8) -> WoundRollEvaluation {
+    // Unmodified 1 always fails
+    if roll == 1 {
+        return WoundRollEvaluation {
             is_critical_wound: false,
             wound_success: false,
-            devastating_wound: false,
+            modified_roll: 1,
+            devastating: false,
         };
     }
 
@@ -594,7 +809,6 @@ fn resolve_wound_roll(
 
     // Check Anti-X: if target has the keyword and roll >= threshold, it's a critical wound
     let anti_critical = check_anti_keyword(ctx, roll);
-
     let is_critical_wound = is_critical || anti_critical;
 
     // Calculate wound modifier (capped at -1 to +1)
@@ -619,60 +833,11 @@ fn resolve_wound_roll(
     // Devastating Wounds: critical wounds become mortal wounds
     let devastating = is_critical_wound && ctx.effective_abilities.has_devastating_wounds();
 
-    // Twin-Linked: re-roll failed wound rolls
-    if !wound_success && ctx.effective_abilities.has_twin_linked() {
-        // Re-roll
-        let (reroll, _reroll_id) = dice.roll_d6(RollPurpose::WoundRoll {
-            attacker_unit: ctx.attacker_id.raw(),
-            target_unit: ctx.defender_id.raw(),
-            weapon_id: ctx.weapon.id.raw(),
-        });
-
-        let reroll_critical = reroll == 6;
-        let reroll_anti_critical = check_anti_keyword(ctx, reroll);
-        let reroll_is_critical = reroll_critical || reroll_anti_critical;
-
-        let reroll_modified = (reroll as i8 + wound_modifier).max(1) as u8;
-        let reroll_success = reroll != 1 && (reroll_is_critical || reroll_modified >= required);
-        let reroll_devastating = reroll_is_critical && ctx.effective_abilities.has_devastating_wounds();
-
-        events.push(GameEvent::WoundRollMade {
-            attacker: ctx.attacker_id,
-            roll: reroll,
-            modified: reroll_modified as i8,
-            is_critical: reroll_is_critical,
-            result: if reroll_success {
-                RollResult::Success
-            } else {
-                RollResult::Failure
-            },
-        });
-
-        return SuccessfulWound {
-            wound_roll: Some(reroll),
-            is_critical_wound: reroll_is_critical,
-            wound_success: reroll_success,
-            devastating_wound: reroll_devastating,
-        };
-    }
-
-    events.push(GameEvent::WoundRollMade {
-        attacker: ctx.attacker_id,
-        roll,
-        modified: modified_roll as i8,
-        is_critical: is_critical_wound,
-        result: if wound_success {
-            RollResult::Success
-        } else {
-            RollResult::Failure
-        },
-    });
-
-    SuccessfulWound {
-        wound_roll: Some(roll),
+    WoundRollEvaluation {
         is_critical_wound,
         wound_success,
-        devastating_wound: devastating,
+        modified_roll,
+        devastating,
     }
 }
 
@@ -713,6 +878,35 @@ fn select_allocation_target(
     // Check if this unit has a bodyguard structure (some models are leaders, some are not)
     let has_bodyguard_models = models.iter().any(|m| !m.is_leader && m.alive && !destroyed_this_batch.contains(&m.id));
     let bodyguard_active = has_bodyguard_models && !has_precision;
+
+    // Precision: actively target CHARACTER (leader) models in Attached units
+    // Source: 40k_revised.md §11.14 - "PRECISION"
+    // "attacker may choose to allocate the attack to that CHARACTER,
+    //  provided it is visible to the attacking model"
+    // #26: Visibility requirement is satisfied because the target unit was already
+    // validated as visible during shooting declaration (validate_declare_shooting_targets
+    // checks LOS via board.check_los()). Per-model visibility within a unit is
+    // guaranteed by the unit-level LOS check.
+    if has_precision {
+        // First check for a wounded leader
+        let wounded_leader = models.iter().enumerate().find(|(_, m)| {
+            m.alive
+                && m.is_leader
+                && m.allocation_status == AllocationStatus::WoundedAllocated
+                && !destroyed_this_batch.contains(&m.id)
+        });
+        if let Some((idx, _)) = wounded_leader {
+            return Some(idx);
+        }
+        // Then target any alive leader
+        let alive_leader = models.iter().enumerate().find(|(_, m)| {
+            m.alive && m.is_leader && !destroyed_this_batch.contains(&m.id)
+        });
+        if let Some((idx, _)) = alive_leader {
+            return Some(idx);
+        }
+        // No leader alive — fall through to normal allocation
+    }
 
     // Priority 1: Already wounded model that's still alive and not destroyed this batch
     let wounded = models.iter().enumerate().find(|(_, m)| {
@@ -800,8 +994,130 @@ fn determine_best_save(
 
 /// Resolve a variable damage value for a weapon.
 ///
+/// If the damage is variable and Command Re-roll is available, the player may
+/// re-roll the damage die (consuming the re-roll). The re-roll is used if the
+/// initial damage roll is below average (i.e., low enough to be worth re-rolling).
+///
 /// Source: 40k_revised.md - "INFLICTING DAMAGE"
 fn resolve_damage_value(
+    weapon: &WeaponProfile,
+    within_half_range: bool,
+    dice: &mut DiceRoller,
+    command_reroll_available: &mut bool,
+    attacker_owner: wh40k_core_types::PlayerId,
+    events: &mut Vec<GameEvent>,
+) -> u8 {
+    let base_damage = match weapon.damage {
+        Damage::Fixed(n) => n,
+        Damage::D3 => {
+            let (val, _) = dice.roll_d3(RollPurpose::DamageRoll {
+                weapon_id: weapon.id.raw(),
+                damage_type: "D3".to_string(),
+            });
+            // Command Re-roll: re-roll low damage (1 on D3)
+            // Source: 40k_revised.md §15.2 - "Command Re-roll"
+            if val == 1 && *command_reroll_available {
+                let (reroll, _) = dice.roll_d3(RollPurpose::DamageRoll {
+                    weapon_id: weapon.id.raw(),
+                    damage_type: "D3".to_string(),
+                });
+                *command_reroll_available = false;
+                events.push(GameEvent::CommandRerollUsed {
+                    player: attacker_owner,
+                    roll_type: "damage".to_string(),
+                    original_roll: val,
+                    new_roll: reroll,
+                });
+                reroll
+            } else {
+                val
+            }
+        }
+        Damage::D6 => {
+            let (val, _) = dice.roll_d6(RollPurpose::DamageRoll {
+                weapon_id: weapon.id.raw(),
+                damage_type: "D6".to_string(),
+            });
+            // Command Re-roll: re-roll low damage (1-2 on D6)
+            if val <= 2 && *command_reroll_available {
+                let (reroll, _) = dice.roll_d6(RollPurpose::DamageRoll {
+                    weapon_id: weapon.id.raw(),
+                    damage_type: "D6".to_string(),
+                });
+                *command_reroll_available = false;
+                events.push(GameEvent::CommandRerollUsed {
+                    player: attacker_owner,
+                    roll_type: "damage".to_string(),
+                    original_roll: val,
+                    new_roll: reroll,
+                });
+                reroll
+            } else {
+                val
+            }
+        }
+        Damage::D3Plus(n) => {
+            let (val, _) = dice.roll_d3(RollPurpose::DamageRoll {
+                weapon_id: weapon.id.raw(),
+                damage_type: format!("D3+{}", n),
+            });
+            // Command Re-roll: re-roll low damage (1 on D3+N)
+            if val == 1 && *command_reroll_available {
+                let (reroll, _) = dice.roll_d3(RollPurpose::DamageRoll {
+                    weapon_id: weapon.id.raw(),
+                    damage_type: format!("D3+{}", n),
+                });
+                *command_reroll_available = false;
+                events.push(GameEvent::CommandRerollUsed {
+                    player: attacker_owner,
+                    roll_type: "damage".to_string(),
+                    original_roll: val,
+                    new_roll: reroll,
+                });
+                reroll + n
+            } else {
+                val + n
+            }
+        }
+        Damage::D6Plus(n) => {
+            let (val, _) = dice.roll_d6(RollPurpose::DamageRoll {
+                weapon_id: weapon.id.raw(),
+                damage_type: format!("D6+{}", n),
+            });
+            // Command Re-roll: re-roll low damage (1-2 on D6+N)
+            if val <= 2 && *command_reroll_available {
+                let (reroll, _) = dice.roll_d6(RollPurpose::DamageRoll {
+                    weapon_id: weapon.id.raw(),
+                    damage_type: format!("D6+{}", n),
+                });
+                *command_reroll_available = false;
+                events.push(GameEvent::CommandRerollUsed {
+                    player: attacker_owner,
+                    roll_type: "damage".to_string(),
+                    original_roll: val,
+                    new_roll: reroll,
+                });
+                reroll + n
+            } else {
+                val + n
+            }
+        }
+    };
+
+    // Melta: +N damage within half range
+    let melta_bonus = if within_half_range {
+        weapon.abilities.melta_value().unwrap_or(0)
+    } else {
+        0
+    };
+
+    base_damage + melta_bonus
+}
+
+/// Resolve a damage value without Command Re-roll support.
+/// Used for devastating wound damage resolution and other contexts where
+/// the Command Re-roll is not applicable (e.g., mortal wound pools).
+fn resolve_damage_value_simple(
     weapon: &WeaponProfile,
     within_half_range: bool,
     dice: &mut DiceRoller,
@@ -982,6 +1298,8 @@ fn apply_mortal_wounds_devastating(
             bonus_ap: 0,
             bonus_fnp: 0,
             critical_hit_threshold: 0,
+            command_reroll_active: false,
+            defender_command_reroll_active: false,
         });
 
         let target_idx = match target {
@@ -1171,7 +1489,7 @@ pub fn resolve_hazardous_tests(
     models: &mut [ModelState],
     hazardous_count: u8,
     attacker_id: UnitId,
-    attacker_keywords: &KeywordSet,
+    _attacker_keywords: &KeywordSet,
     dice: &mut DiceRoller,
     events: &mut Vec<GameEvent>,
 ) -> Vec<ModelId> {
@@ -1423,6 +1741,8 @@ mod tests {
             bonus_ap: 0,
             bonus_fnp: 0,
             critical_hit_threshold: 0,
+            command_reroll_active: false,
+            defender_command_reroll_active: false,
         }
     }
 

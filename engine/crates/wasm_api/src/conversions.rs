@@ -38,7 +38,7 @@ pub fn game_state_to_view(state: &GameState) -> GameView {
         .map(|u| unit_to_view(u, &state.turn_flags))
         .collect();
 
-    let board = board_to_view(&state.board);
+    let board = board_to_view_with_deployment(&state.board, state.deployment_config.as_ref());
 
     // Take the last 50 events from the event bus log.
     let log = state.event_bus.log();
@@ -82,6 +82,7 @@ pub fn player_to_view(player: &PlayerState) -> PlayerView {
         secondary_vp: player.mission_progress.secondary_vp.value(),
         enhancement_choice: player.enhancement_choice.map(|e| e.0),
         secondary_choice: player.secondary_choice.map(|s| s.0),
+        patrol_squad_choice: player.patrol_squad_choice.map(|s| s as u32),
         first_turn: player.first_turn,
         active_blessings: player.faction_round_flags.active_blessings.clone(),
         blessing_dice: player.faction_round_flags.blessing_dice.clone(),
@@ -261,7 +262,7 @@ pub fn weapon_to_view(weapon: &WeaponProfile) -> WeaponView {
 // ===========================================================================
 
 /// Convert a Board into a BoardView.
-pub fn board_to_view(board: &Board) -> BoardView {
+pub fn board_to_view_with_deployment(board: &Board, deployment_config: Option<&wh40k_geometry::DeploymentConfig>) -> BoardView {
     let terrain: Vec<TerrainView> = board
         .terrain
         .iter()
@@ -271,8 +272,16 @@ pub fn board_to_view(board: &Board) -> BoardView {
 
     let objectives: Vec<ObjectiveView> = board.objectives.iter().map(objective_to_view).collect();
 
-    // Board does not store deployment zones directly; pass empty vec.
-    let deployment_zones: Vec<DeploymentZoneView> = Vec::new();
+    // Populate deployment zones from the deployment config
+    let deployment_zones: Vec<DeploymentZoneView> = match deployment_config {
+        Some(config) => {
+            vec![
+                deployment_zone_to_view(&config.attacker_zone),
+                deployment_zone_to_view(&config.defender_zone),
+            ]
+        }
+        None => Vec::new(),
+    };
 
     BoardView {
         width: board.dimensions.width.as_f64(),
@@ -280,6 +289,24 @@ pub fn board_to_view(board: &Board) -> BoardView {
         terrain,
         objectives,
         deployment_zones,
+    }
+}
+
+/// Convert a DeploymentZone into a DeploymentZoneView.
+fn deployment_zone_to_view(zone: &wh40k_geometry::DeploymentZone) -> DeploymentZoneView {
+    let vertices: Vec<PositionView> = zone.polygon.vertices.iter()
+        .map(|v| PositionView { x: v.x.as_f64(), y: v.y.as_f64() })
+        .collect();
+
+    let map_type_str = match zone.map_type {
+        wh40k_geometry::DeploymentMapType::Standard => "Standard".to_string(),
+        wh40k_geometry::DeploymentMapType::SearchAndDestroy => "SearchAndDestroy".to_string(),
+    };
+
+    DeploymentZoneView {
+        player: zone.player.0,
+        vertices,
+        map_type: map_type_str,
     }
 }
 

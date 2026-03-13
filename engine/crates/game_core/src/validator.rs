@@ -84,9 +84,25 @@ impl CommandValidator {
                     CommandValidationResult::Legal
                 }
             }
-            Command::StartPhase { phase: _ } => {
+            Command::StartPhase { phase } => {
                 if state.current_phase == Phase::GameEnd {
-                    CommandValidationResult::illegal("Game has ended")
+                    return CommandValidationResult::illegal("Game has ended");
+                }
+                // Validate phase ordering
+                let valid_next = match state.current_phase {
+                    Phase::PreBattle => *phase == Phase::Command,
+                    Phase::Command => *phase == Phase::Movement,
+                    Phase::Movement => *phase == Phase::Shooting,
+                    Phase::Shooting => *phase == Phase::Charge,
+                    Phase::Charge => *phase == Phase::Fight,
+                    Phase::Fight => *phase == Phase::Command, // Next turn
+                    Phase::GameEnd => false,
+                };
+                if !valid_next && *phase != state.current_phase {
+                    CommandValidationResult::illegal(format!(
+                        "Cannot transition from {:?} to {:?}",
+                        state.current_phase, phase
+                    ))
                 } else {
                     CommandValidationResult::Legal
                 }
@@ -138,20 +154,25 @@ impl CommandValidator {
             Command::DeclareShootingTargets { unit_id, targets } => {
                 Self::validate_declare_shooting_targets(state, *unit_id, targets)
             }
-            Command::ResolveShootingAttack { attacker_id: _, target_id: _, weapon_id: _ } => {
-                // Phase 2: combat resolution will validate in detail
-                Self::validate_phase_is(state, Phase::Shooting, "ResolveShootingAttack")
+            Command::ResolveShootingAttack { attacker_id, target_id: _, weapon_id } => {
+                Self::validate_resolve_shooting_attack(state, *attacker_id, *weapon_id)
             }
 
             // ===== Charge commands =====
             Command::DeclareCharge { unit_id, targets } => {
                 Self::validate_declare_charge(state, *unit_id, targets)
             }
-            Command::ResolveChargeRoll { unit_id: _, .. } => {
+            Command::ResolveChargeRoll { unit_id: _, roll } => {
+                // Validate charge roll is a valid 2D6 result (2-12)
+                if *roll < 2 || *roll > 12 {
+                    return CommandValidationResult::illegal(
+                        format!("Charge roll {} is not a valid 2D6 result (must be 2-12)", roll),
+                    );
+                }
                 Self::validate_phase_is(state, Phase::Charge, "ResolveChargeRoll")
             }
-            Command::MakeChargeMove { unit_id: _, destination: _ } => {
-                Self::validate_phase_is(state, Phase::Charge, "MakeChargeMove")
+            Command::MakeChargeMove { unit_id, destination } => {
+                Self::validate_charge_move(state, *unit_id, *destination)
             }
 
             // ===== Heroic Intervention =====
@@ -163,23 +184,81 @@ impl CommandValidator {
             Command::SelectUnitToFight { unit_id } => {
                 Self::validate_select_unit_to_fight(state, *unit_id)
             }
-            Command::ChooseKaTahStance { .. } => {
-                Self::validate_phase_is(state, Phase::Fight, "ChooseKaTahStance")
+            Command::ChooseKaTahStance { unit_id, stance } => {
+                if state.current_phase != Phase::Fight {
+                    return CommandValidationResult::illegal("ChooseKaTahStance only valid in Fight phase");
+                }
+                let unit = match state.unit(*unit_id) {
+                    Some(u) => u,
+                    None => return CommandValidationResult::illegal("Unit not found"),
+                };
+                if !unit.has_keyword(Keyword::AdeptusCustodes) {
+                    return CommandValidationResult::illegal_with_ref(
+                        "Only Adeptus Custodes units can use Martial Ka'tah",
+                        "Custodes.md - Martial Ka'tah",
+                    );
+                }
+                // Validate stance is one of the two legal options
+                if stance != "Dacatarai" && stance != "Rendax" {
+                    return CommandValidationResult::illegal(
+                        format!("Invalid Ka'tah stance '{}'. Must be Dacatarai or Rendax", stance),
+                    );
+                }
+                CommandValidationResult::Legal
             }
-            Command::ChooseVaultswordsProfile { .. } => {
-                Self::validate_phase_is(state, Phase::Fight, "ChooseVaultswordsProfile")
+            Command::ChooseVaultswordsProfile { model_id, profile } => {
+                if state.current_phase != Phase::Fight {
+                    return CommandValidationResult::illegal("ChooseVaultswordsProfile only valid in Fight phase");
+                }
+                // Find the unit containing this model and check for BladeChampion keyword
+                let unit = state.units.iter().find(|u| u.models.iter().any(|m| m.id == *model_id));
+                match unit {
+                    Some(u) => {
+                        if !u.has_keyword(Keyword::BladeChampion) {
+                            return CommandValidationResult::illegal_with_ref(
+                                "Only Tristraen (Blade Champion) can choose Vaultswords profiles",
+                                "Custodes.md - Tristraen Vaultswords",
+                            );
+                        }
+                        // Validate profile name
+                        if profile != "Behemor" && profile != "Hurricanus" && profile != "Victus" {
+                            return CommandValidationResult::illegal(
+                                format!("Invalid profile '{}'. Must be Behemor, Hurricanus, or Victus", profile),
+                            );
+                        }
+                    }
+                    None => return CommandValidationResult::illegal("Model not found"),
+                }
+                CommandValidationResult::Legal
             }
-            Command::PileIn { unit_id: _, .. } => {
-                Self::validate_phase_is(state, Phase::Fight, "PileIn")
+            Command::PileIn { unit_id, positions } => {
+                Self::validate_pile_in_closer_to_enemy(state, *unit_id, positions, "PileIn")
             }
-            Command::DeclareMeleeTargets { unit_id: _, .. } => {
-                Self::validate_phase_is(state, Phase::Fight, "DeclareMeleeTargets")
+            Command::DeclareMeleeTargets { unit_id, targets } => {
+                Self::validate_declare_melee_targets(state, *unit_id, targets)
             }
-            Command::ResolveMeleeAttack { .. } => {
-                Self::validate_phase_is(state, Phase::Fight, "ResolveMeleeAttack")
+            Command::ResolveMeleeAttack { attacker_id, target_id, .. } => {
+                if state.current_phase != Phase::Fight {
+                    return CommandValidationResult::illegal("ResolveMeleeAttack only valid in Fight phase");
+                }
+                let attacker = match state.unit(*attacker_id) {
+                    Some(u) => u,
+                    None => return CommandValidationResult::illegal("Attacker not found"),
+                };
+                if attacker.is_destroyed() || !attacker.is_on_battlefield() {
+                    return CommandValidationResult::illegal("Attacker is destroyed or not on battlefield");
+                }
+                let target = match state.unit(*target_id) {
+                    Some(u) => u,
+                    None => return CommandValidationResult::illegal("Target not found"),
+                };
+                if target.is_destroyed() || !target.is_on_battlefield() {
+                    return CommandValidationResult::illegal("Target is destroyed or not on battlefield");
+                }
+                CommandValidationResult::Legal
             }
-            Command::Consolidate { .. } => {
-                Self::validate_phase_is(state, Phase::Fight, "Consolidate")
+            Command::Consolidate { unit_id, positions } => {
+                Self::validate_pile_in_closer_to_enemy(state, *unit_id, positions, "Consolidate")
             }
 
             // ===== Stratagem commands =====
@@ -195,12 +274,15 @@ impl CommandValidator {
             }
 
             // ===== Scoring commands =====
-            Command::ScoreObjective { player, objective_id: _ } => {
+            Command::ScoreObjective { player, objective_id } => {
                 if *player != state.active_player && *player != state.decision_owner {
-                    CommandValidationResult::illegal("Not this player's turn to score")
-                } else {
-                    CommandValidationResult::Legal
+                    return CommandValidationResult::illegal("Not this player's turn to score");
                 }
+                // Verify the objective exists
+                if state.board.objective_marker(*objective_id).is_none() {
+                    return CommandValidationResult::illegal("Objective not found on the board");
+                }
+                CommandValidationResult::Legal
             }
             Command::RazeObjective { player, objective_id: _ } => {
                 if *player != state.active_player {
@@ -220,8 +302,39 @@ impl CommandValidator {
             }
 
             // ===== Misc commands =====
-            Command::AllocateWound { .. } => CommandValidationResult::Legal,
-            Command::AssignOverwatchTarget { .. } => CommandValidationResult::Legal,
+            Command::AllocateWound { target_model_id } => {
+                // Check that the model exists and is alive
+                let model_found = state.units.iter().any(|u| {
+                    u.models.iter().any(|m| m.id == *target_model_id && m.alive)
+                });
+                if !model_found {
+                    CommandValidationResult::illegal("Target model not found or already destroyed")
+                } else {
+                    CommandValidationResult::Legal
+                }
+            }
+            Command::AssignOverwatchTarget { unit_id } => {
+                // Must have a reaction window open
+                if !state.has_reaction_window() {
+                    return CommandValidationResult::illegal("No overwatch reaction window open");
+                }
+                // Overwatch limited to once per turn
+                if state.turn_flags.overwatch_used_this_turn {
+                    return CommandValidationResult::illegal_with_ref(
+                        "Overwatch has already been used this turn",
+                        "40k_revised.md - Fire Overwatch: once per turn",
+                    );
+                }
+                // Check the unit exists and can fire
+                let unit = match state.unit(*unit_id) {
+                    Some(u) => u,
+                    None => return CommandValidationResult::illegal("Unit not found"),
+                };
+                if unit.is_destroyed() || !unit.is_on_battlefield() {
+                    return CommandValidationResult::illegal("Unit cannot fire overwatch");
+                }
+                CommandValidationResult::Legal
+            }
             Command::PassAction => CommandValidationResult::Legal,
             Command::Concede { player: _ } => {
                 // Can always concede
@@ -271,6 +384,18 @@ impl CommandValidator {
 
         if !state.board.contains(position) {
             return CommandValidationResult::illegal("Position is outside the board");
+        }
+
+        // Check that the position is within the player's deployment zone
+        // Source: CP_Rules.md - "Models must be set up wholly within their deployment zone"
+        if let Some(ref config) = state.deployment_config {
+            let zone = config.zone_for(player);
+            if !zone.contains(position) {
+                return CommandValidationResult::illegal_with_ref(
+                    "Position is outside the player's deployment zone",
+                    "CP_Rules.md - Deployment zones",
+                );
+            }
         }
 
         CommandValidationResult::Legal
@@ -334,6 +459,36 @@ impl CommandValidator {
         CommandValidationResult::Legal
     }
 
+    /// Check that all alive models in a unit would remain on the board after
+    /// translating from the unit's reference position to the given destination.
+    /// Uses `board.contains_model()` which accounts for base radius.
+    ///
+    /// Source: 40k_revised.md §5.3 - models cannot move off the battlefield
+    fn all_models_on_board_after_move(
+        state: &GameState,
+        unit_id: wh40k_core_types::UnitId,
+        destination: wh40k_core_types::Position,
+    ) -> Option<String> {
+        let unit = state.unit(unit_id)?;
+        let ref_pos = unit.reference_position()?;
+        let dx = wh40k_core_types::Inches(destination.x.0 - ref_pos.x.0);
+        let dy = wh40k_core_types::Inches(destination.y.0 - ref_pos.y.0);
+
+        for (i, model) in unit.models.iter().enumerate() {
+            if !model.alive {
+                continue;
+            }
+            let translated = model.position.translate(dx, dy);
+            if !state.board.contains_model(translated, model.base_size) {
+                return Some(format!(
+                    "Model {} would be off the board after move (base {}mm at {:?})",
+                    i, model.base_size.diameter_mm(), translated,
+                ));
+            }
+        }
+        None
+    }
+
     fn validate_normal_move(
         state: &GameState,
         unit_id: wh40k_core_types::UnitId,
@@ -369,9 +524,17 @@ impl CommandValidator {
             );
         }
 
-        // Check destination is on the board
+        // Check destination centroid is on the board
         if !state.board.contains(destination) {
             return CommandValidationResult::illegal("Destination is outside the board");
+        }
+
+        // Check all models would remain on the board after translation
+        if let Some(reason) = Self::all_models_on_board_after_move(state, unit_id, destination) {
+            return CommandValidationResult::illegal_with_ref(
+                reason,
+                "40k_revised.md §5.3 - Models cannot move off the battlefield",
+            );
         }
 
         // Check movement distance
@@ -386,6 +549,27 @@ impl CommandValidator {
                     ),
                     "40k_revised.md - Normal Move: up to M characteristic",
                 );
+            }
+        }
+
+        // #9: Normal Move cannot end within Engagement Range of any enemy model
+        // Source: 40k_revised.md §5.3 - "cannot move within Engagement Range of any enemy model"
+        let unit_base = unit.models.first().map(|m| m.base_size)
+            .unwrap_or(wh40k_core_types::BaseSize::MM25);
+        for enemy_unit in &state.units {
+            if enemy_unit.owner == unit.owner || enemy_unit.is_destroyed() || !enemy_unit.is_on_battlefield() {
+                continue;
+            }
+            for enemy_model in enemy_unit.models.iter().filter(|m| m.alive) {
+                if wh40k_geometry::within_engagement_range_2d(
+                    destination, unit_base,
+                    enemy_model.position, enemy_model.base_size,
+                ) {
+                    return CommandValidationResult::illegal_with_ref(
+                        "Normal Move cannot end within Engagement Range of enemy models",
+                        "40k_revised.md §5.3 - Normal Move: cannot move within ER of enemies",
+                    );
+                }
             }
         }
 
@@ -426,6 +610,21 @@ impl CommandValidator {
             return CommandValidationResult::illegal("Destination is outside the board");
         }
 
+        // Check all models would remain on the board after translation
+        if let Some(reason) = Self::all_models_on_board_after_move(state, unit_id, destination) {
+            return CommandValidationResult::illegal_with_ref(
+                reason,
+                "40k_revised.md §5.4 - Models cannot move off the battlefield",
+            );
+        }
+
+        // Validate advance roll is a valid D6 result (1-6)
+        if advance_roll < 1 || advance_roll > 6 {
+            return CommandValidationResult::illegal(
+                format!("Advance roll {} is not a valid D6 result (must be 1-6)", advance_roll),
+            );
+        }
+
         // 40k_revised.md §5.4: Advance = M + D6 roll
         if let Some(current_pos) = unit.reference_position() {
             let distance = current_pos.distance(destination);
@@ -440,6 +639,27 @@ impl CommandValidator {
                     ),
                     "40k_revised.md - Advance: M characteristic + D6 roll",
                 );
+            }
+        }
+
+        // #9: Advance cannot end within Engagement Range of any enemy model
+        // Source: 40k_revised.md §5.4 - same restriction as Normal Move
+        let unit_base = unit.models.first().map(|m| m.base_size)
+            .unwrap_or(wh40k_core_types::BaseSize::MM25);
+        for enemy_unit in &state.units {
+            if enemy_unit.owner == unit.owner || enemy_unit.is_destroyed() || !enemy_unit.is_on_battlefield() {
+                continue;
+            }
+            for enemy_model in enemy_unit.models.iter().filter(|m| m.alive) {
+                if wh40k_geometry::within_engagement_range_2d(
+                    destination, unit_base,
+                    enemy_model.position, enemy_model.base_size,
+                ) {
+                    return CommandValidationResult::illegal_with_ref(
+                        "Advance cannot end within Engagement Range of enemy models",
+                        "40k_revised.md §5.4 - Advance: cannot move within ER of enemies",
+                    );
+                }
             }
         }
 
@@ -478,6 +698,51 @@ impl CommandValidator {
 
         if !state.board.contains(destination) {
             return CommandValidationResult::illegal("Destination is outside the board");
+        }
+
+        // Check all models would remain on the board after translation
+        if let Some(reason) = Self::all_models_on_board_after_move(state, unit_id, destination) {
+            return CommandValidationResult::illegal_with_ref(
+                reason,
+                "40k_revised.md §5.5 - Models cannot move off the battlefield",
+            );
+        }
+
+        // Fall Back distance limited to M characteristic
+        // Source: 40k_revised.md §5.5 - "Fall Back: up to M characteristic"
+        if let Some(current_pos) = unit.reference_position() {
+            let distance = current_pos.distance(destination);
+            let max_move = unit.base_movement.distance();
+            if distance > max_move {
+                return CommandValidationResult::illegal_with_ref(
+                    format!(
+                        "Fall Back distance ({}) exceeds movement characteristic ({})",
+                        distance, max_move
+                    ),
+                    "40k_revised.md §5.5 - Fall Back: up to M characteristic",
+                );
+            }
+        }
+
+        // #9: Fall Back must end outside Engagement Range of ALL enemy models
+        // Source: 40k_revised.md §5.5 - "must end its move more than 1\" from all enemy models"
+        let unit_base = unit.models.first().map(|m| m.base_size)
+            .unwrap_or(wh40k_core_types::BaseSize::MM25);
+        for enemy_unit in &state.units {
+            if enemy_unit.owner == unit.owner || enemy_unit.is_destroyed() || !enemy_unit.is_on_battlefield() {
+                continue;
+            }
+            for enemy_model in enemy_unit.models.iter().filter(|m| m.alive) {
+                if wh40k_geometry::within_engagement_range_2d(
+                    destination, unit_base,
+                    enemy_model.position, enemy_model.base_size,
+                ) {
+                    return CommandValidationResult::illegal_with_ref(
+                        "Fall Back must end outside Engagement Range of all enemy models",
+                        "40k_revised.md §5.5 - Fall Back: must end >1\" from all enemies",
+                    );
+                }
+            }
         }
 
         CommandValidationResult::Legal
@@ -552,6 +817,34 @@ impl CommandValidator {
                 "Reserves cannot arrive in Battle Round 1",
                 "40k_revised.md - Reserves: arrive from Turn 2 onwards",
             );
+        }
+
+        // Deep Strike: must be >9" from all enemy models
+        // Source: 40k_revised.md §12.3 - "DEEP STRIKE"
+        // Source: CP_Rules.md §5.6 - Reserves distance requirement
+        let nine_inches = wh40k_core_types::Inches::from_inches(9);
+        for enemy_unit in &state.units {
+            if enemy_unit.owner == unit.owner {
+                continue;
+            }
+            if !enemy_unit.is_on_battlefield() || enemy_unit.is_destroyed() {
+                continue;
+            }
+            for model in &enemy_unit.models {
+                if !model.alive {
+                    continue;
+                }
+                let dist = position.distance(model.position);
+                if dist <= nine_inches {
+                    return CommandValidationResult::illegal_with_ref(
+                        format!(
+                            "Reserves must arrive more than 9\" from all enemy models (model {} is {}\" away)",
+                            model.id, dist
+                        ),
+                        "40k_revised.md §12.3 - Deep Strike: >9\" from all enemy models",
+                    );
+                }
+            }
         }
 
         CommandValidationResult::Legal
@@ -659,6 +952,53 @@ impl CommandValidator {
                 ));
             }
 
+            // #10: Weapon range check — target must be within weapon range
+            // Source: 40k_revised.md §7.2 - "within the Range of the weapon"
+            let weapon_profile = unit
+                .alive_models()
+                .iter()
+                .flat_map(|m| m.ranged_weapons.iter())
+                .find(|w| w.id == *weapon_id);
+            if let Some(wp) = weapon_profile {
+                let weapon_range = wp.range;
+                if let (Some(attacker_pos), Some(target_pos)) =
+                    (unit.reference_position(), target.reference_position())
+                {
+                    let dist = wh40k_geometry::distance(attacker_pos, target_pos);
+                    if dist > weapon_range {
+                        return CommandValidationResult::illegal_with_ref(
+                            format!(
+                                "Target unit {} is out of weapon range ({} vs max {})",
+                                target_id, dist, weapon_range
+                            ),
+                            "40k_revised.md §7.2 - target must be within weapon Range",
+                        );
+                    }
+                }
+
+                // #11: LOS/visibility check — target must be visible unless Indirect Fire
+                // Source: 40k_revised.md §7.2 - "that is visible to the shooting model"
+                // Indirect Fire weapons can target non-visible units (§11.3)
+                let has_indirect_fire = wp.abilities.has(&wh40k_core_types::WeaponAbility::IndirectFire);
+                if !has_indirect_fire {
+                    if let (Some(attacker_pos), Some(target_pos)) =
+                        (unit.reference_position(), target.reference_position())
+                    {
+                        // Check LOS through terrain using the board's LOS trace
+                        let los = state.board.check_los(attacker_pos, target_pos);
+                        if los == wh40k_core_types::Visibility::NotVisible {
+                            return CommandValidationResult::illegal_with_ref(
+                                format!(
+                                    "Target unit {} is not visible (line of sight blocked by terrain)",
+                                    target_id
+                                ),
+                                "40k_revised.md §7.2 - target must be visible to shooting model",
+                            );
+                        }
+                    }
+                }
+            }
+
             // Engagement range shooting restrictions
             // Source: 40k_revised.md - Pistol, Big Guns Never Tire
             if is_engaged {
@@ -726,6 +1066,122 @@ impl CommandValidator {
                         );
                     }
                 }
+            }
+
+            // #27: Blast restriction — cannot target units within Engagement Range
+            // of friendly units.
+            // Source: 40k_revised.md §11.5 - "BLAST"
+            let weapon_has_blast = unit
+                .alive_models()
+                .iter()
+                .flat_map(|m| m.ranged_weapons.iter())
+                .find(|w| w.id == *weapon_id)
+                .map(|w| w.abilities.has(&wh40k_core_types::WeaponAbility::Blast))
+                .unwrap_or(false);
+            if weapon_has_blast {
+                // Check if any friendly model is within engagement range of any target model
+                for friendly_unit in &state.units {
+                    if friendly_unit.owner != unit.owner
+                        || friendly_unit.id == unit_id
+                        || friendly_unit.is_destroyed()
+                        || !friendly_unit.is_on_battlefield()
+                    {
+                        continue;
+                    }
+                    for friendly_model in friendly_unit.models.iter().filter(|m| m.alive) {
+                        for target_model in target.models.iter().filter(|m| m.alive) {
+                            if wh40k_geometry::within_engagement_range_2d(
+                                friendly_model.position,
+                                friendly_model.base_size,
+                                target_model.position,
+                                target_model.base_size,
+                            ) {
+                                return CommandValidationResult::illegal_with_ref(
+                                    "Blast weapons cannot target units within Engagement Range of friendly units",
+                                    "40k_revised.md §11.5 - BLAST: cannot target within ER of friendlies",
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // #28: Pistol exclusivity — non-MONSTER/VEHICLE units cannot mix
+        // Pistol and non-Pistol weapons in the same shooting phase.
+        // Source: 40k_revised.md §11.4 - "PISTOL"
+        if !is_monster_or_vehicle && targets.len() > 1 {
+            let mut has_pistol = false;
+            let mut has_non_pistol = false;
+            for (weapon_id, _target_id) in targets {
+                let is_pistol = unit
+                    .alive_models()
+                    .iter()
+                    .flat_map(|m| m.ranged_weapons.iter())
+                    .find(|w| w.id == *weapon_id)
+                    .map(|w| w.abilities.has(&wh40k_core_types::WeaponAbility::Pistol))
+                    .unwrap_or(false);
+                if is_pistol {
+                    has_pistol = true;
+                } else {
+                    has_non_pistol = true;
+                }
+            }
+            if has_pistol && has_non_pistol {
+                return CommandValidationResult::illegal_with_ref(
+                    "Non-MONSTER/VEHICLE units cannot fire both Pistol and non-Pistol weapons in the same phase",
+                    "40k_revised.md §11.4 - PISTOL: model shooting a Pistol can only shoot Pistols",
+                );
+            }
+        }
+
+        CommandValidationResult::Legal
+    }
+
+    /// Validate a ResolveShootingAttack command.
+    ///
+    /// Checks:
+    /// 1. Must be in the Shooting phase
+    /// 2. If the attacker unit Advanced this turn, the weapon must have the
+    ///    [ASSAULT] ability (or [PISTOL]). Non-Assault/non-Pistol weapons
+    ///    cannot be fired after Advancing.
+    ///
+    /// Source: 40k_revised.md §5.4 - Advance: "it can only shoot with
+    ///         weapons that have the [ASSAULT] ability"
+    /// Source: 40k_revised.md §7.1 - Shooting Phase weapon restrictions
+    fn validate_resolve_shooting_attack(
+        state: &GameState,
+        attacker_id: wh40k_core_types::UnitId,
+        weapon_id: wh40k_core_types::WeaponId,
+    ) -> CommandValidationResult {
+        // Must be in Shooting phase
+        if state.current_phase != Phase::Shooting {
+            return CommandValidationResult::illegal_with_ref(
+                "ResolveShootingAttack is only valid in the Shooting phase",
+                "40k_revised.md - Shooting Phase",
+            );
+        }
+
+        // If the unit advanced, only Assault and Pistol weapons can fire
+        // Source: 40k_revised.md §5.4 - "it can only shoot with weapons
+        //         that have the [ASSAULT] ability"
+        // Note: Pistol weapons can also fire after Advancing per core rules
+        if state.turn_flags.has_advanced(attacker_id) {
+            if let Some(unit) = state.unit(attacker_id) {
+                // Look up the weapon profile on any alive model
+                let weapon_profile = unit.alive_models().iter()
+                    .flat_map(|m| m.ranged_weapons.iter())
+                    .find(|w| w.id == weapon_id);
+
+                if let Some(weapon) = weapon_profile {
+                    if !weapon.can_fire_after_advance() {
+                        return CommandValidationResult::illegal_with_ref(
+                            "Unit advanced this turn and can only fire weapons with the [ASSAULT] ability",
+                            "40k_revised.md §5.4 - Advance: unit can only shoot Assault weapons",
+                        );
+                    }
+                }
+                // If weapon not found on models, let execution handle the error
             }
         }
 
@@ -881,6 +1337,153 @@ impl CommandValidator {
         CommandValidationResult::Legal
     }
 
+    /// Validate a MakeChargeMove command.
+    ///
+    /// #14: Full charge move geometric validation per 40k_revised.md §9.4:
+    /// 1. Distance cap: total distance ≤ charge roll
+    /// 2. Must end in engagement range of at least one declared target
+    /// 3. Cannot move within engagement range of non-target enemies
+    ///    (unless was already within ER of them)
+    ///
+    /// Source: 40k_revised.md §9.4 - Charge Moves
+    fn validate_charge_move(
+        state: &GameState,
+        unit_id: wh40k_core_types::UnitId,
+        destination: wh40k_core_types::Position,
+    ) -> CommandValidationResult {
+        if state.current_phase != Phase::Charge {
+            return CommandValidationResult::illegal_with_ref(
+                "MakeChargeMove is only valid in the Charge phase",
+                "40k_revised.md - Charge Phase",
+            );
+        }
+
+        let unit = match state.unit(unit_id) {
+            Some(u) => u,
+            None => return CommandValidationResult::illegal("Unit not found"),
+        };
+
+        if unit.owner != state.active_player {
+            return CommandValidationResult::illegal("Unit does not belong to the active player");
+        }
+
+        if !unit.is_on_battlefield() {
+            return CommandValidationResult::illegal("Unit is not on the battlefield");
+        }
+
+        // Must have a successful charge roll
+        let charge_roll = match state.turn_flags.get_charge_roll(unit_id) {
+            Some(roll) => roll,
+            None => {
+                return CommandValidationResult::illegal_with_ref(
+                    "Unit has no successful charge roll — must resolve charge roll first",
+                    "40k_revised.md §9.3 - Charge Roll must succeed before Charge Move",
+                );
+            }
+        };
+
+        let unit_base = unit.models.first().map(|m| m.base_size)
+            .unwrap_or(wh40k_core_types::BaseSize::MM25);
+
+        // Check all models would remain on the board after translation
+        if let Some(reason) = Self::all_models_on_board_after_move(state, unit_id, destination) {
+            return CommandValidationResult::illegal_with_ref(
+                reason,
+                "40k_revised.md §9.4 - Models cannot move off the battlefield during charge",
+            );
+        }
+
+        // Distance cap: charge move distance cannot exceed the charge roll
+        if let Some(current_pos) = unit.reference_position() {
+            let move_distance = current_pos.distance(destination);
+            let max_charge_distance = wh40k_core_types::Inches::from_inches(charge_roll as i32);
+            if move_distance > max_charge_distance {
+                return CommandValidationResult::illegal_with_ref(
+                    format!(
+                        "Charge move distance ({}) exceeds charge roll ({}\")",
+                        move_distance, charge_roll
+                    ),
+                    "40k_revised.md §9.4 - Charge Move: up to charge roll distance",
+                );
+            }
+        }
+
+        // Must have declared charge targets
+        let charge_targets = state.turn_flags.get_charge_targets(unit_id)
+            .cloned()
+            .unwrap_or_default();
+        if charge_targets.is_empty() {
+            return CommandValidationResult::illegal(
+                "No charge targets declared for this unit",
+            );
+        }
+
+        // Must end within engagement range of at least one declared target
+        let mut in_er_of_any_target = false;
+        for target_id in &charge_targets {
+            if let Some(target) = state.unit(*target_id) {
+                for target_model in target.models.iter().filter(|m| m.alive) {
+                    if wh40k_geometry::within_engagement_range_2d(
+                        destination, unit_base,
+                        target_model.position, target_model.base_size,
+                    ) {
+                        in_er_of_any_target = true;
+                        break;
+                    }
+                }
+                if in_er_of_any_target {
+                    break;
+                }
+            }
+        }
+        if !in_er_of_any_target {
+            return CommandValidationResult::illegal_with_ref(
+                "Charge move must end within Engagement Range of at least one declared charge target",
+                "40k_revised.md §9.4 - Charge Move: must end in ER of target",
+            );
+        }
+
+        // Cannot end within engagement range of enemy units that were NOT declared
+        // as charge targets (unless the charger was already within ER before charging)
+        let current_pos = unit.reference_position().unwrap_or(wh40k_core_types::Position::ORIGIN);
+        for enemy_unit in &state.units {
+            if enemy_unit.owner == unit.owner
+                || enemy_unit.is_destroyed()
+                || !enemy_unit.is_on_battlefield()
+            {
+                continue;
+            }
+            // Skip declared charge targets — ending in ER with them is allowed
+            if charge_targets.contains(&enemy_unit.id) {
+                continue;
+            }
+            for enemy_model in enemy_unit.models.iter().filter(|m| m.alive) {
+                let will_be_in_er = wh40k_geometry::within_engagement_range_2d(
+                    destination, unit_base,
+                    enemy_model.position, enemy_model.base_size,
+                );
+                if will_be_in_er {
+                    // Check if was already within ER before the charge
+                    let was_in_er = wh40k_geometry::within_engagement_range_2d(
+                        current_pos, unit_base,
+                        enemy_model.position, enemy_model.base_size,
+                    );
+                    if !was_in_er {
+                        return CommandValidationResult::illegal_with_ref(
+                            format!(
+                                "Charge move would end within Engagement Range of non-target enemy unit {}",
+                                enemy_unit.id
+                            ),
+                            "40k_revised.md §9.4 - Cannot move within ER of non-target enemies",
+                        );
+                    }
+                }
+            }
+        }
+
+        CommandValidationResult::Legal
+    }
+
     /// Validate a Heroic Intervention move command.
     ///
     /// Requirements:
@@ -943,6 +1546,22 @@ impl CommandValidator {
         CommandValidationResult::Legal
     }
 
+    /// Validate selecting a unit to fight in the Fight phase.
+    ///
+    /// Enforces fight phase alternation order per the rules:
+    /// - Fights First step: active player picks first, then alternate
+    ///   Only units with Fights First ability (charged this turn or GrantFightsFirst effect)
+    /// - Remaining Combats step: non-active player picks first, then alternate
+    ///   All remaining eligible units
+    ///
+    /// Both players can select units to fight (not just the active player).
+    /// The alternation tracking in TurnFlags determines whose turn it is to pick.
+    /// If the designated player has no eligible units, the other player may pick.
+    ///
+    /// Source: CP_Rules.md §8.1 - Fight Phase Sequence
+    /// Source: 40k_revised.md §10.1 - Fight Phase Structure
+    /// Source: 40k_revised.md §10.2 - Fights First Step
+    /// Source: 40k_revised.md §10.3 - Remaining Combats Step
     fn validate_select_unit_to_fight(
         state: &GameState,
         unit_id: wh40k_core_types::UnitId,
@@ -959,10 +1578,6 @@ impl CommandValidator {
             None => return CommandValidationResult::illegal("Unit not found"),
         };
 
-        if unit.owner != state.active_player {
-            return CommandValidationResult::illegal("Unit does not belong to the active player");
-        }
-
         if !unit.is_on_battlefield() {
             return CommandValidationResult::illegal("Unit is not on the battlefield");
         }
@@ -972,6 +1587,7 @@ impl CommandValidator {
         }
 
         // Already fought this phase
+        // Source: 40k_revised.md - "No unit can fight more than once per Fight phase"
         if state.turn_flags.has_fought(unit_id) {
             return CommandValidationResult::illegal_with_ref(
                 "Unit has already fought this phase",
@@ -980,6 +1596,7 @@ impl CommandValidator {
         }
 
         // Must be engaged or have charged this turn to fight
+        // Source: 40k_revised.md §10.1 - "Within Engagement Range of enemy units, OR Made a Charge move this turn"
         if unit.engagement_status != EngagementStatus::Engaged
             && !state.turn_flags.charged_this_turn(unit_id)
         {
@@ -987,6 +1604,224 @@ impl CommandValidator {
                 "Unit must be within Engagement Range or have charged this turn to fight",
                 "40k_revised.md - Fight Phase: eligible units",
             );
+        }
+
+        // Check Fights First subphase eligibility
+        // Source: 40k_revised.md §10.2 - "Units with the Fights First ability fight in this step"
+        // Source: CP_Rules.md §8.1 - "Units that charged this turn" + "Units with Fights First ability"
+        if state.current_subphase == wh40k_core_types::SubPhase::FightsFirst {
+            let has_fights_first = state.turn_flags.charged_this_turn(unit_id)
+                || state.active_effects.iter().any(|e| {
+                    matches!(e.target, crate::effect::EffectTarget::Unit(uid) if uid == unit_id)
+                        && matches!(e.effect_type, crate::effect::EffectType::GrantFightsFirst)
+                });
+            if !has_fights_first {
+                return CommandValidationResult::illegal_with_ref(
+                    "Unit does not have Fights First ability (only units that charged or have \
+                     Fights First can fight in the Fights First step)",
+                    "40k_revised.md §10.2 - Fights First Step",
+                );
+            }
+        }
+
+        // Enforce fight alternation order
+        // Source: CP_Rules.md §8.1 - "Players alternate"
+        // Source: 40k_revised.md §10.1 - "Players alternate selecting units"
+        if let Some(next_player) = state.turn_flags.fight_alternation_next_player {
+            if unit.owner != next_player {
+                // Check if the designated player has any eligible units remaining.
+                // If not, the other player can pick (cannot pass when eligible units remain).
+                // Source: 40k_revised.md §10.1 - "Cannot pass when eligible units remain"
+                let designated_has_eligible = state.units.iter().any(|u| {
+                    u.owner == next_player
+                        && u.is_on_battlefield()
+                        && !u.is_destroyed()
+                        && !state.turn_flags.has_fought(u.id)
+                        && (u.engagement_status == EngagementStatus::Engaged
+                            || state.turn_flags.charged_this_turn(u.id))
+                        && (state.current_subphase != wh40k_core_types::SubPhase::FightsFirst
+                            || state.turn_flags.charged_this_turn(u.id)
+                            || state.active_effects.iter().any(|e| {
+                                matches!(e.target, crate::effect::EffectTarget::Unit(uid) if uid == u.id)
+                                    && matches!(e.effect_type, crate::effect::EffectType::GrantFightsFirst)
+                            }))
+                });
+
+                if designated_has_eligible {
+                    return CommandValidationResult::illegal_with_ref(
+                        format!(
+                            "It is Player {}'s turn to select a unit to fight (fight alternation order)",
+                            next_player
+                        ),
+                        "CP_Rules.md §8.1 - Players alternate selecting units to fight",
+                    );
+                }
+                // If the designated player has no eligible units, allow the other player to pick
+            }
+        }
+
+        CommandValidationResult::Legal
+    }
+
+    /// Validate Pile-In or Consolidate move: each model must end closer to the
+    /// closest enemy model than it started.
+    ///
+    /// #24: Source: 40k_revised.md §10.4 - "each model must end its move closer
+    ///      to the closest enemy model"
+    fn validate_pile_in_closer_to_enemy(
+        state: &GameState,
+        unit_id: wh40k_core_types::UnitId,
+        positions: &[(wh40k_core_types::ModelId, wh40k_core_types::Position)],
+        move_name: &str,
+    ) -> CommandValidationResult {
+        if state.current_phase != Phase::Fight {
+            return CommandValidationResult::illegal(format!(
+                "{} is only valid in the Fight phase",
+                move_name
+            ));
+        }
+
+        let unit = match state.unit(unit_id) {
+            Some(u) => u,
+            None => return CommandValidationResult::illegal("Unit not found"),
+        };
+
+        if unit.is_destroyed() || !unit.is_on_battlefield() {
+            return CommandValidationResult::illegal("Unit is not on the battlefield or is destroyed");
+        }
+
+        // Max move distance: 3" for Pile-In, 3" for Consolidate
+        let max_move = wh40k_core_types::Inches::from_inches(3);
+
+        for (model_id, new_pos) in positions {
+            // Find the model in this unit
+            let model = match unit.models.iter().find(|m| m.id == *model_id) {
+                Some(m) => m,
+                None => {
+                    return CommandValidationResult::illegal(format!(
+                        "Model {} not found in unit {}",
+                        model_id, unit_id
+                    ));
+                }
+            };
+
+            if !model.alive {
+                continue; // Skip dead models
+            }
+
+            let old_pos = model.position;
+
+            // Check move distance <= 3"
+            let move_dist = old_pos.distance(*new_pos);
+            if move_dist > max_move {
+                return CommandValidationResult::illegal_with_ref(
+                    format!(
+                        "{} move distance ({}) exceeds 3\" limit",
+                        move_name, move_dist
+                    ),
+                    "40k_revised.md §10.4 - Pile-In/Consolidate: up to 3\"",
+                );
+            }
+
+            // Find closest enemy model distance from OLD position
+            let mut closest_old_dist = wh40k_core_types::Inches::from_inches(999);
+            for enemy_unit in &state.units {
+                if enemy_unit.owner == unit.owner
+                    || enemy_unit.is_destroyed()
+                    || !enemy_unit.is_on_battlefield()
+                {
+                    continue;
+                }
+                for enemy_model in enemy_unit.models.iter().filter(|m| m.alive) {
+                    let dist = wh40k_geometry::distance_between_models(
+                        old_pos,
+                        model.base_size,
+                        enemy_model.position,
+                        enemy_model.base_size,
+                    );
+                    if dist < closest_old_dist {
+                        closest_old_dist = dist;
+                    }
+                }
+            }
+
+            // Find closest enemy model distance from NEW position
+            let mut closest_new_dist = wh40k_core_types::Inches::from_inches(999);
+            for enemy_unit in &state.units {
+                if enemy_unit.owner == unit.owner
+                    || enemy_unit.is_destroyed()
+                    || !enemy_unit.is_on_battlefield()
+                {
+                    continue;
+                }
+                for enemy_model in enemy_unit.models.iter().filter(|m| m.alive) {
+                    let dist = wh40k_geometry::distance_between_models(
+                        *new_pos,
+                        model.base_size,
+                        enemy_model.position,
+                        enemy_model.base_size,
+                    );
+                    if dist < closest_new_dist {
+                        closest_new_dist = dist;
+                    }
+                }
+            }
+
+            // New position must be closer to (or equal distance from) the closest enemy
+            if closest_new_dist > closest_old_dist {
+                return CommandValidationResult::illegal_with_ref(
+                    format!(
+                        "{}: model {} must end closer to the closest enemy model (was {}, now {})",
+                        move_name, model_id, closest_old_dist, closest_new_dist
+                    ),
+                    "40k_revised.md §10.4 - Pile-In/Consolidate: must end closer to closest enemy",
+                );
+            }
+        }
+
+        CommandValidationResult::Legal
+    }
+
+    fn validate_declare_melee_targets(
+        state: &GameState,
+        unit_id: wh40k_core_types::UnitId,
+        targets: &[(wh40k_core_types::WeaponId, wh40k_core_types::UnitId)],
+    ) -> CommandValidationResult {
+        if state.current_phase != Phase::Fight {
+            return CommandValidationResult::illegal("DeclareMeleeTargets only valid in Fight phase");
+        }
+
+        let unit = match state.unit(unit_id) {
+            Some(u) => u,
+            None => return CommandValidationResult::illegal("Unit not found"),
+        };
+
+        if !unit.is_on_battlefield() || unit.is_destroyed() {
+            return CommandValidationResult::illegal("Unit is not on the battlefield");
+        }
+
+        // Must be engaged or have charged this turn
+        if unit.engagement_status != EngagementStatus::Engaged
+            && !state.turn_flags.charged_this_turn(unit_id)
+        {
+            return CommandValidationResult::illegal_with_ref(
+                "Unit must be in Engagement Range or have charged this turn to fight",
+                "40k_revised.md §10.2 - Fight eligibility",
+            );
+        }
+
+        // Check each target exists and is an enemy
+        for (_weapon_id, target_id) in targets {
+            let target = match state.unit(*target_id) {
+                Some(t) => t,
+                None => return CommandValidationResult::illegal("Target unit not found"),
+            };
+            if target.owner == unit.owner {
+                return CommandValidationResult::illegal("Cannot target friendly units in melee");
+            }
+            if target.is_destroyed() || !target.is_on_battlefield() {
+                return CommandValidationResult::illegal("Target is destroyed or not on battlefield");
+            }
         }
 
         CommandValidationResult::Legal
@@ -1295,6 +2130,7 @@ mod tests {
             turn_flags: TurnFlags::new(),
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
+            deployment_config: None,
         };
 
         state.players[0].first_turn = true;
@@ -1530,6 +2366,160 @@ mod tests {
         };
         let result = CommandValidator::validate(&state, &cmd);
         assert!(result.is_illegal());
+    }
+
+    #[test]
+    fn test_validate_resolve_shooting_advanced_non_assault_weapon_rejected() {
+        // Audit #22: Advanced units cannot fire non-Assault weapons
+        // Source: 40k_revised.md §5.4
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::Shooting;
+
+        let unit_id = UnitId::new(1);
+        let weapon_id = wh40k_core_types::WeaponId::new(10);
+
+        // Add a non-Assault ranged weapon to the unit's model
+        let non_assault_weapon = wh40k_core_types::WeaponProfile {
+            id: weapon_id,
+            name: "Heavy bolter".to_string(),
+            weapon_type: wh40k_core_types::WeaponType::Ranged,
+            range: wh40k_core_types::Inches::from_inches(36),
+            attacks: wh40k_core_types::AttackCount::Fixed(3),
+            skill: wh40k_core_types::Skill::THREE_PLUS,
+            strength: wh40k_core_types::Strength::new(5),
+            ap: wh40k_core_types::ArmorPenetration::MINUS_1,
+            damage: wh40k_core_types::Damage::Fixed(2),
+            abilities: wh40k_core_types::WeaponAbilitySet::from_abilities(vec![
+                wh40k_core_types::WeaponAbility::Heavy,
+            ]),
+        };
+        state.unit_mut(unit_id).unwrap().models[0].ranged_weapons.push(non_assault_weapon);
+
+        // Mark unit as having advanced
+        state.turn_flags.mark_advanced(unit_id);
+
+        let cmd = Command::ResolveShootingAttack {
+            attacker_id: unit_id,
+            target_id: UnitId::new(2),
+            weapon_id,
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "Advanced unit should not fire non-Assault weapon");
+    }
+
+    #[test]
+    fn test_validate_resolve_shooting_advanced_assault_weapon_allowed() {
+        // Audit #22: Advanced units CAN fire Assault weapons
+        // Source: 40k_revised.md §5.4
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::Shooting;
+
+        let unit_id = UnitId::new(1);
+        let weapon_id = wh40k_core_types::WeaponId::new(11);
+
+        // Add an Assault ranged weapon to the unit's model
+        let assault_weapon = wh40k_core_types::WeaponProfile {
+            id: weapon_id,
+            name: "Assault bolter".to_string(),
+            weapon_type: wh40k_core_types::WeaponType::Ranged,
+            range: wh40k_core_types::Inches::from_inches(18),
+            attacks: wh40k_core_types::AttackCount::Fixed(3),
+            skill: wh40k_core_types::Skill::THREE_PLUS,
+            strength: wh40k_core_types::Strength::new(4),
+            ap: wh40k_core_types::ArmorPenetration::ZERO,
+            damage: wh40k_core_types::Damage::Fixed(1),
+            abilities: wh40k_core_types::WeaponAbilitySet::from_abilities(vec![
+                wh40k_core_types::WeaponAbility::Assault,
+            ]),
+        };
+        state.unit_mut(unit_id).unwrap().models[0].ranged_weapons.push(assault_weapon);
+
+        // Mark unit as having advanced
+        state.turn_flags.mark_advanced(unit_id);
+
+        let cmd = Command::ResolveShootingAttack {
+            attacker_id: unit_id,
+            target_id: UnitId::new(2),
+            weapon_id,
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_legal(), "Advanced unit should be able to fire Assault weapon");
+    }
+
+    #[test]
+    fn test_validate_resolve_shooting_not_advanced_non_assault_allowed() {
+        // Audit #22: Non-advanced units can fire any weapon
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::Shooting;
+
+        let unit_id = UnitId::new(1);
+        let weapon_id = wh40k_core_types::WeaponId::new(12);
+
+        // Add a non-Assault ranged weapon (Heavy)
+        let heavy_weapon = wh40k_core_types::WeaponProfile {
+            id: weapon_id,
+            name: "Heavy bolter".to_string(),
+            weapon_type: wh40k_core_types::WeaponType::Ranged,
+            range: wh40k_core_types::Inches::from_inches(36),
+            attacks: wh40k_core_types::AttackCount::Fixed(3),
+            skill: wh40k_core_types::Skill::THREE_PLUS,
+            strength: wh40k_core_types::Strength::new(5),
+            ap: wh40k_core_types::ArmorPenetration::MINUS_1,
+            damage: wh40k_core_types::Damage::Fixed(2),
+            abilities: wh40k_core_types::WeaponAbilitySet::from_abilities(vec![
+                wh40k_core_types::WeaponAbility::Heavy,
+            ]),
+        };
+        state.unit_mut(unit_id).unwrap().models[0].ranged_weapons.push(heavy_weapon);
+
+        // Do NOT mark as advanced
+
+        let cmd = Command::ResolveShootingAttack {
+            attacker_id: unit_id,
+            target_id: UnitId::new(2),
+            weapon_id,
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_legal(), "Non-advanced unit should fire any weapon");
+    }
+
+    #[test]
+    fn test_validate_resolve_shooting_advanced_pistol_weapon_allowed() {
+        // Audit #22: Advanced units CAN fire Pistol weapons
+        // Source: 40k_revised.md - Pistol weapons can fire after advance
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::Shooting;
+
+        let unit_id = UnitId::new(1);
+        let weapon_id = wh40k_core_types::WeaponId::new(13);
+
+        // Add a Pistol weapon
+        let pistol_weapon = wh40k_core_types::WeaponProfile {
+            id: weapon_id,
+            name: "Bolt pistol".to_string(),
+            weapon_type: wh40k_core_types::WeaponType::Ranged,
+            range: wh40k_core_types::Inches::from_inches(12),
+            attacks: wh40k_core_types::AttackCount::Fixed(1),
+            skill: wh40k_core_types::Skill::THREE_PLUS,
+            strength: wh40k_core_types::Strength::new(4),
+            ap: wh40k_core_types::ArmorPenetration::ZERO,
+            damage: wh40k_core_types::Damage::Fixed(1),
+            abilities: wh40k_core_types::WeaponAbilitySet::from_abilities(vec![
+                wh40k_core_types::WeaponAbility::Pistol,
+            ]),
+        };
+        state.unit_mut(unit_id).unwrap().models[0].ranged_weapons.push(pistol_weapon);
+
+        // Mark unit as having advanced
+        state.turn_flags.mark_advanced(unit_id);
+
+        let cmd = Command::ResolveShootingAttack {
+            attacker_id: unit_id,
+            target_id: UnitId::new(2),
+            weapon_id,
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_legal(), "Advanced unit should be able to fire Pistol weapon");
     }
 
     #[test]

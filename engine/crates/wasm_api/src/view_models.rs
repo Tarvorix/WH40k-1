@@ -64,6 +64,8 @@ pub struct PlayerView {
     pub enhancement_choice: Option<u32>,
     /// Selected secondary objective, if any.
     pub secondary_choice: Option<u32>,
+    /// Selected patrol squad choice, if any.
+    pub patrol_squad_choice: Option<u32>,
     /// Whether this player goes first.
     pub first_turn: bool,
     /// Active blessings (World Eaters faction).

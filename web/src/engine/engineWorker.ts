@@ -27,6 +27,12 @@ async function handleMessage(request: WorkerRequest): Promise<void> {
           request.faction_b,
           request.mission,
           request.seed_json,
+          request.enhancement_a ?? -1,
+          request.enhancement_b ?? -1,
+          request.secondary_a ?? -1,
+          request.secondary_b ?? -1,
+          request.patrol_squad_a ?? -1,
+          request.patrol_squad_b ?? -1,
         );
         sendResponse({ type: 'state', data });
         break;
@@ -89,6 +95,16 @@ async function handleMessage(request: WorkerRequest): Promise<void> {
       case 'replay_get_info': {
         const data = bridge.replayGetInfo();
         sendResponse({ type: 'replay_info', data });
+        break;
+      }
+      case 'submit_place_unit': {
+        const data = bridge.submitPlaceUnit(request.player, request.unit_id, request.x, request.y);
+        sendResponse({ type: 'direct_command_applied', data });
+        break;
+      }
+      case 'submit_normal_move': {
+        const data = bridge.submitNormalMove(request.unit_id, request.x, request.y);
+        sendResponse({ type: 'direct_command_applied', data });
         break;
       }
     }

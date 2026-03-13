@@ -615,16 +615,46 @@ impl ActionGenerator {
                     TacticalIntent::MaximizeKills
                 };
 
-                // Generate a SelectUnitToShoot command for this targeting
-                candidates.add(
-                    Command::SelectUnitToShoot { unit_id: unit.id },
-                    intent,
-                    format!("{} shoots at {}", unit.name, target.name),
-                );
+                // Generate DeclareShootingTargets with all valid weapon+target pairs
+                // Source: 40k_revised.md §7.2 - Each model shoots all its ranged weapons
+                let mut weapon_targets: Vec<(wh40k_core_types::WeaponId, wh40k_core_types::UnitId)> = Vec::new();
 
-                // Only generate one "select to shoot" per unit
-                // (target selection happens in a subsequent decision)
-                break;
+                for model in unit.models.iter().filter(|m| m.alive) {
+                    for weapon in &model.ranged_weapons {
+                        // Skip non-pistol weapons if engaged
+                        if is_engaged && !weapon.abilities.has_pistol() {
+                            continue;
+                        }
+                        // Check weapon range
+                        let weapon_range = weapon.range.mils();
+                        if !is_engaged && dist > weapon_range {
+                            continue;
+                        }
+                        // Check LOS (simplified - just check terrain blockage)
+                        let los = state.board.check_los(unit_pos, target_pos);
+                        if matches!(los, wh40k_core_types::Visibility::NotVisible)
+                            && !weapon.abilities.has_indirect_fire() {
+                            continue;
+                        }
+                        weapon_targets.push((weapon.id, target.id));
+                    }
+                }
+
+                if !weapon_targets.is_empty() {
+                    // Generate a multi-command macro: SelectUnitToShoot + DeclareShootingTargets
+                    candidates.add_multi(
+                        vec![
+                            Command::SelectUnitToShoot { unit_id: unit.id },
+                            Command::DeclareShootingTargets {
+                                unit_id: unit.id,
+                                targets: weapon_targets.clone(),
+                            },
+                        ],
+                        intent,
+                        format!("{} shoots at {} ({} weapons)", unit.name, target.name, weapon_targets.len()),
+                        vec![unit.id],
+                    );
+                }
             }
         }
     }
@@ -680,7 +710,7 @@ impl ActionGenerator {
             viable_targets.sort_by_key(|(_, d)| *d);
 
             // Generate single-target charges for the top targets
-            for (target, dist) in viable_targets.iter().take(3) {
+            for (target, dist) in viable_targets.iter() {
                 let intent = if target.is_character() {
                     TacticalIntent::ChargeHighValueTarget
                 } else if *dist <= 6000 {
@@ -815,29 +845,234 @@ impl ActionGenerator {
             "Decline stratagem".to_string(),
         );
 
-        // Stratagem generation is complex - for each legal stratagem, we add a candidate.
-        // The validator determines legality; we generate reasonable options here.
-        // The search engine validates each candidate before applying.
+        // Generate Command Re-roll stratagem (usable in any phase)
+        // Source: 40k_revised.md - Command Re-roll: 1CP, re-roll one dice
+        if !state.player(player).stratagem_usage.used_this_phase(wh40k_core_types::StratagemId::new(1)) {
+            // Check Command Re-roll isn't blocked (Forward Outpost mission rule)
+            if !state.player(player).mission_progress.command_reroll_blocked {
+                candidates.add(
+                    Command::UseStratagem {
+                        player,
+                        stratagem_id: wh40k_core_types::StratagemId::new(1),
+                        target: wh40k_command_system::StratagemTarget::Player(player),
+                    },
+                    TacticalIntent::DefensiveStratagem,
+                    "Command Re-roll (1CP)".to_string(),
+                );
+            }
+        }
 
-        // Core stratagems are handled by the decision surface in the game engine.
-        // Here we generate the most common/valuable options.
+        // Generate phase-appropriate stratagems
+        match state.current_phase {
+            Phase::Shooting => {
+                // Go to Ground (1CP): Target gains 6++ invuln for shooting attacks
+                for unit in state.units.iter().filter(|u| {
+                    u.owner == player && u.is_on_battlefield() && !u.is_destroyed()
+                        && u.has_keyword(wh40k_core_types::Keyword::Infantry)
+                }) {
+                    if !state.player(player).stratagem_usage.used_this_phase(wh40k_core_types::StratagemId::new(4)) {
+                        candidates.add(
+                            Command::UseStratagem {
+                                player,
+                                stratagem_id: wh40k_core_types::StratagemId::new(4), // GO_TO_GROUND
+                                target: wh40k_command_system::StratagemTarget::Unit(unit.id),
+                            },
+                            TacticalIntent::DefensiveStratagem,
+                            format!("Go to Ground on {} (1CP)", unit.name),
+                        );
+                    }
+                }
+
+                // Grenade stratagem (1CP): unit with Grenades keyword
+                for unit in state.units.iter().filter(|u| {
+                    u.owner == player && u.is_on_battlefield() && !u.is_destroyed()
+                        && u.has_keyword(wh40k_core_types::Keyword::Grenades)
+                }) {
+                    if !state.player(player).stratagem_usage.used_this_phase(wh40k_core_types::StratagemId::new(9)) {
+                        candidates.add(
+                            Command::UseStratagem {
+                                player,
+                                stratagem_id: wh40k_core_types::StratagemId::new(9), // GRENADE
+                                target: wh40k_command_system::StratagemTarget::Unit(unit.id),
+                            },
+                            TacticalIntent::OffensiveStratagem,
+                            format!("Grenade on {} (1CP)", unit.name),
+                        );
+                    }
+                }
+            }
+
+            Phase::Fight => {
+                // Counter-offensive (2CP): fight with one of your units next
+                if state.player(player).can_afford_cp(2)
+                    && !state.player(player).stratagem_usage.used_this_phase(wh40k_core_types::StratagemId::new(2))
+                {
+                    for unit in state.units.iter().filter(|u| {
+                        u.owner == player && u.is_on_battlefield() && !u.is_destroyed()
+                            && !state.turn_flags.has_fought(u.id)
+                            && (u.engagement_status == wh40k_core_types::EngagementStatus::Engaged
+                                || state.turn_flags.charged_this_turn(u.id))
+                    }) {
+                        candidates.add(
+                            Command::UseStratagem {
+                                player,
+                                stratagem_id: wh40k_core_types::StratagemId::new(2), // COUNTER_OFFENSIVE
+                                target: wh40k_command_system::StratagemTarget::Unit(unit.id),
+                            },
+                            TacticalIntent::FightOrderManipulation,
+                            format!("Counter-offensive on {} (2CP)", unit.name),
+                        );
+                    }
+                }
+            }
+
+            Phase::Movement => {
+                // Rapid Ingress (1CP): arrive from Strategic Reserves
+                if state.battle_round.number() >= 2
+                    && !state.player(player).stratagem_usage.used_this_phase(wh40k_core_types::StratagemId::new(8))
+                {
+                    for unit in state.units.iter().filter(|u| {
+                        u.owner == player && u.is_in_reserves()
+                    }) {
+                        candidates.add(
+                            Command::UseStratagem {
+                                player,
+                                stratagem_id: wh40k_core_types::StratagemId::new(8), // RAPID_INGRESS
+                                target: wh40k_command_system::StratagemTarget::Unit(unit.id),
+                            },
+                            TacticalIntent::MovementReaction,
+                            format!("Rapid Ingress for {} (1CP)", unit.name),
+                        );
+                    }
+                }
+            }
+
+            _ => {}
+        }
+
+        // Faction-specific stratagems
+        // Check if player has Custodes units
+        let has_custodes = state.units.iter().any(|u| {
+            u.owner == player && u.has_keyword(wh40k_core_types::Keyword::AdeptusCustodes)
+        });
+        let has_world_eaters = state.units.iter().any(|u| {
+            u.owner == player && u.has_keyword(wh40k_core_types::Keyword::WorldEaters)
+        });
+
+        if has_custodes && state.current_phase == Phase::Fight {
+            // Gilded Spear (1CP): 6" pile-in/consolidate for one unit
+            if !state.player(player).stratagem_usage.used_this_phase(wh40k_core_types::StratagemId::new(200)) {
+                for unit in state.units.iter().filter(|u| {
+                    u.owner == player && u.is_on_battlefield() && !u.is_destroyed()
+                        && u.has_keyword(wh40k_core_types::Keyword::AdeptusCustodes)
+                }) {
+                    candidates.add(
+                        Command::UseStratagem {
+                            player,
+                            stratagem_id: wh40k_core_types::StratagemId::new(200),
+                            target: wh40k_command_system::StratagemTarget::Unit(unit.id),
+                        },
+                        TacticalIntent::OffensiveStratagem,
+                        format!("Gilded Spear on {} (1CP)", unit.name),
+                    );
+                }
+            }
+        }
+
+        if has_world_eaters && state.current_phase == Phase::Fight {
+            // Horrifying Butchery (1CP): enemy unit in ER takes -1Ld modifier
+            if !state.player(player).stratagem_usage.used_this_phase(wh40k_core_types::StratagemId::new(100)) {
+                for unit in state.units.iter().filter(|u| {
+                    u.owner == player && u.is_on_battlefield() && !u.is_destroyed()
+                        && u.has_keyword(wh40k_core_types::Keyword::WorldEaters)
+                }) {
+                    candidates.add(
+                        Command::UseStratagem {
+                            player,
+                            stratagem_id: wh40k_core_types::StratagemId::new(100),
+                            target: wh40k_command_system::StratagemTarget::Unit(unit.id),
+                        },
+                        TacticalIntent::OffensiveStratagem,
+                        format!("Horrifying Butchery on {} (1CP)", unit.name),
+                    );
+                }
+            }
+        }
     }
 
     /// Generate setup/pre-battle candidates.
+    ///
+    /// During deployment, generate PlaceUnit commands for each undeployed unit
+    /// with positions sampled from the player's deployment zone.
+    ///
+    /// Source: CP_Rules.md - "The Defender sets up their army first, then the Attacker"
     fn generate_setup_candidates(
-        _state: &GameState,
-        _player: PlayerId,
+        state: &GameState,
+        player: PlayerId,
         candidates: &mut CandidateSet,
     ) {
-        // Setup phase candidates are typically driven by the DecisionSurface.
-        // The AI can choose enhancements, secondaries, and deployment positions.
-        // These are handled via from_legal_commands when the engine provides options.
+        // Find undeployed units belonging to this player
+        let undeployed: Vec<&UnitState> = state
+            .units
+            .iter()
+            .filter(|u| {
+                u.owner == player
+                    && u.status == wh40k_core_types::UnitStatus::Undeployed
+            })
+            .collect();
 
-        candidates.add(
-            Command::PassAction,
-            TacticalIntent::Generic,
-            "Pass setup action".to_string(),
-        );
+        if undeployed.is_empty() {
+            // All units deployed - check if opponent still needs to deploy
+            let opponent = state.opponent_id(player);
+            let opponent_has_undeployed = state.units.iter().any(|u| {
+                u.owner == opponent
+                    && u.status == wh40k_core_types::UnitStatus::Undeployed
+            });
+
+            if !opponent_has_undeployed {
+                // Both players fully deployed, offer SetupComplete
+                candidates.add(
+                    Command::SetupComplete,
+                    TacticalIntent::PhaseControl,
+                    "Complete deployment".to_string(),
+                );
+            }
+            return;
+        }
+
+        // Get deployment zone for this player
+        let zone = match &state.deployment_config {
+            Some(config) => config.zone_for(player),
+            None => {
+                // No deployment config - fall back to pass
+                candidates.add(
+                    Command::PassAction,
+                    TacticalIntent::Generic,
+                    "Pass setup action".to_string(),
+                );
+                return;
+            }
+        };
+
+        // Generate deployment positions by sampling the zone
+        let positions = Self::generate_deployment_positions(state, zone, player);
+
+        for unit in &undeployed {
+            for &pos in &positions {
+                // Verify the position is within the zone and on the board
+                if zone.contains(pos) && state.board.contains(pos) {
+                    candidates.add(
+                        Command::PlaceUnit {
+                            player,
+                            unit_id: unit.id,
+                            position: pos,
+                        },
+                        TacticalIntent::HoldObjective,
+                        format!("Deploy {} at ({:.0}\", {:.0}\")", unit.name, pos.x.as_f64(), pos.y.as_f64()),
+                    );
+                }
+            }
+        }
     }
 
     /// Generate phase control candidates (end phase, end turn).
@@ -956,36 +1191,42 @@ impl ActionGenerator {
     ) -> Vec<(Position, u8)> {
         let mut destinations = Vec::new();
 
-        // Average advance roll is 3-4, generate with average roll of 4
-        let advance_roll = 4u8;
-        let total_move = move_dist_mils + (advance_roll as i32 * 1000);
+        // Generate for low/average/high advance rolls to cover D6 range
+        for advance_roll in [2u8, 4u8, 6u8] {
+            let total_move = move_dist_mils + (advance_roll as i32 * 1000);
 
-        // Advance towards nearest unchosen objective
-        for obj in &state.board.objectives {
-            let dist = distance(current_pos, obj.position).mils();
-            if dist <= total_move && dist > move_dist_mils {
-                destinations.push((obj.position, advance_roll));
+            // Advance towards nearest unchosen objective
+            for obj in &state.board.objectives {
+                let dist = distance(current_pos, obj.position).mils();
+                if dist <= total_move && dist > move_dist_mils {
+                    destinations.push((obj.position, advance_roll));
+                }
             }
-        }
 
-        // Advance towards enemy deployment zone
-        let board_h = state.board.dimensions.height.mils();
-        let mid_x = state.board.dimensions.width.mils() / 2;
-        let target_y = if state.player(player).first_turn {
-            // Advance towards enemy (top) side
-            current_pos.y.mils() + total_move
-        } else {
-            // Advance towards enemy (bottom) side
-            current_pos.y.mils() - total_move
-        };
-        let clamped_y = target_y.clamp(1000, board_h - 1000);
-        destinations.push((
-            Position {
-                x: Inches::from_mils(mid_x),
-                y: Inches::from_mils(clamped_y),
-            },
-            advance_roll,
-        ));
+            // Advance towards enemy deployment zone
+            let board_h = state.board.dimensions.height.mils();
+            let mid_x = state.board.dimensions.width.mils() / 2;
+            let target_y = if state.player(player).first_turn {
+                board_h - 1000
+            } else {
+                1000
+            };
+            let dy = target_y - current_pos.y.mils();
+            let clamped_y = if dy.abs() > total_move {
+                current_pos.y.mils() + (dy.signum() * total_move)
+            } else {
+                target_y
+            };
+            let clamped_y = clamped_y.clamp(1000, board_h - 1000);
+
+            destinations.push((
+                Position {
+                    x: Inches::from_mils(mid_x),
+                    y: Inches::from_mils(clamped_y),
+                },
+                advance_roll,
+            ));
+        }
 
         destinations
     }
@@ -998,26 +1239,75 @@ impl ActionGenerator {
         player: PlayerId,
     ) -> Vec<Position> {
         let mut positions = Vec::new();
-        let _board_w = state.board.dimensions.width.mils();
+        let board_w = state.board.dimensions.width.mils();
         let board_h = state.board.dimensions.height.mils();
 
-        // Fall back towards own deployment zone
+        // Fall back towards own deployment zone (straight back)
         let retreat_y = if state.player(player).first_turn {
             (current_pos.y.mils() - move_dist_mils).clamp(1000, board_h - 1000)
         } else {
             (current_pos.y.mils() + move_dist_mils).clamp(1000, board_h - 1000)
         };
-
         positions.push(Position {
             x: current_pos.x,
             y: Inches::from_mils(retreat_y),
         });
 
-        // Also fall back towards nearest friendly objective
+        // Diagonal retreat (back-left)
+        let diag_dist = move_dist_mils * 707 / 1000; // ~0.707 * move for 45-degree diagonal
+        let diag_y = if state.player(player).first_turn {
+            (current_pos.y.mils() - diag_dist).clamp(1000, board_h - 1000)
+        } else {
+            (current_pos.y.mils() + diag_dist).clamp(1000, board_h - 1000)
+        };
+        positions.push(Position {
+            x: Inches::from_mils((current_pos.x.mils() - diag_dist).clamp(1000, board_w - 1000)),
+            y: Inches::from_mils(diag_y),
+        });
+
+        // Diagonal retreat (back-right)
+        positions.push(Position {
+            x: Inches::from_mils((current_pos.x.mils() + diag_dist).clamp(1000, board_w - 1000)),
+            y: Inches::from_mils(diag_y),
+        });
+
+        // Lateral retreat (left)
+        positions.push(Position {
+            x: Inches::from_mils((current_pos.x.mils() - move_dist_mils).clamp(1000, board_w - 1000)),
+            y: current_pos.y,
+        });
+
+        // Lateral retreat (right)
+        positions.push(Position {
+            x: Inches::from_mils((current_pos.x.mils() + move_dist_mils).clamp(1000, board_w - 1000)),
+            y: current_pos.y,
+        });
+
+        // Fall back towards nearest friendly objective
         for obj in &state.board.objectives {
             let dist = distance(current_pos, obj.position).mils();
             if dist <= move_dist_mils && dist > 0 {
                 positions.push(obj.position);
+            }
+        }
+
+        // Fall back away from nearest enemy
+        let nearest_enemy = state.units.iter()
+            .filter(|u| u.owner != player && u.is_on_battlefield() && !u.is_destroyed())
+            .filter_map(|u| u.reference_position().map(|p| (p, distance(current_pos, p).mils())))
+            .min_by_key(|(_, d)| *d);
+
+        if let Some((enemy_pos, _)) = nearest_enemy {
+            let dx = current_pos.x.mils() - enemy_pos.x.mils();
+            let dy = current_pos.y.mils() - enemy_pos.y.mils();
+            let mag = ((dx as f64).powi(2) + (dy as f64).powi(2)).sqrt() as i32;
+            if mag > 0 {
+                let flee_x = (current_pos.x.mils() + dx * move_dist_mils / mag).clamp(1000, board_w - 1000);
+                let flee_y = (current_pos.y.mils() + dy * move_dist_mils / mag).clamp(1000, board_h - 1000);
+                positions.push(Position {
+                    x: Inches::from_mils(flee_x),
+                    y: Inches::from_mils(flee_y),
+                });
             }
         }
 
@@ -1086,6 +1376,79 @@ impl ActionGenerator {
             if !too_close {
                 positions.push(center);
             }
+        }
+
+        positions
+    }
+
+    /// Generate candidate deployment positions within a deployment zone.
+    ///
+    /// Samples a grid of positions within the zone's bounding box,
+    /// filtered to those actually inside the zone polygon.
+    fn generate_deployment_positions(
+        state: &GameState,
+        zone: &wh40k_geometry::DeploymentZone,
+        _player: PlayerId,
+    ) -> Vec<Position> {
+        let mut positions = Vec::new();
+
+        // Find bounding box of the zone polygon
+        let verts = &zone.polygon.vertices;
+        if verts.is_empty() {
+            return positions;
+        }
+
+        let min_x = verts.iter().map(|v| v.x.mils()).min().unwrap_or(0);
+        let max_x = verts.iter().map(|v| v.x.mils()).max().unwrap_or(0);
+        let min_y = verts.iter().map(|v| v.y.mils()).min().unwrap_or(0);
+        let max_y = verts.iter().map(|v| v.y.mils()).max().unwrap_or(0);
+
+        // Sample at 2" intervals within the bounding box, offset 1" from edges
+        let step = 2000; // 2 inches in mils
+        let margin = 1000; // 1 inch margin from zone edge
+
+        let start_x = min_x + margin;
+        let end_x = max_x - margin;
+        let start_y = min_y + margin;
+        let end_y = max_y - margin;
+
+        let mut x = start_x;
+        while x <= end_x {
+            let mut y = start_y;
+            while y <= end_y {
+                let pos = Position {
+                    x: Inches::from_mils(x),
+                    y: Inches::from_mils(y),
+                };
+                if zone.contains(pos) && state.board.contains(pos) {
+                    // Check not too close to already-deployed units (min 1" apart)
+                    let too_close = state.units.iter().any(|u| {
+                        u.status == wh40k_core_types::UnitStatus::OnBattlefield
+                            && u.reference_position()
+                                .map(|upos| distance(pos, upos).mils() < 1000)
+                                .unwrap_or(false)
+                    });
+                    if !too_close {
+                        positions.push(pos);
+                    }
+                }
+                y += step;
+            }
+            x += step;
+        }
+
+        // Also add positions near objectives that are within the zone
+        for obj in &state.board.objectives {
+            if zone.contains(obj.position) && state.board.contains(obj.position) {
+                positions.push(obj.position);
+            }
+        }
+
+        // Limit to reasonable number to avoid explosion
+        if positions.len() > 20 {
+            // Take evenly spaced subset
+            let step = positions.len() / 15;
+            positions = positions.into_iter().step_by(step.max(1)).take(15).collect();
         }
 
         positions
@@ -1448,5 +1811,233 @@ mod tests {
         assert_eq!(cs.candidates[0].id, MacroActionId(0));
         assert_eq!(cs.candidates[1].id, MacroActionId(1));
         assert_eq!(cs.candidates[2].id, MacroActionId(2));
+    }
+
+    #[test]
+    fn test_deployment_generates_place_unit_candidates() {
+        // Load a real game scenario and verify deployment candidates are generated
+        let seed = [42u8; 32];
+        let state = wh40k_game_core::scenario::ScenarioLoader::load_scenario(
+            wh40k_core_types::FactionId(0), wh40k_core_types::FactionId(1),
+            Some(wh40k_core_types::MissionId::new(1)),
+            seed,
+        );
+
+        assert_eq!(state.current_phase, wh40k_core_types::Phase::PreBattle);
+        assert!(state.deployment_config.is_some(), "deployment_config must be set");
+
+        let decision_owner = state.decision_owner;
+        let candidates = ActionGenerator::generate(&state, decision_owner);
+
+        // Must have PlaceUnit candidates
+        let place_unit_count = candidates.candidates.iter()
+            .filter(|c| matches!(&c.commands[0], Command::PlaceUnit { .. }))
+            .count();
+
+        eprintln!("Decision owner: {:?}", decision_owner);
+        eprintln!("Total candidates: {}", candidates.candidates.len());
+        eprintln!("PlaceUnit candidates: {}", place_unit_count);
+        for c in candidates.candidates.iter().take(5) {
+            eprintln!("  {:?}: {}", c.intent, c.label);
+        }
+
+        assert!(place_unit_count > 0, "Must generate PlaceUnit candidates for deployment");
+    }
+
+    #[test]
+    fn test_full_deployment_flow() {
+        use wh40k_game_core::executor::CommandExecutor;
+
+        let seed = [42u8; 32];
+        let mut state = wh40k_game_core::scenario::ScenarioLoader::load_scenario(
+            wh40k_core_types::FactionId(0), wh40k_core_types::FactionId(1),
+            Some(wh40k_core_types::MissionId::new(1)),
+            seed,
+        );
+
+        let defender = state.decision_owner;
+        let attacker = state.opponent_id(defender);
+
+        let defender_count = state.units.iter()
+            .filter(|u| u.owner == defender && u.status == wh40k_core_types::UnitStatus::Undeployed)
+            .count();
+        assert!(defender_count > 0, "Defender should have undeployed units");
+
+        // Deploy all defender units by choosing first PlaceUnit each time
+        for _ in 0..50 {
+            if state.decision_owner != defender { break; }
+            let candidates = ActionGenerator::generate(&state, state.decision_owner);
+            let place_cmd = candidates.candidates.iter()
+                .find(|c| matches!(&c.commands[0], Command::PlaceUnit { .. }));
+            match place_cmd {
+                Some(action) => {
+                    CommandExecutor::execute(&mut state, &action.commands[0]).unwrap();
+                }
+                None => break,
+            }
+        }
+
+        let remaining_defender = state.units.iter()
+            .filter(|u| u.owner == defender && u.status == wh40k_core_types::UnitStatus::Undeployed)
+            .count();
+        assert_eq!(remaining_defender, 0, "All defender units should be deployed");
+        assert_eq!(state.decision_owner, attacker, "Decision owner should switch to attacker");
+
+        // Now deploy attacker units
+        let attacker_count = state.units.iter()
+            .filter(|u| u.owner == attacker && u.status == wh40k_core_types::UnitStatus::Undeployed)
+            .count();
+        assert!(attacker_count > 0, "Attacker should have undeployed units");
+
+        for _ in 0..50 {
+            if state.decision_owner != attacker { break; }
+            let candidates = ActionGenerator::generate(&state, state.decision_owner);
+            let place_cmd = candidates.candidates.iter()
+                .find(|c| matches!(&c.commands[0], Command::PlaceUnit { .. }));
+            match place_cmd {
+                Some(action) => {
+                    CommandExecutor::execute(&mut state, &action.commands[0]).unwrap();
+                }
+                None => break,
+            }
+        }
+
+        let remaining_attacker = state.units.iter()
+            .filter(|u| u.owner == attacker && u.status == wh40k_core_types::UnitStatus::Undeployed)
+            .count();
+        assert_eq!(remaining_attacker, 0, "All attacker units should be deployed");
+
+        // All units should now be on battlefield
+        let on_battlefield = state.units.iter()
+            .filter(|u| u.status == wh40k_core_types::UnitStatus::OnBattlefield)
+            .count();
+        assert_eq!(on_battlefield, state.units.len(), "All units should be on battlefield");
+    }
+
+    #[test]
+    fn test_full_game_turn_after_deployment() {
+        // Deploy all units, then play through several full AI turns.
+        // This reproduces production crashes during the AI turn.
+        use wh40k_game_core::executor::CommandExecutor;
+        let seed = [42u8; 32];
+        let mut state = wh40k_game_core::scenario::ScenarioLoader::load_scenario(
+            wh40k_core_types::FactionId(0),
+            wh40k_core_types::FactionId(1),
+            Some(wh40k_core_types::MissionId::new(1)),
+            seed,
+        );
+
+        // Deploy all units
+        for _ in 0..100 {
+            if !state.is_in_progress() { break; }
+            let owner = state.decision_owner;
+            let candidates = ActionGenerator::generate(&state, owner);
+            let place_cmd = candidates.candidates.iter()
+                .find(|c| matches!(&c.commands[0], Command::PlaceUnit { .. }));
+            match place_cmd {
+                Some(action) => {
+                    CommandExecutor::execute(&mut state, &action.commands[0]).unwrap();
+                }
+                None => break,
+            }
+        }
+
+        // All units should be deployed
+        let remaining = state.units.iter()
+            .filter(|u| u.status == wh40k_core_types::UnitStatus::Undeployed)
+            .count();
+        assert_eq!(remaining, 0, "All units should be deployed");
+
+        // Now play through many AI decisions. For each decision point,
+        // try each candidate until one succeeds (like the real greedy search).
+        // This reproduces any panics that happen during AI turns.
+        let mut commands_executed = 0;
+        let max_commands = 500;
+
+        while state.is_in_progress() && commands_executed < max_commands {
+            let player = state.decision_owner;
+            let candidates = ActionGenerator::generate(&state, player);
+
+            assert!(!candidates.candidates.is_empty(),
+                "No candidates at cmd #{}, phase={:?}, round={:?}, owner={:?}",
+                commands_executed, state.current_phase, state.battle_round, state.decision_owner,
+            );
+
+            // Try each candidate on a clone until we find one that works
+            let mut applied = false;
+            for action in &candidates.candidates {
+                let mut clone = state.clone();
+                let mut ok = true;
+                for cmd in &action.commands {
+                    if CommandExecutor::execute(&mut clone, cmd).is_err() {
+                        ok = false;
+                        break;
+                    }
+                }
+                if ok {
+                    // Apply to real state
+                    for cmd in &action.commands {
+                        CommandExecutor::execute(&mut state, cmd).unwrap();
+                        commands_executed += 1;
+                    }
+                    applied = true;
+                    break;
+                }
+            }
+
+            assert!(applied,
+                "All {} candidates failed at cmd #{}, phase={:?}, round={:?}, owner={:?}",
+                candidates.candidates.len(),
+                commands_executed, state.current_phase, state.battle_round, state.decision_owner,
+            );
+        }
+
+        // Should have played through at least one full round
+        assert!(commands_executed > 10,
+            "Should have executed many commands, got {}", commands_executed);
+    }
+
+    #[test]
+    fn test_full_game_multiple_seeds() {
+        // Run full games with multiple seeds to catch edge-case crashes.
+        use wh40k_game_core::executor::CommandExecutor;
+
+        for seed_byte in [1u8, 7, 13, 42, 99, 137, 200, 255] {
+            let seed = [seed_byte; 32];
+            for mission in [1, 2, 3] {
+                let mut state = wh40k_game_core::scenario::ScenarioLoader::load_scenario(
+                    wh40k_core_types::FactionId(0),
+                    wh40k_core_types::FactionId(1),
+                    Some(wh40k_core_types::MissionId::new(mission)),
+                    seed,
+                );
+
+                let mut commands_executed = 0;
+                let max_commands = 500;
+
+                while state.is_in_progress() && commands_executed < max_commands {
+                    let player = state.decision_owner;
+                    let candidates = ActionGenerator::generate(&state, player);
+                    if candidates.candidates.is_empty() { break; }
+
+                    for action in &candidates.candidates {
+                        let mut clone = state.clone();
+                        let ok = action.commands.iter()
+                            .all(|cmd| CommandExecutor::execute(&mut clone, cmd).is_ok());
+                        if ok {
+                            for cmd in &action.commands {
+                                CommandExecutor::execute(&mut state, cmd).unwrap();
+                                commands_executed += 1;
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                assert!(commands_executed > 5,
+                    "seed={}, mission={}: only {} commands",
+                    seed_byte, mission, commands_executed);
+            }
+        }
     }
 }

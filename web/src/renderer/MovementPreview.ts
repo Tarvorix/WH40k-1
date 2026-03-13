@@ -8,6 +8,7 @@ import {
   MOVE_LINE_ALPHA,
   MOVE_LINE_WIDTH,
   RANGE_CIRCLE_ALPHA,
+  baseRadiusPx,
 } from './constants';
 import { getFactionPrimaryColor } from '@/utils/colors';
 
@@ -34,7 +35,7 @@ export class MovementPreview {
     const color = getFactionPrimaryColor(factionId);
 
     // Show movement range circle
-    if (gameState.phase === 'Movement' && !unit.turn_flags.has_moved) {
+    if (gameState.phase === 'Movement' && !unit.turn_flags.has_moved && unit.movement > 0) {
       const rangeInches = unit.movement;
       const g = new PIXI.Graphics();
       g.lineStyle(1, MOVE_LINE_COLOR, RANGE_CIRCLE_ALPHA);
@@ -60,18 +61,28 @@ export class MovementPreview {
       const destX = action.position.x * PX_PER_INCH;
       const destY = action.position.y * PX_PER_INCH;
 
-      // Dashed line from current to destination
+      // Dashed line from current centroid to destination centroid
       const startX = unit.position.x * PX_PER_INCH;
       const startY = unit.position.y * PX_PER_INCH;
       this.drawDashedLine(startX, startY, destX, destY, MOVE_LINE_COLOR, MOVE_LINE_ALPHA);
 
-      // Ghost token
-      const ghost = new PIXI.Graphics();
-      ghost.beginFill(color, MOVE_GHOST_ALPHA);
-      ghost.lineStyle(1, color, MOVE_GHOST_ALPHA + 0.2);
-      ghost.drawCircle(destX, destY, UNIT_CIRCLE_RADIUS);
-      ghost.endFill();
-      this.container.addChild(ghost);
+      // Per-model ghost tokens: translate each alive model by the movement offset
+      const dxInches = action.position.x - unit.position.x;
+      const dyInches = action.position.y - unit.position.y;
+
+      for (const model of unit.models) {
+        if (!model.alive) continue;
+        const ghostMx = (model.position.x + dxInches) * PX_PER_INCH;
+        const ghostMy = (model.position.y + dyInches) * PX_PER_INCH;
+        const radius = baseRadiusPx(model.base_size_mm);
+
+        const ghost = new PIXI.Graphics();
+        ghost.beginFill(color, MOVE_GHOST_ALPHA);
+        ghost.lineStyle(1, color, MOVE_GHOST_ALPHA + 0.2);
+        ghost.drawCircle(ghostMx, ghostMy, radius);
+        ghost.endFill();
+        this.container.addChild(ghost);
+      }
     }
   }
 

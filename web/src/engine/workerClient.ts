@@ -85,9 +85,27 @@ class EngineWorkerClient {
     factionB: number,
     mission: number,
     seedJson: string,
+    enhancementA: number = -1,
+    enhancementB: number = -1,
+    secondaryA: number = -1,
+    secondaryB: number = -1,
+    patrolSquadA: number = -1,
+    patrolSquadB: number = -1,
   ): Promise<GameView> {
     return this.sendRequest<GameView>(
-      { type: 'create_match', faction_a: factionA, faction_b: factionB, mission, seed_json: seedJson },
+      {
+        type: 'create_match',
+        faction_a: factionA,
+        faction_b: factionB,
+        mission,
+        seed_json: seedJson,
+        enhancement_a: enhancementA,
+        enhancement_b: enhancementB,
+        secondary_a: secondaryA,
+        secondary_b: secondaryB,
+        patrol_squad_a: patrolSquadA,
+        patrol_squad_b: patrolSquadB,
+      },
       'state',
     );
   }
@@ -170,6 +188,20 @@ class EngineWorkerClient {
     return this.sendRequest<ReplayInfoView>(
       { type: 'replay_get_info' },
       'replay_info',
+    );
+  }
+
+  async submitPlaceUnit(player: number, unitId: number, x: number, y: number): Promise<GameView> {
+    return this.sendRequest<GameView>(
+      { type: 'submit_place_unit', player, unit_id: unitId, x, y },
+      'direct_command_applied',
+    );
+  }
+
+  async submitNormalMove(unitId: number, x: number, y: number): Promise<GameView> {
+    return this.sendRequest<GameView>(
+      { type: 'submit_normal_move', unit_id: unitId, x, y },
+      'direct_command_applied',
     );
   }
 

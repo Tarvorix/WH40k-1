@@ -54,7 +54,7 @@ export function UnitInfoPanel() {
           <WeaponTable
             weapons={unit.models
               .flatMap((m) => m.ranged_weapons)
-              .filter((w, i, arr) => arr.findIndex((x) => x.name === w.name) === i)}
+              .filter((w, i, arr) => arr.findIndex((x) => x.id === w.id) === i)}
           />
         </div>
       )}
@@ -66,7 +66,7 @@ export function UnitInfoPanel() {
           <WeaponTable
             weapons={unit.models
               .flatMap((m) => m.melee_weapons)
-              .filter((w, i, arr) => arr.findIndex((x) => x.name === w.name) === i)}
+              .filter((w, i, arr) => arr.findIndex((x) => x.id === w.id) === i)}
           />
         </div>
       )}

@@ -8,12 +8,13 @@ export function BlessingPanel() {
 
   if (!gameState) return null;
 
-  // Check if any player has blessing dice
-  const playerWithBlessings = gameState.players.find(
-    (p) => p.blessing_dice.length > 0,
-  );
+  // Show blessings for the decision owner (active player)
+  const decisionOwner = gameState.decision_owner;
+  const playerWithBlessings = decisionOwner != null
+    ? gameState.players[decisionOwner]
+    : gameState.players.find((p) => p.blessing_dice.length > 0);
 
-  if (!playerWithBlessings) return null;
+  if (!playerWithBlessings || playerWithBlessings.blessing_dice.length === 0) return null;
 
   const blessingActions = decisionSurface?.actions.filter(
     (a) => a.command_type === 'Scoring' || a.label.toLowerCase().includes('blessing'),

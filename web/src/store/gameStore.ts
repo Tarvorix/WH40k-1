@@ -51,6 +51,8 @@ interface GameState {
   setHoveredUnit: (unitId: number | null) => void;
   selectAction: (index: number | null) => void;
   applyAction: (index: number) => Promise<void>;
+  submitDeploy: (unitId: number, x: number, y: number) => Promise<void>;
+  submitMove: (unitId: number, x: number, y: number) => Promise<void>;
   setAiDifficulty: (difficulty: AiDifficulty) => void;
   setAutoPlayAi: (autoPlay: boolean) => void;
   setPlayerControlled: (playerIndex: number, isHuman: boolean) => void;
@@ -72,10 +74,10 @@ export const useGameStore = create<GameState>()(
     targetUnitId: null,
     hoveredUnitId: null,
     selectedActionIndex: null,
-    aiDifficulty: 'greedy',
+    aiDifficulty: 'Basic_Recruit',
     aiThinking: false,
     aiResult: null,
-    autoPlayAi: false,
+    autoPlayAi: true,
     playerControlled: [true, false], // Player 0 = human, Player 1 = AI
     eventLog: [],
     loading: false,
@@ -113,7 +115,28 @@ export const useGameStore = create<GameState>()(
 
         const seedValue = seed ?? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
         const seedJson = JSON.stringify({ seed_u64: seedValue });
-        const gameView = await engineClient.createMatch(factionA, factionB, mission, seedJson);
+
+        // Get enhancement, secondary, and patrol squad selections from setup store
+        const { useSetupStore } = await import('./setupStore');
+        const setupState = useSetupStore.getState();
+        const enhA = setupState.playerEnhancement ?? -1;
+        const enhB = -1; // AI enhancement selected by engine
+        const secA = setupState.playerSecondary ?? -1;
+        const secB = -1; // AI secondary selected by engine
+        const sqA = setupState.playerPatrolSquad ?? -1;
+        const sqB = -1; // AI patrol squad selected by engine (defaults to Wardens)
+
+        console.log('[createMatch] Calling engine with params:', { factionA, factionB, mission, enhA, enhB, secA, secB, sqA, sqB });
+        const gameView = await engineClient.createMatch(factionA, factionB, mission, seedJson, enhA, enhB, secA, secB, sqA, sqB);
+        console.log('[createMatch] Got gameView:', {
+          phase: gameView.phase,
+          subphase: gameView.subphase,
+          decision_owner: gameView.decision_owner,
+          in_progress: gameView.in_progress,
+          units: gameView.units.length,
+          deployment_zones: gameView.board.deployment_zones.length,
+          undeployed: gameView.units.filter((u: any) => u.status === 'Undeployed').length,
+        });
 
         set((state) => {
           state.gameState = gameView;
@@ -126,7 +149,36 @@ export const useGameStore = create<GameState>()(
 
         // Auto-fetch decision surface
         await get().refreshDecisionSurface();
+        const ds = get().decisionSurface;
+        console.log('[createMatch] Decision surface after refresh:', {
+          actions: ds?.actions.length,
+          owner: ds?.owner,
+          decision_type: ds?.decision_type,
+          first_action: ds?.actions[0],
+        });
+
+        // If the AI is the initial decision owner (e.g. defender deploys first),
+        // auto-run AI turns until it's the human player's turn
+        const gs = get().gameState;
+        const pc = get().playerControlled;
+        console.log('[createMatch] AI check:', {
+          decision_owner: gs?.decision_owner,
+          playerControlled: pc,
+          autoPlayAi: get().autoPlayAi,
+          shouldRunAi: gs && !pc[gs.decision_owner] && get().autoPlayAi,
+        });
+        if (gs && !pc[gs.decision_owner] && get().autoPlayAi) {
+          console.log('[createMatch] Starting AI turn loop for deployment...');
+          await get().runAiTurn();
+          console.log('[createMatch] AI turn loop finished. New state:', {
+            decision_owner: get().gameState?.decision_owner,
+            phase: get().gameState?.phase,
+            undeployed: get().gameState?.units.filter((u: any) => u.status === 'Undeployed').length,
+            surface_actions: get().decisionSurface?.actions.length,
+          });
+        }
       } catch (error) {
+        console.error('[createMatch] ERROR:', error);
         set((state) => {
           state.error = error instanceof Error ? error.message : 'Failed to create match';
           state.loading = false;
@@ -226,6 +278,77 @@ export const useGameStore = create<GameState>()(
       }
     },
 
+    submitDeploy: async (unitId, x, y) => {
+      try {
+        set((state) => { state.loading = true; });
+        const decisionOwner = get().gameState?.decision_owner ?? 0;
+        const gameView = await engineClient.submitPlaceUnit(decisionOwner, unitId, x, y);
+        set((state) => {
+          state.gameState = gameView;
+          state.loading = false;
+          state.selectedUnitId = null;
+          state.targetUnitId = null;
+          state.selectedActionIndex = null;
+          state.decisionSurface = null;
+          if (!gameView.in_progress) {
+            state.screen = 'game_end';
+          }
+        });
+
+        // Refresh decision surface for next action
+        if (get().gameState?.in_progress) {
+          await get().refreshDecisionSurface();
+
+          // Check if it's an AI player's turn
+          const gs = get().gameState;
+          const pc = get().playerControlled;
+          if (gs && !pc[gs.decision_owner] && get().autoPlayAi) {
+            await get().runAiTurn();
+          }
+        }
+      } catch (error) {
+        set((state) => {
+          state.error = error instanceof Error ? error.message : 'Invalid deployment position';
+          state.loading = false;
+        });
+      }
+    },
+
+    submitMove: async (unitId, x, y) => {
+      try {
+        set((state) => { state.loading = true; });
+        const gameView = await engineClient.submitNormalMove(unitId, x, y);
+        set((state) => {
+          state.gameState = gameView;
+          state.loading = false;
+          state.selectedUnitId = null;
+          state.targetUnitId = null;
+          state.selectedActionIndex = null;
+          state.decisionSurface = null;
+          if (!gameView.in_progress) {
+            state.screen = 'game_end';
+          }
+        });
+
+        // Refresh decision surface for next action
+        if (get().gameState?.in_progress) {
+          await get().refreshDecisionSurface();
+
+          // Check if it's an AI player's turn
+          const gs = get().gameState;
+          const pc = get().playerControlled;
+          if (gs && !pc[gs.decision_owner] && get().autoPlayAi) {
+            await get().runAiTurn();
+          }
+        }
+      } catch (error) {
+        set((state) => {
+          state.error = error instanceof Error ? error.message : 'Invalid move position';
+          state.loading = false;
+        });
+      }
+    },
+
     setAiDifficulty: (difficulty) => {
       set((state) => {
         state.aiDifficulty = difficulty;
@@ -259,6 +382,7 @@ export const useGameStore = create<GameState>()(
         set((state) => {
           state.error = error instanceof Error ? error.message : 'AI search failed';
           state.aiThinking = false;
+          state.aiResult = null;
         });
       }
     },
@@ -287,18 +411,55 @@ export const useGameStore = create<GameState>()(
         set((state) => {
           state.error = error instanceof Error ? error.message : 'Failed to apply AI action';
           state.loading = false;
+          state.aiResult = null;
         });
       }
     },
 
     runAiTurn: async () => {
-      const state = get();
-      if (!state.gameState?.in_progress) return;
+      // Loop to handle consecutive AI decisions (e.g. deploying all units)
+      // without recursive calls that could stack overflow
+      let iteration = 0;
+      while (true) {
+        iteration++;
+        const current = get();
+        if (!current.gameState?.in_progress) {
+          console.log(`[runAiTurn] iter=${iteration}: game not in progress, breaking`);
+          break;
+        }
 
-      await state.runAi();
-      if (get().aiResult) {
-        await get().applyAiAction();
+        const gs = current.gameState;
+        const pc = current.playerControlled;
+        // Stop if it's a human player's turn
+        if (pc[gs.decision_owner]) {
+          console.log(`[runAiTurn] iter=${iteration}: human turn (owner=${gs.decision_owner}), breaking`);
+          break;
+        }
+        if (!current.autoPlayAi) {
+          console.log(`[runAiTurn] iter=${iteration}: autoPlayAi=false, breaking`);
+          break;
+        }
+
+        console.log(`[runAiTurn] iter=${iteration}: running AI for owner=${gs.decision_owner}, phase=${gs.phase}`);
+        await current.runAi();
+        if (!get().aiResult) {
+          console.log(`[runAiTurn] iter=${iteration}: AI returned no result, breaking`);
+          break;
+        }
+        console.log(`[runAiTurn] iter=${iteration}: applying AI action: ${get().aiResult?.best_action_label}`);
+        try {
+          await get().applyAiAction();
+        } catch (error) {
+          console.error(`[runAiTurn] iter=${iteration}: applyAiAction failed:`, error);
+          set((state) => {
+            state.error = error instanceof Error ? error.message : 'AI action failed';
+            state.aiResult = null;
+            state.loading = false;
+          });
+          break;
+        }
       }
+      console.log(`[runAiTurn] finished after ${iteration} iterations`);
     },
 
     clearError: () => {

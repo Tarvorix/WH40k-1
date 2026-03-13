@@ -5,6 +5,25 @@ import { Button } from '@/components/shared/Button';
 import { factionName, factionColor, formatVP } from '@/utils/formatters';
 import { engineClient } from '@/engine/workerClient';
 
+const ENHANCEMENT_NAMES: Record<number, string> = {
+  1: 'Fearsome Presence',
+  2: 'Bane of the Craven',
+  3: 'Watchman of Terra',
+  4: 'Warrior Exemplar',
+};
+
+const SECONDARY_NAMES: Record<number, string> = {
+  1: 'Champions of Khorne',
+  2: 'Skull Takers',
+  3: 'Raise the Vexillas',
+  4: 'Consecrated Ground',
+};
+
+const PATROL_SQUAD_NAMES: Record<number, string> = {
+  0: 'Custodian Wardens',
+  1: 'Allarus Custodians',
+};
+
 export function GameEndScreen() {
   const gameState = useGameStore((s) => s.gameState);
   const setScreen = useGameStore((s) => s.setScreen);
@@ -106,6 +125,46 @@ export function GameEndScreen() {
                   <div className="font-bold">
                     <span className="text-yellow-400">{formatVP(player.vp)}</span>
                   </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Battle Choices */}
+        <div className="card mb-8">
+          <h2 className="text-sm font-semibold text-gray-400 uppercase mb-4">Battle Choices</h2>
+          <div className="space-y-3">
+            {gameState.players.map((player, idx) => (
+              <div key={idx} className="flex items-center justify-between text-sm">
+                <span className={factionColor(player.faction_id)}>
+                  {factionName(player.faction_id)}
+                </span>
+                <div className="flex gap-4">
+                  <div>
+                    <span className="text-gray-500">Enhancement: </span>
+                    <span className="text-gray-200">
+                      {player.enhancement_choice != null
+                        ? ENHANCEMENT_NAMES[player.enhancement_choice] ?? `Enhancement #${player.enhancement_choice}`
+                        : 'None'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Secondary: </span>
+                    <span className="text-gray-200">
+                      {player.secondary_choice != null
+                        ? SECONDARY_NAMES[player.secondary_choice] ?? `Secondary #${player.secondary_choice}`
+                        : 'None'}
+                    </span>
+                  </div>
+                  {player.patrol_squad_choice != null && (
+                  <div>
+                    <span className="text-gray-500">Patrol Squad: </span>
+                    <span className="text-gray-200">
+                      {PATROL_SQUAD_NAMES[player.patrol_squad_choice] ?? `Squad #${player.patrol_squad_choice}`}
+                    </span>
+                  </div>
+                  )}
                 </div>
               </div>
             ))}

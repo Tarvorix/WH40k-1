@@ -1191,6 +1191,7 @@ mod tests {
             turn_flags: TurnFlags::new(),
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
+            deployment_config: None,
         };
 
         let events = MissionRuntime::apply_battle_ready_bonus(&state);
@@ -1300,6 +1301,7 @@ mod tests {
             turn_flags: TurnFlags::new(),
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
+            deployment_config: None,
         };
 
         let mission = MissionRuntime::create_clash_of_patrols();
@@ -1343,6 +1345,7 @@ mod tests {
             turn_flags: TurnFlags::new(),
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
+            deployment_config: None,
         };
 
         let mission = MissionRuntime::create_clash_of_patrols();
@@ -1423,6 +1426,7 @@ mod tests {
             turn_flags: TurnFlags::new(),
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
+            deployment_config: None,
         };
 
         let mission = MissionRuntime::create_clash_of_patrols();

@@ -19,8 +19,14 @@ export function isInitialized(): boolean {
   return initialized;
 }
 
-export function createMatch(factionA: number, factionB: number, mission: number, seedJson: string): string {
-  return wasmModule.create_match(factionA, factionB, mission, seedJson);
+export function createMatch(
+  factionA: number, factionB: number, mission: number, seedJson: string,
+  enhancementA: number, enhancementB: number, secondaryA: number, secondaryB: number,
+  patrolSquadA: number, patrolSquadB: number
+): string {
+  return wasmModule.create_match(factionA, factionB, mission, seedJson,
+    enhancementA, enhancementB, secondaryA, secondaryB,
+    patrolSquadA, patrolSquadB);
 }
 
 export function loadScenario(stateJson: string): string {
@@ -69,4 +75,14 @@ export function replayStepBackward(count: number): string {
 
 export function replayGetInfo(): string {
   return wasmModule.replay_get_info();
+}
+
+// Direct command submission (bypasses decision cache for free click-to-move/deploy)
+
+export function submitPlaceUnit(player: number, unitId: number, x: number, y: number): string {
+  return wasmModule.submit_place_unit(player, unitId, x, y);
+}
+
+export function submitNormalMove(unitId: number, x: number, y: number): string {
+  return wasmModule.submit_normal_move(unitId, x, y);
 }

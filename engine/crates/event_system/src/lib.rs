@@ -686,6 +686,15 @@ pub enum GameEvent {
         description: String,
     },
 
+    /// Command Re-roll stratagem was used to re-roll a die.
+    /// Source: 40k_revised.md §15.2 - "Command Re-roll"
+    CommandRerollUsed {
+        player: PlayerId,
+        roll_type: String,
+        original_roll: u8,
+        new_roll: u8,
+    },
+
     // === Game End ===
 
     /// The battle has ended.
@@ -743,6 +752,7 @@ impl GameEvent {
             GameEvent::FightOnDeathTriggered { .. } => "FightOnDeathTriggered",
             GameEvent::KaTahStanceChosen { .. } => "KaTahStanceChosen",
             GameEvent::StratagemEffectApplied { .. } => "StratagemEffectApplied",
+            GameEvent::CommandRerollUsed { .. } => "CommandRerollUsed",
             GameEvent::BattleEnded { .. } => "BattleEnded",
         }
     }
@@ -794,6 +804,7 @@ impl GameEvent {
             GameEvent::ObjectiveSecured { player, .. } => Some(*player),
             GameEvent::VictoryPointsScored { player, .. } => Some(*player),
             GameEvent::StratagemUsed { player, .. } => Some(*player),
+            GameEvent::CommandRerollUsed { player, .. } => Some(*player),
             _ => None,
         }
     }
@@ -822,6 +833,7 @@ impl GameEvent {
                 | GameEvent::UnitDestroyed { .. }
                 | GameEvent::AttackSequenceEnded { .. }
                 | GameEvent::FightResolved { .. }
+                | GameEvent::CommandRerollUsed { .. }
         )
     }
 
@@ -1057,6 +1069,13 @@ impl fmt::Display for GameEvent {
                     f,
                     "Stratagem {} effect applied to unit {}: {}",
                     stratagem, target, description
+                )
+            }
+            GameEvent::CommandRerollUsed { player, roll_type, original_roll, new_roll } => {
+                write!(
+                    f,
+                    "Player {} used Command Re-roll on {}: {} -> {}",
+                    player, roll_type, original_roll, new_roll
                 )
             }
             GameEvent::BattleEnded { outcome } => {

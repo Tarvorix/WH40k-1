@@ -1,7 +1,56 @@
 # WH40K Combat Patrol Engine - Implementation TODO
 
-**Status: Phase 10 MCP Server and AlphaGo Expansion COMPLETE.**
-**Total tests passing: 1261 | Workspace compiles clean | Web build succeeds | ~58 web files created**
+**Status: Phase 13 COMPLETE. Per-model rendering & formation system implemented.**
+**Total tests passing: 1322+ | Workspace compiles clean | TypeScript compiles clean**
+
+### Phase 13: Per-Model Rendering & Formation System (2026-03-13)
+
+- [x] Step 1: Formation generator in geometry crate (`geometry/src/formation.rs`)
+- [x] Step 2: Engine deploy with formation (`game_core/src/executor.rs` — `apply_place_unit`, `apply_arrive_from_reserves`)
+- [x] Step 3: Movement validation per-model board bounds (`game_core/src/validator.rs`)
+- [x] Step 4: Frontend per-model rendering (`web/src/renderer/UnitRenderer.ts`, `constants.ts`)
+- [x] Step 5: Frontend interaction & preview updates (`InteractionLayer.ts`, `MovementPreview.ts`)
+- [x] Step 6: Full build & test verification
+
+---
+
+### Phase 12: Free Movement/Deployment + Mobile Responsive Layout (2026-03-13)
+
+#### Issue #1: Free Movement & Deployment (click-to-move/deploy)
+- [x] Step 1: Add `Inches::from_f64()` helper in `core_types/src/measurements.rs`
+- [x] Step 2: Add `submit_place_unit` WASM endpoint in `wasm_api/src/lib.rs`
+- [x] Step 3: Add `submit_normal_move` WASM endpoint in `wasm_api/src/lib.rs`
+- [x] Step 4: WASM Bridge + Worker + Client TypeScript wiring
+- [x] Step 5: Game Store `submitDeploy` and `submitMove` actions
+- [x] Step 6: Board click handler in InteractionLayer
+- [x] Step 7: Wire board click in BattlefieldCanvas
+- [x] Step 8: Update ActionPanel for deployment unit selection
+- [x] Step 9: Deployment zone visual feedback
+- [x] Step 10: Touch tap/drag differentiation in CameraController
+
+#### Issue #2: Mobile Responsive Layout
+- [x] Step 11: Create `useIsMobile` hook
+- [x] Step 12: Create `useContainerSize` hook
+- [x] Step 13: Make BattlefieldCanvas responsive (ResizeObserver)
+- [x] Step 14: Create BottomTabBar component
+- [x] Step 15: Create SlideUpPanel component
+- [x] Step 16: Create MobileGameLayout component
+- [x] Step 17: Update GameScreen with responsive switching
+- [x] Step 18: Update Sidebar for responsive visibility
+- [x] Step 19: Compact Header for mobile
+- [x] Step 20: Viewport meta tag update
+- [x] Step 21: CSS safe area adjustments
+
+---
+
+### Critical Fix: WASM Build Path (2026-03-13)
+- [x] Fixed `wasm:build` npm script — `--out-dir` was relative to crate root, not working directory
+  - Old: `--out-dir ../../web/wasm-pkg` → resolved to `engine/web/wasm-pkg` (WRONG)
+  - New: `--out-dir ../../../web/wasm-pkg` → resolves to `web/wasm-pkg` (CORRECT)
+- [x] All previous WASM rebuilds were silently writing to wrong directory
+- [x] Cleaned stale `engine/web/wasm-pkg` directory
+- [x] WASM now correctly exports `create_match` with all 10 parameters (faction, mission, seed, enhancements, secondaries, patrol squads)
+- [x] Deployment, enhancement selection, secondary selection, and patrol squad selection should now work end-to-end
 
 ---
 
@@ -593,3 +642,146 @@
 **Tests:**
 - [x] 46 scoring tests passing (25 new tests covering all 6 missions, VP caps, BR5 split timing, raze validation, sabotage comms)
 - [x] All workspace tests passing (1200+ total, 0 failures)
+
+---
+
+## Full Rules Compliance Audit (2026-03-12)
+
+### CRITICAL — Wrong Unit Stats (Code vs Datasheets)
+
+- [x] #1: Vorrakh Movement 10" — FIXED: scenario.rs MoveCharacteristic::from_inches(10)
+- [x] #2: Vorrakh Invulnerable Save 4+ — FIXED: scenario.rs InvulnerableSave::FOUR_PLUS
+- [x] #3: Master of Executions Movement 8" — FIXED: scenario.rs MoveCharacteristic::from_inches(8)
+- [x] #4: Khorne Berzerkers Movement 8" — FIXED: scenario.rs MoveCharacteristic::from_inches(8)
+- [x] #5: Khorne Berzerkers Model Count 10 — FIXED: scenario.rs (0..10).map()
+- [x] #6: Jakhals Movement 7" — FIXED: scenario.rs MoveCharacteristic::from_inches(7)
+- [x] #7: Allarus Custodians Model Count 2 — FIXED: scenario.rs (0..2).map()
+
+### CRITICAL — Missing Implementations (Placeholders)
+
+- [x] #8: ALL weapon profiles populated — FIXED: Full weapon data for all units in both factions (scenario.rs)
+- [x] #9: Engagement range check on move destinations — FIXED: validate_normal_move, validate_advance_move, validate_fall_back all check within_engagement_range_2d against all enemy models (validator.rs)
+- [x] #10: Weapon range check for shooting targets — FIXED: validate_declare_shooting_targets checks dist > weapon_range (validator.rs)
+- [x] #11: LOS/visibility check for shooting targets — FIXED: validate_declare_shooting_targets uses board.check_los(), Indirect Fire exception handled (validator.rs)
+- [x] #12: 9" distance check for Deep Strike/Reserves — FIXED: validator.rs validates distance from all enemies
+- [x] #13: Reserves destroyed end of Round 3 — FIXED: phase.rs destroys reserve units at end of Round 3
+- [x] #14: Charge move geometric validation — FIXED: validate_charge_move checks distance cap, ER with targets, no ER with non-targets (validator.rs)
+- [x] #15: Desperate Escape tests — FIXED: executor.rs apply_fall_back() has both battle-shocked (every model) and non-battle-shocked (per enemy in ER) with TITANIC/FLY exemptions
+- [x] #16: Fall Back distance validated — FIXED: validator.rs checks distance <= M characteristic
+- [x] #17: Command Re-roll integrated — FIXED: combat.rs has command_reroll_active/defender_command_reroll_active fields, re-roll logic in hit/wound/save/damage rolls, GameEvent::CommandRerollUsed emitted
+  - [x] Add EffectType::CommandReroll variant to effect.rs
+  - [x] Update stratagem.rs to use EffectType::CommandReroll instead of Custom(...)
+  - [x] Add GameEvent::CommandRerollUsed to event_system
+  - [x] Add command_reroll_active field to AttackContext in combat.rs
+  - [x] Integrate re-roll into resolve_hit_roll (re-roll failed hit)
+  - [x] Integrate re-roll into resolve_wound_roll (re-roll failed wound)
+  - [x] Integrate re-roll into save roll section (re-roll failed save)
+  - [x] Integrate re-roll into damage roll (re-roll damage)
+  - [x] Return command_reroll_consumed flag from resolve_attack_batch
+  - [x] Update executor.rs to pass command_reroll_active and consume effect
+
+### CRITICAL — Rules Logic Bugs
+
+- [x] #18: Devastating Wounds individual — FIXED: combat.rs tracks each DW individually, excess lost per model per attack
+- [x] #19: Stealth all ranges — FIXED: combat.rs applies -1 to hit unconditionally (no distance check)
+- [x] #20: Hazardous verified correct — 40k_revised.md §11.13 says 3 mortal wounds for ALL models. Code was already correct.
+- [x] #21: Go to Ground invulnerable — FIXED: stratagem.rs uses EffectType::GrantInvulnerableSave(6), executor.rs applies it
+- [x] #22: Advanced non-Assault blocked — FIXED: validate_resolve_shooting_attack checks can_fire_after_advance() (validator.rs)
+
+### SIGNIFICANT — Rules Not Fully Enforced
+
+- [x] #23: Fight phase alternation — FIXED: validate_select_unit_to_fight checks fight_alternation_next_player, validates designated player has eligible units (validator.rs)
+- [x] #24: Pile-in/Consolidate closer to enemy — FIXED: validate_pile_in_closer_to_enemy checks each model ends closer to nearest enemy, 3" max move (validator.rs)
+- [x] #25: Precision targets CHARACTER — FIXED: select_allocation_target targets wounded leader first, then any alive leader (combat.rs)
+- [x] #26: Precision visibility — FIXED: unit-level LOS validated at shooting declaration (validator.rs), per-model visibility satisfied by unit-level check. Documented in combat.rs
+- [x] #27: Blast restriction — FIXED: validate_declare_shooting_targets checks no friendly unit in ER of target for Blast weapons (validator.rs)
+- [x] #28: Pistol exclusivity — FIXED: validate_declare_shooting_targets prevents mixing Pistol and non-Pistol for non-MONSTER/VEHICLE (validator.rs)
+- [x] #29: Heroic Intervention as charge — FIXED: executor.rs apply_heroic_intervention_move uses roll_2d6 charge roll, charge distance check, no Charge bonus
+- [x] #30: Tank Shock toughness — FIXED: stratagem.rs uses vehicle_toughness from the VEHICLE unit, mortal wounds applied to enemy unit
+- [x] #31: Mission-specific objectives — FIXED: scenario.rs create_mission_objectives() with per-mission layouts
+- [x] #32: Titanic keyword — FIXED: keywords.rs Titanic = 47, KeywordSet TITANIC = 1 << 47
+
+### MODERATE — Faction Content Gaps
+
+- [x] #33: Secondary objectives populated — FIXED: content_schema has full SecondaryObjectiveSchema for both factions with scoring rules, conditions, timing, and max VP
+- [x] #34: Enhancement effects data-driven — FIXED: EnhancementSchema.effects populated with RulePrimitive definitions; scoring.rs apply_enhancement() implements runtime effects
+- [x] #35: Mission rule logic connected — FIXED: scoring.rs has dedicated scoring functions for all 6 missions; content_schema has ScoringRule definitions
+- [x] #36: Praesidium Shield +1W — FIXED: scenario.rs Custodian Guard Wounds::new(4) (3 base + 1 shield)
+
+### MINOR — Reporting/Edge Cases
+
+- [x] #37: SaveRollMade modified field — VERIFIED CORRECT: in 10th ed, AP modifies save characteristic not roll. Raw roll IS the correct value.
+- [x] #38: Advance roll validated 1-6 — FIXED: validator.rs checks advance_roll < 1 || > 6
+- [x] #39: Charge roll validated 2-12 — FIXED: validator.rs checks roll < 2 || > 12
+- [x] #40: Indirect Fire cover — FIXED: executor.rs computes indirect_fire_no_los from weapon ability + board.check_los(), auto-grants cover for non-visible targets
+- [x] #41: Benefit of Cover ranged-only — FIXED: executor.rs sets target_has_cover = false for melee
+- [x] #42: Hazardous comment — FIXED: weapons.rs "3 mortal wounds allocated to selected model" with §11.13 citation
+
+---
+
+## Phase 11: Full Wiring Audit — Fix All Stubs and Broken Data Flows
+
+**Status: COMPLETE**
+**Source: Complete codebase audit 2026-03-13**
+**Total tests passing: 1317 | Workspace compiles clean | All 30 items fixed**
+
+### CRITICAL — Game Cannot Be Played
+
+- [x] #C1: Deployment non-functional — FIXED: `generate_setup_candidates()` fully implemented with PlaceUnit commands, deployment zone sampling, defender-first alternation, and SetupComplete transition (search_abstraction/lib.rs)
+- [x] #C2: Deployment zones sent to frontend — FIXED: `board_to_view_with_deployment()` populates deployment zone polygons from DeploymentConfig (wasm_api/conversions.rs)
+- [x] #C3: Enhancement and secondary selections wired — FIXED: Full chain UI → workerClient → engineWorker → wasmBridge → WASM create_match → apply_enhancement → PlayerState.secondary_choice (wasm_api/lib.rs, gameStore.ts, workerClient.ts, engineWorker.ts, wasmBridge.ts)
+- [x] #C4: Shooting target/weapon selection implemented — FIXED: `generate_shooting_candidates()` generates DeclareShootingTargets with weapon+target pairs, range/LOS/pistol checks (search_abstraction/lib.rs)
+- [x] #C5: Stratagem generation implemented — FIXED: `generate_stratagem_candidates()` generates UseStratagem for Command Re-roll, Go to Ground, Grenade, Counter-offensive, Rapid Ingress, Gilded Spear, Horrifying Butchery (search_abstraction/lib.rs)
+
+### HIGH — Core Mechanics Missing or Broken
+
+- [x] #H1: ScoreObjective executor — FIXED: `apply_score_objective()` awards 5 VP, updates primary_vp, records round score (executor.rs)
+- [x] #H2: RazeObjective executor — FIXED: `apply_raze_objective()` awards 5 VP, removes objective from board, sets razed_this_turn (executor.rs)
+- [x] #H3: AllocateWound executor — FIXED: `apply_allocate_wound()` sets model AllocationStatus::WoundedAllocated (executor.rs)
+- [x] #H4: AssignOverwatchTarget — FIXED: `apply_assign_overwatch_target()` derives charging unit from ChargeDeclared event log, marks overwatch used, pops reaction window (executor.rs)
+- [x] #H5: PlaceUnit deployment zone validation — FIXED: Checks `state.deployment_config.zone_for(player).contains(position)` (validator.rs)
+- [x] #H6: DeclareMeleeTargets validation — FIXED: Validates unit exists, belongs to player, targets in engagement range, alive, on battlefield (validator.rs)
+- [x] #H7: ResolveMeleeAttack validation — FIXED: Validates attacker/target exist, on battlefield, weapon exists (validator.rs)
+- [x] #H8: ChooseKaTahStance validation — FIXED: Verifies AdeptusCustodes keyword, valid stance name (validator.rs)
+- [x] #H9: ChooseVaultswordsProfile validation — FIXED: Verifies BladeChampion keyword, valid profile name (validator.rs)
+- [x] #H10: AllocateWound validation — FIXED: Validates model exists and is alive (validator.rs)
+- [x] #H11: AssignOverwatchTarget validation — FIXED: Validates reaction window, overwatch not used, unit exists (validator.rs)
+- [x] #H12: ScoreObjective/RazeObjective validation — FIXED: Verifies objective exists on board (validator.rs)
+- [x] #H13: StartPhase phase ordering — FIXED: Enforces correct sequence PreBattle→Command→Movement→Shooting→Charge→Fight→Command (validator.rs)
+
+### MEDIUM — Features Exist But Incomplete
+
+- [x] #M1: Consecrated Ground secondary wired — FIXED: `score_consecrated_ground_kill()` called on enemy unit destruction (+3VP), `score_consecrated_ground_loss()` called per Custodes model destroyed (-1VP) (executor.rs)
+- [x] #M2: Warrior Exemplar triggered — FIXED: D6 roll on unit kill, 3+ = 1CP, already wired at executor.rs:1799-1821
+- [x] #M3: Scorched Earth objective removal — FIXED: `apply_raze_objective()` removes objective via `board.objectives.retain()` (executor.rs:1997)
+- [x] #M4: ActionPanel empty state — FIXED: Shows "Waiting for opponent..." when decisionSurface has 0 actions (ActionPanel.tsx)
+- [x] #M5: Advance roll variable — FIXED: Generates candidates for rolls [2, 4, 6] covering D6 range instead of hardcoded 4 (search_abstraction/lib.rs)
+- [x] #M6: Fallback positions expanded — FIXED: Generates 7 retreat positions: straight back, diagonal back-left/right, lateral left/right, nearest objective, away from nearest enemy (search_abstraction/lib.rs)
+- [x] #M7: Ka'tah stances — VERIFIED CORRECT: Dacatarai and Rendax are the only two stances per Custodes.md. Hardcoded values match the rules exactly.
+- [x] #M8: Vaultswords profiles — VERIFIED CORRECT: Behemor, Hurricanus, and Victus are the only three profiles per Custodes.md. Hardcoded values match the rules exactly.
+- [x] #M9: Charge candidates unlimited — FIXED: Removed `.take(3)` limit, all viable targets within 12" get charge candidates (search_abstraction/lib.rs)
+- [x] #M10: BlessingPanel player filtering — FIXED: Filters by `decision_owner` instead of first player with blessings (BlessingPanel.tsx)
+
+### LOW — UI Polish Gaps
+
+- [x] #L1: Setup Ready screen shows selections — FIXED: Displays enhancement name, secondary objective name, and mission number alongside factions (SetupScreen.tsx)
+- [x] #L2: Game End screen shows choices — FIXED: Added "Battle Choices" card with enhancement and secondary for each player (GameEndScreen.tsx)
+- [x] #L3: Weapon dedup by ID — FIXED: Changed `findIndex` from `x.name === w.name` to `x.id === w.id` for both ranged and melee (UnitInfoPanel.tsx)
+- [x] #L4: MovementPreview 0 movement — FIXED: Added `&& unit.movement > 0` guard to skip drawing circle for immobile units (MovementPreview.ts)
+
+### POST-AUDIT — Custodes Faction Composition Fix
+
+- [x] Custodes patrol squad selection (Choose One: Wardens OR Allarus) — FIXED: Full stack implementation
+  - Engine: `create_custodes_units()` now accepts `patrol_squad_choice` param, conditionally creates Wardens (squad 0) or Allarus (squad 1). Default = Wardens.
+  - Engine: `load_scenario_with_squads()` added to accept patrol squad choices per player
+  - WASM API: `create_match()` now accepts `patrol_squad_a`/`patrol_squad_b` params
+  - Frontend: New `PatrolSquadSelect.tsx` component with Wardens vs Allarus selection UI
+  - Frontend: Setup flow updated: faction → enhancement → secondary → patrol squad → mission → ready
+  - Frontend: `setupStore.ts` extended with `playerPatrolSquad` state + `selectPatrolSquad` action
+  - Frontend: `gameStore.ts` passes patrol squad choice through to engine
+  - Frontend: Worker pipeline (workerClient → engineWorker → wasmBridge) updated with patrol squad params
+  - Frontend: GameEndScreen shows patrol squad choice per player
+  - Types: `PlayerView` (Rust + TS) extended with `patrol_squad_choice` field
+  - Tests: 4 new tests (allarus selection, wardens selection, allarus model count, updated unit counts)
+  - Source: Custodes.md §2 — Fixed (Tristraen + Guard) + Choose One (Wardens 3 models OR Allarus 2 models)
+  - World Eaters: No patrol squad choice needed (all units fixed per Frenzied_Reavers.md)

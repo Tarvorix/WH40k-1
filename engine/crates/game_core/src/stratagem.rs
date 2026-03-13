@@ -410,13 +410,14 @@ pub fn apply_stratagem_effects(
 
     match stratagem_id {
         id if id == ids::COMMAND_REROLL => {
-            // Command Re-roll: register permission to re-roll one die
+            // Command Re-roll: register permission to re-roll one hit/wound/save/damage roll
+            // Source: 40k_revised.md §15.2 - "Command Re-roll"
             let effect_id = state.next_counter() as u32;
             state.active_effects.push(ActiveEffect {
                 id: effect_id,
                 source: EffectSource::Stratagem(ids::COMMAND_REROLL),
                 target: EffectTarget::Player(player),
-                effect_type: EffectType::Custom("Command Re-roll: re-roll one die".to_string()),
+                effect_type: EffectType::CommandReroll,
                 duration: EffectDuration::UntilEndOfPhase,
                 stacking: StackingBehavior::Unique,
                 applied_round: round,
@@ -471,7 +472,7 @@ pub fn apply_stratagem_effects(
                     id: eid1,
                     source: EffectSource::Stratagem(ids::GO_TO_GROUND),
                     target: EffectTarget::Unit(uid),
-                    effect_type: EffectType::GrantFeelNoPain(6),
+                    effect_type: EffectType::GrantInvulnerableSave(6),
                     duration: EffectDuration::UntilStartOfNextCommandPhase,
                     stacking: StackingBehavior::BestOnly,
                     applied_round: round,
@@ -491,7 +492,17 @@ pub fn apply_stratagem_effects(
         }
 
         id if id == ids::HEROIC_INTERVENTION => {
-            // Heroic Intervention: unit can move up to 6" towards enemy
+            // Heroic Intervention: Declare and resolve a charge targeting only the
+            // enemy unit that just completed its charge move. The intervening unit
+            // does NOT get the Charge bonus (no Fights First) this turn.
+            //
+            // Per CP_Rules.md §11 - Heroic Intervention:
+            //   "Target: One unit within 6\" that could charge that enemy unit"
+            //   "Effect: Declare and resolve a charge targeting only that enemy unit"
+            //   "Restrictions: VEHICLE must be a WALKER; Unit does NOT get Charge bonus this turn"
+            //
+            // The actual charge roll (2D6) and movement happen when the
+            // HeroicInterventionMove command is executed.
             if let Some(uid) = target_unit {
                 let effect_id = state.next_counter() as u32;
                 state.active_effects.push(ActiveEffect {
@@ -499,7 +510,7 @@ pub fn apply_stratagem_effects(
                     source: EffectSource::Stratagem(ids::HEROIC_INTERVENTION),
                     target: EffectTarget::Unit(uid),
                     effect_type: EffectType::Custom(
-                        "Heroic Intervention: move up to 6\" towards enemy".to_string(),
+                        "Heroic Intervention: declare and resolve a charge (no Charge bonus)".to_string(),
                     ),
                     duration: EffectDuration::UntilEndOfPhase,
                     stacking: StackingBehavior::Unique,
@@ -616,14 +627,61 @@ pub fn apply_stratagem_effects(
         }
 
         id if id == ids::TANK_SHOCK => {
-            // Tank Shock: Roll dice equal to VEHICLE Toughness, each 5+ = 1 mortal wound (max 6)
+            // Tank Shock: Roll dice equal to the charging VEHICLE's Toughness,
+            // each 5+ inflicts 1 mortal wound on an enemy unit within Engagement Range.
+            // Maximum 6 mortal wounds.
+            //
+            // Per CP_Rules.md §11 - Tank Shock:
+            //   "Target: That VEHICLE unit"
+            //   "Effect: Select one enemy unit within Engagement Range.
+            //    Roll dice equal to the VEHICLE's Toughness. Each 5+ inflicts
+            //    1 mortal wound (maximum 6 mortal wounds)"
+            //
+            // target_unit (uid) = the VEHICLE (friendly unit that charged).
+            // Mortal wounds go to an enemy unit within Engagement Range of the VEHICLE.
             if let Some(uid) = target_unit {
-                let toughness = state.unit(uid)
+                let vehicle_toughness = state.unit(uid)
                     .map(|u| u.base_toughness.value())
                     .unwrap_or(4);
+                let vehicle_owner = state.unit(uid).map(|u| u.owner);
+
+                // Find an enemy unit within Engagement Range of the VEHICLE.
+                // Per the rules, the player "selects one enemy unit within Engagement Range."
+                // We select the first eligible enemy unit found (closest alive model).
+                let vehicle_ref_pos = state.unit(uid)
+                    .and_then(|u| u.reference_position());
+                let vehicle_base = state.unit(uid)
+                    .and_then(|u| u.models.first().map(|m| m.base_size))
+                    .unwrap_or(wh40k_core_types::BaseSize::MM25);
+
+                let mut enemy_target: Option<UnitId> = None;
+                if let (Some(v_owner), Some(v_pos)) = (vehicle_owner, vehicle_ref_pos) {
+                    for other_unit in &state.units {
+                        if other_unit.owner == v_owner
+                            || other_unit.is_destroyed()
+                            || !other_unit.is_on_battlefield()
+                        {
+                            continue;
+                        }
+                        for model in other_unit.models.iter().filter(|m| m.alive) {
+                            if wh40k_geometry::within_engagement_range_2d(
+                                v_pos, vehicle_base,
+                                model.position, model.base_size,
+                            ) {
+                                enemy_target = Some(other_unit.id);
+                                break;
+                            }
+                        }
+                        if enemy_target.is_some() {
+                            break;
+                        }
+                    }
+                }
+
+                // Roll dice equal to the VEHICLE's Toughness
                 use wh40k_dice::RollPurpose;
                 let mut mortal_wounds: u8 = 0;
-                for i in 0..toughness as u32 {
+                for i in 0..vehicle_toughness as u32 {
                     let (roll, _) = state.dice_roller.roll_d6(RollPurpose::StratagemEffect {
                         stratagem_name: "Tank Shock".to_string(),
                         roll_index: i,
@@ -633,12 +691,16 @@ pub fn apply_stratagem_effects(
                     }
                 }
                 mortal_wounds = mortal_wounds.min(6);
+
+                // Apply mortal wounds to the enemy unit (not the VEHICLE)
                 if mortal_wounds > 0 {
-                    events.push(GameEvent::MortalWoundsInflicted {
-                        target_unit: uid,
-                        wounds: mortal_wounds,
-                        source: "Tank Shock stratagem".to_string(),
-                    });
+                    if let Some(enemy_uid) = enemy_target {
+                        events.push(GameEvent::MortalWoundsInflicted {
+                            target_unit: enemy_uid,
+                            wounds: mortal_wounds,
+                            source: "Tank Shock stratagem".to_string(),
+                        });
+                    }
                 }
             }
         }

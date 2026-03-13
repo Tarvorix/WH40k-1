@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, MIN_ZOOM, MAX_ZOOM, ZOOM_SPEED } from './constants';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, MIN_ZOOM, MAX_ZOOM, ZOOM_SPEED, TAP_THRESHOLD_PX, TAP_THRESHOLD_MS } from './constants';
 
 export class CameraController {
   private world: PIXI.Container;
@@ -11,6 +11,11 @@ export class CameraController {
   // Touch state
   private touches: Map<number, { x: number; y: number }> = new Map();
   private lastPinchDist = 0;
+
+  // Tap detection state: distinguish taps from drags on touch devices
+  private touchStartTime = 0;
+  private touchStartPos = { x: 0, y: 0 };
+  private touchMoved = false;
 
   constructor(world: PIXI.Container, app: PIXI.Application) {
     this.world = world;
@@ -106,6 +111,14 @@ export class CameraController {
       this.touches.set(t.identifier, { x: t.clientX, y: t.clientY });
     }
 
+    // Track single-finger tap detection
+    if (this.touches.size === 1) {
+      const t = e.changedTouches[0];
+      this.touchStartTime = Date.now();
+      this.touchStartPos = { x: t.clientX, y: t.clientY };
+      this.touchMoved = false;
+    }
+
     if (this.touches.size === 2) {
       this.lastPinchDist = this.getPinchDist();
     }
@@ -115,18 +128,31 @@ export class CameraController {
     e.preventDefault();
 
     if (this.touches.size === 1) {
-      // Single finger drag pan
       const t = e.changedTouches[0];
       const prev = this.touches.get(t.identifier);
       if (prev) {
-        const dx = t.clientX - prev.x;
-        const dy = t.clientY - prev.y;
-        this.world.position.x += dx;
-        this.world.position.y += dy;
+        // Check if movement exceeds tap threshold
+        const dx = t.clientX - this.touchStartPos.x;
+        const dy = t.clientY - this.touchStartPos.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > TAP_THRESHOLD_PX) {
+          this.touchMoved = true;
+        }
+
+        // Only pan if we've exceeded the tap threshold (confirmed drag)
+        if (this.touchMoved) {
+          const panDx = t.clientX - prev.x;
+          const panDy = t.clientY - prev.y;
+          this.world.position.x += panDx;
+          this.world.position.y += panDy;
+        }
+
         this.touches.set(t.identifier, { x: t.clientX, y: t.clientY });
       }
     } else if (this.touches.size === 2) {
       // Pinch zoom
+      this.touchMoved = true; // Pinch is never a tap
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
         this.touches.set(t.identifier, { x: t.clientX, y: t.clientY });
@@ -150,6 +176,24 @@ export class CameraController {
   };
 
   private onTouchEnd = (e: TouchEvent): void => {
+    // Detect single-finger taps and dispatch to PixiJS interaction system
+    if (this.touches.size === 1 && !this.touchMoved) {
+      const elapsed = Date.now() - this.touchStartTime;
+      if (elapsed < TAP_THRESHOLD_MS) {
+        // This is a tap — dispatch a synthetic pointer event to PixiJS
+        const t = e.changedTouches[0];
+        const view = this.app.view as HTMLCanvasElement;
+        const pointerEvent = new PointerEvent('pointerdown', {
+          clientX: t.clientX,
+          clientY: t.clientY,
+          bubbles: true,
+          pointerId: t.identifier,
+          pointerType: 'touch',
+        });
+        view.dispatchEvent(pointerEvent);
+      }
+    }
+
     for (let i = 0; i < e.changedTouches.length; i++) {
       this.touches.delete(e.changedTouches[i].identifier);
     }

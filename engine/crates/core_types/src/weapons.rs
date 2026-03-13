@@ -52,8 +52,8 @@ pub enum WeaponAbility {
     DevastatingWounds,
 
     /// After attacking, roll D6 for each model with Hazardous weapon.
-    /// On 1, bearer suffers 3 mortal wounds (1 if not CHARACTER/MONSTER/VEHICLE).
-    /// Source: 40k_revised.md - "HAZARDOUS"
+    /// On 1, unit suffers 3 mortal wounds allocated to selected model.
+    /// Source: 40k_revised.md §11.13 - "HAZARDOUS"
     Hazardous,
 
     /// Can target CHARACTERs in Attached units directly.

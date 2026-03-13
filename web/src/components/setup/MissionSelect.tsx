@@ -3,6 +3,7 @@ import { useSetupStore, MISSIONS } from '@/store/setupStore';
 export function MissionSelect() {
   const selectMission = useSetupStore((s) => s.selectMission);
   const setStep = useSetupStore((s) => s.setStep);
+  const hasPatrolSquadChoice = useSetupStore((s) => s.hasPatrolSquadChoice);
 
   return (
     <div>
@@ -26,10 +27,10 @@ export function MissionSelect() {
       </div>
       <div className="text-center">
         <button
-          onClick={() => setStep('secondary_select')}
+          onClick={() => setStep(hasPatrolSquadChoice() ? 'patrol_squad_select' : 'secondary_select')}
           className="text-gray-400 hover:text-gray-200 text-sm"
         >
-          Back to Secondary Select
+          {hasPatrolSquadChoice() ? 'Back to Patrol Squad Select' : 'Back to Secondary Select'}
         </button>
       </div>
     </div>

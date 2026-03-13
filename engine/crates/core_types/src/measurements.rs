@@ -54,6 +54,12 @@ impl Inches {
         self.0 % Self::MILS_PER_INCH
     }
 
+    /// Create from an f64 value (inches). Rounds to nearest mil.
+    /// Used at the WASM boundary to convert JavaScript coordinates to fixed-point.
+    pub fn from_f64(inches: f64) -> Self {
+        Self((inches * Self::MILS_PER_INCH as f64).round() as i32)
+    }
+
     /// Convert to f64 for display purposes only (never use in game logic)
     pub fn as_f64(self) -> f64 {
         self.0 as f64 / Self::MILS_PER_INCH as f64

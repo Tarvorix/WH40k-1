@@ -215,6 +215,10 @@ pub enum EffectType {
     /// Grant Feel No Pain at the given value.
     GrantFeelNoPain(u8),
 
+    /// Grant an invulnerable save at the given value (e.g., 6 = 6++).
+    /// Source: 40k_revised.md - Go to Ground grants 6++ invulnerable save
+    GrantInvulnerableSave(u8),
+
     /// Grant the Fights First ability.
     GrantFightsFirst,
 
@@ -273,6 +277,11 @@ pub enum EffectType {
 
     /// Modify VP scored by a player.
     ModifyVP(i16),
+
+    // === Re-rolls ===
+    /// Command Re-roll: permission to re-roll one hit, wound, save, or damage roll.
+    /// Source: 40k_revised.md §15.2 - "Command Re-roll"
+    CommandReroll,
 
     // === Custom ===
     /// Custom effect (escape hatch for irregular rules).

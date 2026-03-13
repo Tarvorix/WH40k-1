@@ -399,8 +399,10 @@ pub fn encode_legal_mask_from_candidates(
     for (cand_idx, action) in candidates.candidates.iter().enumerate() {
         let vocab_idx = action_to_vocab_index(action, state, perspective) as usize;
         if vocab_idx < ACTION_VOCAB_SIZE {
+            if !mask.mask[vocab_idx] {
+                mask.action_count += 1;
+            }
             mask.mask[vocab_idx] = true;
-            mask.action_count += 1;
             // Store mapping (last candidate at this vocab index wins if there's a collision)
             mask.vocab_to_candidate[vocab_idx] = Some(cand_idx);
         }

@@ -1650,17 +1650,6 @@ fn find_edge_objectives(
     (closest_own.map(|(id, _)| id), closest_enemy.map(|(id, _)| id))
 }
 
-/// Find the objective closest to board center (22", 15").
-fn find_center_objective(state: &GameState) -> Option<ObjectiveId> {
-    let center_x = 22_000i32; // 22" in mils
-    let center_y = 15_000i32; // 15" in mils
-
-    state.board.objectives.iter().min_by_key(|obj| {
-        let dx = obj.position.x.mils() - center_x;
-        let dy = obj.position.y.mils() - center_y;
-        dx * dx + dy * dy // Squared distance is fine for comparison
-    }).map(|obj| obj.id)
-}
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
@@ -1845,6 +1834,7 @@ mod tests {
             turn_flags: crate::state::TurnFlags::new(),
             game_outcome: wh40k_core_types::GameOutcome::InProgress,
             deterministic_counter: 0,
+            deployment_config: None,
         };
 
         // Without Consecrated Ground selected, should return None
@@ -1893,6 +1883,7 @@ mod tests {
             turn_flags: crate::state::TurnFlags::new(),
             game_outcome: wh40k_core_types::GameOutcome::InProgress,
             deterministic_counter: 0,
+            deployment_config: None,
         };
 
         state.players[0].secondary_choice = Some(secondary_ids::CONSECRATED_GROUND);
@@ -1935,6 +1926,7 @@ mod tests {
             turn_flags: crate::state::TurnFlags::new(),
             game_outcome: wh40k_core_types::GameOutcome::InProgress,
             deterministic_counter: 0,
+            deployment_config: None,
         };
 
         // Draw at 0-0
@@ -2002,6 +1994,7 @@ mod tests {
             turn_flags: crate::state::TurnFlags::new(),
             game_outcome: wh40k_core_types::GameOutcome::InProgress,
             deterministic_counter: 0,
+            deployment_config: None,
         };
 
         // Set up objectives:

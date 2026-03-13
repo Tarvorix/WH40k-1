@@ -1,10 +1,32 @@
-import { useSetupStore } from '@/store/setupStore';
+import { useSetupStore, PATROL_SQUADS, FACTIONS } from '@/store/setupStore';
 import { useGameStore } from '@/store/gameStore';
 import { FactionSelect } from './FactionSelect';
 import { EnhancementSelect } from './EnhancementSelect';
 import { SecondarySelect } from './SecondarySelect';
+import { PatrolSquadSelect } from './PatrolSquadSelect';
 import { MissionSelect } from './MissionSelect';
 import { Button } from '@/components/shared/Button';
+
+const ENHANCEMENT_NAMES: Record<number, string> = {
+  1: 'Fearsome Presence',
+  2: 'Bane of the Craven',
+  3: 'Watchman of Terra',
+  4: 'Warrior Exemplar',
+};
+
+const SECONDARY_NAMES: Record<number, string> = {
+  1: 'Champions of Khorne',
+  2: 'Skull Takers',
+  3: 'Raise the Vexillas',
+  4: 'Consecrated Ground',
+};
+
+const PATROL_SQUAD_NAMES: Record<number, Record<number, string>> = {
+  [FACTIONS.CUSTODES]: {
+    0: 'Custodian Wardens',
+    1: 'Allarus Custodians',
+  },
+};
 
 export function SetupScreen() {
   const step = useSetupStore((s) => s.step);
@@ -34,7 +56,7 @@ export function SetupScreen() {
 
         {/* Progress steps */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          {(['faction_select', 'enhancement_select', 'secondary_select', 'mission_select'] as const).map(
+          {(['faction_select', 'enhancement_select', 'secondary_select', 'patrol_squad_select', 'mission_select'] as const).map(
             (s, i) => (
               <div
                 key={s}
@@ -49,6 +71,7 @@ export function SetupScreen() {
         {step === 'faction_select' && <FactionSelect />}
         {step === 'enhancement_select' && <EnhancementSelect />}
         {step === 'secondary_select' && <SecondarySelect />}
+        {step === 'patrol_squad_select' && <PatrolSquadSelect />}
         {step === 'mission_select' && <MissionSelect />}
         {step === 'ready' && (
           <div className="text-center">
@@ -65,6 +88,38 @@ export function SetupScreen() {
                   <span className="text-gray-400">Opponent:</span>
                   <span className="ml-2 text-gray-100">
                     {setup.opponentFaction === 0 ? 'Adeptus Custodes' : 'World Eaters'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-400">Enhancement:</span>
+                  <span className="ml-2 text-gray-100">
+                    {setup.playerEnhancement != null
+                      ? ENHANCEMENT_NAMES[setup.playerEnhancement] ?? `Enhancement #${setup.playerEnhancement}`
+                      : 'None'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-400">Secondary:</span>
+                  <span className="ml-2 text-gray-100">
+                    {setup.playerSecondary != null
+                      ? SECONDARY_NAMES[setup.playerSecondary] ?? `Secondary #${setup.playerSecondary}`
+                      : 'None'}
+                  </span>
+                </div>
+                {setup.hasPatrolSquadChoice() && (
+                <div>
+                  <span className="text-gray-400">Patrol Squad:</span>
+                  <span className="ml-2 text-gray-100">
+                    {setup.playerPatrolSquad != null && setup.playerFaction != null
+                      ? PATROL_SQUAD_NAMES[setup.playerFaction]?.[setup.playerPatrolSquad] ?? `Squad #${setup.playerPatrolSquad}`
+                      : 'Default'}
+                  </span>
+                </div>
+                )}
+                <div className={setup.hasPatrolSquadChoice() ? '' : 'col-span-2'}>
+                  <span className="text-gray-400">Mission:</span>
+                  <span className="ml-2 text-gray-100">
+                    Mission {setup.missionId}
                   </span>
                 </div>
               </div>
@@ -90,6 +145,6 @@ export function SetupScreen() {
 }
 
 function stepIndex(step: string): number {
-  const steps = ['faction_select', 'enhancement_select', 'secondary_select', 'mission_select', 'ready'];
+  const steps = ['faction_select', 'enhancement_select', 'secondary_select', 'patrol_squad_select', 'mission_select', 'ready'];
   return steps.indexOf(step);
 }

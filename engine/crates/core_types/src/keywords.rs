@@ -84,6 +84,7 @@ pub enum Keyword {
     Grenades = 44,
     Smoke = 45,
     Aircraft = 46,
+    Titanic = 47,
 }
 
 impl Keyword {
@@ -151,6 +152,7 @@ bitflags! {
         const GRENADES = 1 << 44;
         const SMOKE = 1 << 45;
         const AIRCRAFT = 1 << 46;
+        const TITANIC = 1 << 47;
     }
 }
 

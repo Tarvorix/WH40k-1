@@ -580,6 +580,7 @@ mod tests {
             turn_flags: TurnFlags::new(),
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
+            deployment_config: None,
         }
     }
 
@@ -611,6 +612,7 @@ mod tests {
             turn_flags: TurnFlags::new(),
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 42,
+            deployment_config: None,
         }
     }
 

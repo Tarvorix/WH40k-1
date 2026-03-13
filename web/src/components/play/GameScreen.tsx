@@ -1,4 +1,5 @@
 import { useGameStore } from '@/store/gameStore';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { Header } from '@/components/layout/Header';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { BattlefieldCanvas } from '@/renderer/BattlefieldCanvas';
@@ -13,9 +14,11 @@ import { BlessingPanel } from './BlessingPanel';
 import { AiControls } from '@/components/ai/AiControls';
 import { AiEvalBar } from '@/components/ai/AiEvalBar';
 import { DeploymentPanel } from '@/components/setup/DeploymentPanel';
+import { MobileGameLayout } from './MobileGameLayout';
 
 export function GameScreen() {
   const gameState = useGameStore((s) => s.gameState);
+  const { isMobile, isTablet, isDesktop } = useIsMobile();
 
   if (!gameState) {
     return (
@@ -25,6 +28,12 @@ export function GameScreen() {
     );
   }
 
+  // Mobile and tablet: use full-screen canvas with bottom tabs
+  if (isMobile || isTablet) {
+    return <MobileGameLayout />;
+  }
+
+  // Desktop: original three-column layout
   return (
     <div className="flex flex-col h-screen">
       <Header />

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "wasm:build": "cd ../engine && wasm-pack build crates/wasm_api --target web --out-dir ../../web/wasm-pkg",
+    "wasm:build": "cd ../engine && wasm-pack build crates/wasm_api --target web --out-dir ../../../web/wasm-pkg",
     "wasm:dev": "npm run wasm:build && npm run dev"
   },
   "dependencies": {

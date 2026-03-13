@@ -15,7 +15,7 @@ use wh40k_core_types::{
 use wh40k_dice::DiceRoller;
 use wh40k_event_system::{EventBus, ReactionWindow};
 use wh40k_command_system::CommandHistory;
-use wh40k_geometry::Board;
+use wh40k_geometry::{Board, DeploymentConfig};
 
 use crate::unit::UnitState;
 use crate::effect::ActiveEffect;
@@ -63,6 +63,11 @@ pub struct GameState {
 
     /// The game board with terrain and objectives.
     pub board: Board,
+
+    /// Deployment zone configuration for unit placement.
+    /// Created during scenario loading based on the mission's deployment map type.
+    /// Source: CP_Rules.md - Deployment Maps
+    pub deployment_config: Option<DeploymentConfig>,
 
     /// The event bus for game event emission and subscription.
     pub event_bus: EventBus,
@@ -325,10 +330,24 @@ pub struct TurnFlags {
     /// Source: Custodes.md - Tristraen's Vaultswords profile selection
     pub vaultswords_profiles: HashMap<wh40k_core_types::ModelId, String>,
 
+    /// Successful charge roll results (charge roll distance in inches).
+    /// Used by MakeChargeMove validation to cap movement distance.
+    /// Source: 40k_revised.md §9.4 - charge move distance limited to charge roll
+    pub charge_roll_results: HashMap<UnitId, u8>,
+
     /// Models queued for Fight on Death (Total Carnage blessing).
     /// These models fight back after the attacker finishes, then are removed from play.
     /// Source: Frenzied_Reavers.md - "Total Carnage" blessing
     pub fight_on_death_queue: Vec<wh40k_core_types::ModelId>,
+
+    /// Fight phase alternation: which player picks the next unit to fight.
+    /// In the Fights First step, the active player picks first (CP_Rules.md §8.1).
+    /// In the Remaining Combats step, the non-active player picks first (CP_Rules.md §8.1).
+    /// After each selection, the other player picks next (alternation).
+    /// None means fight alternation has not been initialized yet.
+    /// Source: CP_Rules.md §8.1 - Fight Phase Sequence
+    /// Source: 40k_revised.md §10.1 - Fight Phase Structure
+    pub fight_alternation_next_player: Option<PlayerId>,
 }
 
 impl TurnFlags {
@@ -350,9 +369,11 @@ impl TurnFlags {
         self.overwatch_used_this_turn = false;
         self.stratagems_used_this_phase.clear();
         self.declared_charge_targets.clear();
+        self.charge_roll_results.clear();
         self.ka_tah_stances.clear();
         self.vaultswords_profiles.clear();
         self.fight_on_death_queue.clear();
+        self.fight_alternation_next_player = None;
     }
 
     /// Clear phase-specific flags for a new phase (stratagems used this phase).
@@ -449,6 +470,16 @@ impl TurnFlags {
         self.declared_charge_targets.get(&unit_id)
     }
 
+    /// Record a successful charge roll result.
+    pub fn set_charge_roll(&mut self, unit_id: UnitId, roll: u8) {
+        self.charge_roll_results.insert(unit_id, roll);
+    }
+
+    /// Get the charge roll result for a unit.
+    pub fn get_charge_roll(&self, unit_id: UnitId) -> Option<u8> {
+        self.charge_roll_results.get(&unit_id).copied()
+    }
+
     /// Record a Ka'tah stance choice for a unit.
     pub fn set_ka_tah_stance(&mut self, unit_id: UnitId, stance: String) {
         self.ka_tah_stances.insert(unit_id, stance);
@@ -467,6 +498,30 @@ impl TurnFlags {
     /// Get the Vaultswords profile for a model, if any.
     pub fn get_vaultswords_profile(&self, model_id: wh40k_core_types::ModelId) -> Option<&str> {
         self.vaultswords_profiles.get(&model_id).map(|s| s.as_str())
+    }
+
+    /// Initialize fight alternation for a fight phase step.
+    ///
+    /// Sets which player picks first in the current fight step.
+    /// - Fights First step: active player picks first (CP_Rules.md §8.1)
+    /// - Remaining Combats step: non-active player picks first (CP_Rules.md §8.1)
+    ///
+    /// Source: CP_Rules.md §8.1 - Fight Phase Sequence
+    /// Source: 40k_revised.md §10.1 - Fight Phase Structure
+    pub fn init_fight_alternation(&mut self, first_picker: PlayerId) {
+        self.fight_alternation_next_player = Some(first_picker);
+    }
+
+    /// Advance fight alternation to the other player after a unit has been selected.
+    ///
+    /// Toggles which player picks the next unit. If the other player has no eligible
+    /// units, the current player continues picking.
+    ///
+    /// Source: CP_Rules.md §8.1 - "Players alternate"
+    pub fn advance_fight_alternation(&mut self, current_player: PlayerId, other_player: PlayerId) {
+        self.fight_alternation_next_player = Some(
+            if current_player == other_player { current_player } else { other_player }
+        );
     }
 }
 
@@ -651,6 +706,7 @@ mod tests {
             ],
             units: Vec::new(),
             board: Board::combat_patrol(),
+            deployment_config: None,
             event_bus: EventBus::new(),
             command_history: CommandHistory::new(),
             dice_roller,

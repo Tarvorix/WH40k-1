@@ -242,8 +242,18 @@ impl PhaseStateMachine {
     }
 
     /// Start the Fight Phase.
+    ///
+    /// Initializes fight alternation tracking:
+    /// - Fights First step: active player picks first (CP_Rules.md §8.1)
+    /// - After Fights First completes, Remaining Combats starts with non-active player
+    ///
+    /// Source: CP_Rules.md §8.1 - Fight Phase Sequence
+    /// Source: 40k_revised.md §10.1 - Fight Phase Structure
     pub fn start_fight_phase(state: &mut GameState) -> Vec<GameEvent> {
         state.current_subphase = SubPhase::FightsFirst;
+        // Fights First step: active player picks first
+        // Source: CP_Rules.md §8.1 - "Players alternate, starting with player whose turn it is"
+        state.turn_flags.init_fight_alternation(state.active_player);
         vec![GameEvent::PhaseStarted {
             phase: Phase::Fight,
             player: state.active_player,
@@ -316,6 +326,30 @@ impl PhaseStateMachine {
             state.current_phase = Phase::GameEnd;
             events.push(GameEvent::BattleEnded { outcome });
             return events;
+        }
+
+        // Destroy reserves not arrived by end of Round 3
+        // Source: CP_Rules.md §5.6 - reserves destroyed if not arrived by end of round 3
+        if state.battle_round == BattleRound::new(3) {
+            let reserve_unit_ids: Vec<wh40k_core_types::UnitId> = state.units.iter()
+                .filter(|u| u.is_in_reserves())
+                .map(|u| u.id)
+                .collect();
+            for uid in reserve_unit_ids {
+                if let Some(unit) = state.unit_mut(uid) {
+                    unit.status = wh40k_core_types::UnitStatus::Destroyed;
+                    for model in &mut unit.models {
+                        model.alive = false;
+                        model.wounds_remaining = wh40k_core_types::Wounds::new(0);
+                    }
+                    events.push(GameEvent::UnitDestroyed {
+                        unit: uid,
+                        cause: wh40k_event_system::DestroyCause::MortalWounds {
+                            source: "Reserves not arrived by end of Round 3".to_string(),
+                        },
+                    });
+                }
+            }
         }
 
         // Advance to next round
@@ -450,6 +484,7 @@ mod tests {
             turn_flags: TurnFlags::new(),
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
+            deployment_config: None,
         };
 
         // Player 0 goes first

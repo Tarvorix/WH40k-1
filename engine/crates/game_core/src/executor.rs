@@ -316,7 +316,19 @@ impl CommandExecutor {
 
             // ===== Fight commands (Phase 2: combat resolution) =====
             Command::SelectUnitToFight { unit_id } => {
+                // Determine the unit's owner before marking fought, for alternation tracking
+                let unit_owner = state.unit(*unit_id)
+                    .map(|u| u.owner)
+                    .unwrap_or(state.active_player);
+                let other_player = state.opponent_id(unit_owner);
+
                 state.turn_flags.mark_fought(*unit_id);
+
+                // Advance fight alternation to the other player
+                // Source: CP_Rules.md §8.1 - "Players alternate"
+                // Source: 40k_revised.md §10.1 - "Players alternate selecting units"
+                state.turn_flags.advance_fight_alternation(unit_owner, other_player);
+
                 Ok(vec![GameEvent::UnitSelectedToFight { unit: *unit_id }])
             }
             Command::ChooseKaTahStance { unit_id, stance } => {
@@ -373,18 +385,10 @@ impl CommandExecutor {
 
             // ===== Scoring commands =====
             Command::ScoreObjective { player, objective_id } => {
-                // Scoring is handled by the mission runtime in a future crate.
-                // For now, just record the event.
-                Ok(vec![GameEvent::ObjectiveSecured {
-                    objective: *objective_id,
-                    player: *player,
-                }])
+                Self::apply_score_objective(state, *player, *objective_id)
             }
             Command::RazeObjective { player, objective_id } => {
-                Ok(vec![GameEvent::ObjectiveSecured {
-                    objective: *objective_id,
-                    player: *player,
-                }])
+                Self::apply_raze_objective(state, *player, *objective_id)
             }
 
             // ===== Blessings of Khorne =====
@@ -393,15 +397,11 @@ impl CommandExecutor {
             }
 
             // ===== Misc commands =====
-            Command::AllocateWound { target_model_id: _ } => {
-                // Phase 2: wound allocation during combat resolution
-                Ok(Vec::new())
+            Command::AllocateWound { target_model_id } => {
+                Self::apply_allocate_wound(state, *target_model_id)
             }
             Command::AssignOverwatchTarget { unit_id } => {
-                Ok(vec![GameEvent::OverwatchFired {
-                    unit: *unit_id,
-                    target: *unit_id, // actual target determined by context
-                }])
+                Self::apply_assign_overwatch_target(state, *unit_id)
             }
             Command::PassAction => Ok(Vec::new()),
             Command::Concede { player } => {
@@ -423,15 +423,81 @@ impl CommandExecutor {
         unit_id: UnitId,
         position: Position,
     ) -> Result<Vec<GameEvent>, ExecutionError> {
+        // Collect base sizes for the unit's models
+        let base_sizes: Vec<wh40k_core_types::BaseSize> = {
+            let unit = state.unit(unit_id).ok_or_else(|| ExecutionError::EntityNotFound {
+                entity: format!("Unit {}", unit_id),
+            })?;
+            unit.models.iter().map(|m| m.base_size).collect()
+        };
+
+        // Collect positions/bases of all other models already on the battlefield
+        let other_models: Vec<(Position, wh40k_core_types::BaseSize)> = state.units.iter()
+            .filter(|u| u.id != unit_id && u.is_on_battlefield())
+            .flat_map(|u| u.models.iter().filter(|m| m.alive))
+            .map(|m| (m.position, m.base_size))
+            .collect();
+
+        // Get the deployment zone for this unit's owner, if available
+        let owner = state.unit(unit_id).unwrap().owner;
+        let zone = state.deployment_config.as_ref().map(|config| {
+            if owner == config.attacker_zone.player {
+                &config.attacker_zone
+            } else {
+                &config.defender_zone
+            }
+        });
+
+        // Generate formation positions
+        let formation_result = wh40k_geometry::formation::generate_formation(
+            position,
+            &base_sizes,
+            &state.board,
+            zone,
+            &other_models,
+        );
+
+        let positions = match formation_result {
+            wh40k_geometry::formation::FormationResult::Success(positions) => positions,
+            wh40k_geometry::formation::FormationResult::CannotFit(_reason) => {
+                // Fallback: place all models at center position (legacy behavior)
+                // This can happen in edge cases (very tight zone corners)
+                vec![position; base_sizes.len()]
+            }
+        };
+
+        // Assign positions to models
         let unit = state.unit_mut(unit_id).ok_or_else(|| ExecutionError::EntityNotFound {
             entity: format!("Unit {}", unit_id),
         })?;
 
-        // Set all model positions to the unit's deployment position
-        for model in &mut unit.models {
-            model.position = position;
+        for (i, model) in unit.models.iter_mut().enumerate() {
+            if i < positions.len() {
+                model.position = positions[i];
+            } else {
+                model.position = position;
+            }
         }
         unit.status = UnitStatus::OnBattlefield;
+
+        // After placing a unit, check if the current decision_owner has more undeployed units
+        // If not, switch to the other player. If both are done, keep current for SetupComplete.
+        // Source: CP_Rules.md - "The Defender sets up their army first, then the Attacker"
+        let current_owner = state.decision_owner;
+        let has_more_undeployed = state.units.iter().any(|u| {
+            u.owner == current_owner && u.status == UnitStatus::Undeployed
+        });
+
+        if !has_more_undeployed {
+            let opponent = state.opponent_id(current_owner);
+            let opponent_has_undeployed = state.units.iter().any(|u| {
+                u.owner == opponent && u.status == UnitStatus::Undeployed
+            });
+            if opponent_has_undeployed {
+                state.decision_owner = opponent;
+            }
+            // If neither has undeployed units, keep decision_owner as-is for SetupComplete
+        }
 
         Ok(Vec::new())
     }
@@ -530,10 +596,18 @@ impl CommandExecutor {
         ])
     }
 
-    /// Apply a fall back move. Includes desperate escape tests for battle-shocked units.
+    /// Apply a fall back move. Includes desperate escape tests for both
+    /// battle-shocked and non-battle-shocked units passing through enemies.
     ///
     /// Source: 40k_revised.md Section 5.5 - Fall Back
     /// Source: 40k_revised.md - Desperate Escape Tests
+    ///
+    /// Non-battle-shocked: When a model moves over an enemy model during
+    /// Fall Back, roll 1D6 per enemy model passed through. On 1-2, one model
+    /// from the unit is destroyed. TITANIC and FLY models are exempt.
+    ///
+    /// Battle-shocked: Take a Desperate Escape test for every model in the
+    /// unit (before any models move). No TITANIC/FLY exemption.
     fn apply_fall_back(
         state: &mut GameState,
         unit_id: UnitId,
@@ -541,8 +615,8 @@ impl CommandExecutor {
     ) -> Result<Vec<GameEvent>, ExecutionError> {
         let mut events = Vec::new();
 
-        // Check if unit is battle-shocked (triggers desperate escape for every model)
-        let (is_battle_shocked, model_count, from) = {
+        // Gather unit info needed for desperate escape logic
+        let (is_battle_shocked, model_count, from, has_fly, has_titanic, unit_owner) = {
             let unit = state.unit(unit_id).ok_or_else(|| ExecutionError::EntityNotFound {
                 entity: format!("Unit {}", unit_id),
             })?;
@@ -550,12 +624,16 @@ impl CommandExecutor {
                 unit.battle_shocked,
                 unit.models_alive(),
                 unit.reference_position().unwrap_or(Position::ORIGIN),
+                unit.has_keyword(wh40k_core_types::Keyword::Fly),
+                unit.has_keyword(wh40k_core_types::Keyword::Titanic),
+                unit.owner,
             )
         };
 
         // Desperate escape tests for battle-shocked units
         // Source: 40k_revised.md - "If a Battle-shocked unit Falls Back, take a
         // Desperate Escape test for every model in the unit"
+        // Note: TITANIC/FLY exemption does NOT apply to battle-shocked fall back.
         if is_battle_shocked && model_count > 0 {
             let unit_idx = state.units.iter()
                 .position(|u| u.id == unit_id)
@@ -567,19 +645,21 @@ impl CommandExecutor {
                 if !state.units[unit_idx].models[model_idx].alive {
                     continue;
                 }
+                let model_id = state.units[unit_idx].models[model_idx].id;
                 let (roll, _roll_id) = state.dice_roller.roll_d6(
-                    wh40k_dice::RollPurpose::BattleShockTest {
+                    wh40k_dice::RollPurpose::DesperateEscape {
                         unit_id: unit_id.raw(),
+                        model_id: model_id.raw(),
                     },
                 );
                 let model_destroyed = roll <= 2; // 1-2 = model destroyed
                 if model_destroyed {
                     state.units[unit_idx].models[model_idx].alive = false;
                     events.push(GameEvent::ModelDestroyed {
-                        model: state.units[unit_idx].models[model_idx].id,
+                        model: model_id,
                         unit: unit_id,
                         cause: wh40k_event_system::DestroyCause::GameRule {
-                            reason: "Desperate Escape test".to_string(),
+                            reason: "Desperate Escape test (battle-shocked)".to_string(),
                         },
                     });
                 }
@@ -592,11 +672,101 @@ impl CommandExecutor {
                 events.push(GameEvent::UnitDestroyed {
                     unit: unit_id,
                     cause: wh40k_event_system::DestroyCause::GameRule {
-                            reason: "Desperate Escape test".to_string(),
+                            reason: "Desperate Escape test (battle-shocked)".to_string(),
                         },
                 });
                 // Don't continue with the move if the unit was destroyed
                 return Ok(events);
+            }
+        }
+
+        // Desperate escape tests for non-battle-shocked units passing through
+        // enemy engagement range.
+        // Source: 40k_revised.md §5.5 - "When a model moves over an enemy model
+        // during Fall Back: Roll 1D6 before any models move. On 1-2: One model
+        // from the unit is destroyed."
+        // Exception: TITANIC and FLY models do not require this test.
+        // Note: Each model can only trigger one Desperate Escape test per phase.
+        if !is_battle_shocked && !has_fly && !has_titanic && model_count > 0 {
+            // Count enemy models within engagement range of the unit's starting
+            // position. These are the enemy models the falling-back unit must pass
+            // through to disengage.
+            let unit_idx = state.units.iter()
+                .position(|u| u.id == unit_id)
+                .ok_or_else(|| ExecutionError::EntityNotFound {
+                    entity: format!("Unit {}", unit_id),
+                })?;
+
+            let unit_base = state.units[unit_idx].models.iter()
+                .find(|m| m.alive)
+                .map(|m| m.base_size)
+                .unwrap_or(wh40k_core_types::BaseSize::MM25);
+
+            // Find all enemy models within engagement range of the unit's
+            // starting position (these are the enemies being passed through).
+            let mut enemy_models_in_er: usize = 0;
+            for other_unit in &state.units {
+                if other_unit.owner == unit_owner {
+                    continue; // Skip friendly units
+                }
+                if other_unit.is_destroyed() {
+                    continue;
+                }
+                for model in other_unit.models.iter().filter(|m| m.alive) {
+                    if wh40k_geometry::within_engagement_range_2d(
+                        from, unit_base,
+                        model.position, model.base_size,
+                    ) {
+                        enemy_models_in_er += 1;
+                    }
+                }
+            }
+
+            // Roll one desperate escape test per enemy model passed through.
+            // Each test: D6, on 1-2 one model from the unit is destroyed.
+            if enemy_models_in_er > 0 {
+                let mut tests_remaining = enemy_models_in_er;
+                for model_idx in 0..state.units[unit_idx].models.len() {
+                    if tests_remaining == 0 {
+                        break;
+                    }
+                    if !state.units[unit_idx].models[model_idx].alive {
+                        continue;
+                    }
+                    let model_id = state.units[unit_idx].models[model_idx].id;
+                    let (roll, _roll_id) = state.dice_roller.roll_d6(
+                        wh40k_dice::RollPurpose::DesperateEscape {
+                            unit_id: unit_id.raw(),
+                            model_id: model_id.raw(),
+                        },
+                    );
+                    tests_remaining -= 1;
+                    let model_destroyed = roll <= 2; // 1-2 = model destroyed
+                    if model_destroyed {
+                        state.units[unit_idx].models[model_idx].alive = false;
+                        events.push(GameEvent::ModelDestroyed {
+                            model: model_id,
+                            unit: unit_id,
+                            cause: wh40k_event_system::DestroyCause::GameRule {
+                                reason: "Desperate Escape test".to_string(),
+                            },
+                        });
+                    }
+                }
+
+                // Update unit state after potential casualties
+                state.units[unit_idx].update_below_half_strength();
+                if state.units[unit_idx].models_alive() == 0 {
+                    state.units[unit_idx].status = UnitStatus::Destroyed;
+                    events.push(GameEvent::UnitDestroyed {
+                        unit: unit_id,
+                        cause: wh40k_event_system::DestroyCause::GameRule {
+                                reason: "Desperate Escape test".to_string(),
+                            },
+                    });
+                    // Don't continue with the move if the unit was destroyed
+                    return Ok(events);
+                }
             }
         }
 
@@ -652,14 +822,50 @@ impl CommandExecutor {
         unit_id: UnitId,
         position: Position,
     ) -> Result<Vec<GameEvent>, ExecutionError> {
+        // Collect base sizes for the unit's models
+        let base_sizes: Vec<wh40k_core_types::BaseSize> = {
+            let unit = state.unit(unit_id).ok_or_else(|| ExecutionError::EntityNotFound {
+                entity: format!("Unit {}", unit_id),
+            })?;
+            unit.models.iter().map(|m| m.base_size).collect()
+        };
+
+        // Collect positions/bases of all other models already on the battlefield
+        let other_models: Vec<(Position, wh40k_core_types::BaseSize)> = state.units.iter()
+            .filter(|u| u.id != unit_id && u.is_on_battlefield())
+            .flat_map(|u| u.models.iter().filter(|m| m.alive))
+            .map(|m| (m.position, m.base_size))
+            .collect();
+
+        // Generate formation positions (no deployment zone constraint for reserves arrival)
+        let formation_result = wh40k_geometry::formation::generate_formation(
+            position,
+            &base_sizes,
+            &state.board,
+            None,
+            &other_models,
+        );
+
+        let positions = match formation_result {
+            wh40k_geometry::formation::FormationResult::Success(positions) => positions,
+            wh40k_geometry::formation::FormationResult::CannotFit(_reason) => {
+                // Fallback: place all models at center position (legacy behavior)
+                vec![position; base_sizes.len()]
+            }
+        };
+
+        // Assign positions to models
         let unit = state.unit_mut(unit_id).ok_or_else(|| ExecutionError::EntityNotFound {
             entity: format!("Unit {}", unit_id),
         })?;
 
-        // Set all models to the arrival position
-        for model in &mut unit.models {
+        for (i, model) in unit.models.iter_mut().enumerate() {
             if model.alive {
-                model.position = position;
+                if i < positions.len() {
+                    model.position = positions[i];
+                } else {
+                    model.position = position;
+                }
             }
         }
 
@@ -754,6 +960,8 @@ impl CommandExecutor {
         if success {
             // Mark as successfully charged (for Fights First bonus)
             state.turn_flags.mark_charged(unit_id);
+            // Store the charge roll result for MakeChargeMove distance validation
+            state.turn_flags.set_charge_roll(unit_id, roll);
             events.push(GameEvent::ChargeRollMade {
                 unit: unit_id,
                 roll,
@@ -819,22 +1027,77 @@ impl CommandExecutor {
         Ok(vec![GameEvent::ChargeCompleted { unit: unit_id }])
     }
 
-    /// Execute a Heroic Intervention move: translate all models up to 6" towards the nearest enemy.
+    /// Execute a Heroic Intervention charge: roll 2D6 for charge distance, and if
+    /// the roll is sufficient to reach engagement range of the target enemy, move
+    /// the unit to the destination. The unit does NOT get the Charge bonus (no
+    /// Fights First) this turn.
     ///
-    /// After moving, the unit becomes engaged if it ends within engagement range of an enemy.
+    /// Per CP_Rules.md §11 - Heroic Intervention:
+    ///   "Effect: Declare and resolve a charge targeting only that enemy unit"
+    ///   "Restrictions: VEHICLE must be a WALKER; Unit does NOT get Charge bonus this turn"
     ///
-    /// Source: 40k_revised.md - "Heroic Intervention"
+    /// This is a full charge sequence (2D6 charge roll, must reach engagement range)
+    /// but the unit is explicitly denied the Charge bonus.
+    ///
+    /// Source: CP_Rules.md §11 - Heroic Intervention
     fn apply_heroic_intervention_move(
         state: &mut GameState,
         unit_id: UnitId,
         destination: Position,
     ) -> Result<Vec<GameEvent>, ExecutionError> {
-        let from = {
+        use wh40k_core_types::Inches;
+        use wh40k_dice::RollPurpose;
+
+        let mut events = Vec::new();
+
+        // Get the unit's current position and base size for distance calculations
+        let (from, unit_base) = {
             let unit = state.unit(unit_id).ok_or_else(|| ExecutionError::EntityNotFound {
                 entity: format!("Unit {}", unit_id),
             })?;
-            unit.reference_position().unwrap_or(Position::ORIGIN)
+            let pos = unit.reference_position().unwrap_or(Position::ORIGIN);
+            let base = unit.models.first().map(|m| m.base_size)
+                .unwrap_or(wh40k_core_types::BaseSize::MM25);
+            (pos, base)
         };
+
+        // Roll 2D6 for charge distance (this is a proper charge roll per the rules)
+        let (charge_roll, _dice, _roll_id) = state.dice_roller.roll_2d6(
+            RollPurpose::ChargeRoll { charging_unit: unit_id.raw() },
+        );
+
+        let roll_inches = Inches::from_inches(charge_roll as i32);
+
+        // Calculate the distance the unit needs to move to reach the destination
+        let move_distance = from.distance(destination);
+
+        // Check if the charge roll is sufficient to reach the destination
+        if move_distance > roll_inches {
+            // Charge failed -- roll was not enough to reach the destination
+            events.push(GameEvent::ChargeRollMade {
+                unit: unit_id,
+                roll: charge_roll,
+                distance: charge_roll,
+                success: false,
+            });
+            events.push(GameEvent::ChargeFailed { unit: unit_id });
+
+            // Remove the Heroic Intervention effect since the charge was attempted
+            state.active_effects.retain(|e| {
+                !(matches!(e.target, crate::effect::EffectTarget::Unit(uid) if uid == unit_id)
+                    && matches!(&e.effect_type, crate::effect::EffectType::Custom(s) if s.contains("Heroic Intervention")))
+            });
+
+            return Ok(events);
+        }
+
+        // Charge roll succeeded -- move the unit
+        events.push(GameEvent::ChargeRollMade {
+            unit: unit_id,
+            roll: charge_roll,
+            distance: charge_roll,
+            success: true,
+        });
 
         let dx = wh40k_core_types::Inches(destination.x.0 - from.x.0);
         let dy = wh40k_core_types::Inches(destination.y.0 - from.y.0);
@@ -849,8 +1112,6 @@ impl CommandExecutor {
 
         // Check if unit is now within engagement range of any enemy and update status
         let unit_owner = unit.owner;
-        let unit_base = unit.models.first().map(|m| m.base_size)
-            .unwrap_or(wh40k_core_types::BaseSize::MM25);
         let new_ref_pos = unit.reference_position().unwrap_or(destination);
 
         // Check engagement with all enemy units
@@ -878,13 +1139,18 @@ impl CommandExecutor {
             unit.engagement_status = wh40k_core_types::EngagementStatus::Engaged;
         }
 
-        // Remove the Heroic Intervention effect now that the move has been executed
+        // IMPORTANT: Do NOT call state.turn_flags.mark_charged(unit_id) here.
+        // Per CP_Rules.md §11: "Unit does NOT get Charge bonus this turn"
+        // This means the unit does not get Fights First priority in the Fight phase.
+
+        // Remove the Heroic Intervention effect now that the charge has been resolved
         state.active_effects.retain(|e| {
             !(matches!(e.target, crate::effect::EffectTarget::Unit(uid) if uid == unit_id)
                 && matches!(&e.effect_type, crate::effect::EffectType::Custom(s) if s.contains("Heroic Intervention")))
         });
 
-        Ok(vec![GameEvent::HeroicInterventionCompleted { unit: unit_id }])
+        events.push(GameEvent::HeroicInterventionCompleted { unit: unit_id });
+        Ok(events)
     }
 
     /// Apply pile-in movement for a unit.
@@ -1312,7 +1578,7 @@ impl CommandExecutor {
         };
 
         // Look up defender
-        let (defender_toughness, defender_armor_save, defender_invulnerable,
+        let (defender_toughness, defender_armor_save, mut defender_invulnerable,
              target_model_count, target_keywords) = {
             let def_unit = state.unit(target_id).ok_or_else(|| ExecutionError::EntityNotFound {
                 entity: format!("Defender unit {}", target_id),
@@ -1325,6 +1591,22 @@ impl CommandExecutor {
                 def_unit.keywords,
             )
         };
+
+        // Check for GrantInvulnerableSave effects (e.g., Go to Ground 6++)
+        // Use the best (lowest) invulnerable save between native and granted
+        for effect in &state.active_effects {
+            if let crate::effect::EffectType::GrantInvulnerableSave(val) = effect.effect_type {
+                let applies = matches!(effect.target, crate::effect::EffectTarget::Unit(uid) if uid == target_id)
+                    || matches!(effect.target, crate::effect::EffectTarget::Player(pid) if pid == state.unit(target_id).map(|u| u.owner).unwrap_or(wh40k_core_types::PlayerId::new(99)));
+                if applies {
+                    let granted = wh40k_core_types::InvulnerableSave(val);
+                    defender_invulnerable = Some(match defender_invulnerable {
+                        Some(existing) if existing.value() <= val => existing,
+                        _ => granted,
+                    });
+                }
+            }
+        }
 
         // Calculate range for half-range checks
         let within_half_range = {
@@ -1379,8 +1661,11 @@ impl CommandExecutor {
         }
 
         // Determine cover from terrain geometry
-        // Source: 40k_revised.md - "TERRAIN", "BENEFIT OF COVER"
-        let target_has_cover = {
+        // Source: 40k_revised.md §13.1 - "BENEFIT OF COVER" (ranged attacks only)
+        // Benefit of Cover only applies to ranged attacks, not melee
+        let target_has_cover = if is_melee {
+            false
+        } else {
             let att_pos = state.unit(attacker_id)
                 .and_then(|u| u.reference_position())
                 .unwrap_or(wh40k_core_types::Position::ORIGIN);
@@ -1444,6 +1729,26 @@ impl CommandExecutor {
             0u8 // 0 = default (6)
         };
 
+        // #40: Indirect Fire: determine if firing at a non-visible target
+        // Source: 40k_revised.md §11.3 - "INDIRECT FIRE"
+        // If weapon has Indirect Fire and target is not visible, apply -1 to hit
+        // and cover benefit to the target automatically.
+        let indirect_fire_no_los = if !is_melee && weapon.abilities.has(&wh40k_core_types::WeaponAbility::IndirectFire) {
+            let att_pos = state.unit(attacker_id)
+                .and_then(|u| u.reference_position())
+                .unwrap_or(wh40k_core_types::Position::ORIGIN);
+            let def_pos = state.unit(target_id)
+                .and_then(|u| u.reference_position())
+                .unwrap_or(wh40k_core_types::Position::ORIGIN);
+            state.board.check_los(att_pos, def_pos) == wh40k_core_types::Visibility::NotVisible
+        } else {
+            false
+        };
+
+        // If indirect fire at non-visible target, automatically grant Benefit of Cover
+        // Source: 40k_revised.md §11.3 - target gains Benefit of Cover with Indirect Fire
+        let target_has_cover = if indirect_fire_no_los { true } else { target_has_cover };
+
         // Build the attack context
         let ctx = combat::AttackContext {
             attacker_id,
@@ -1464,7 +1769,7 @@ impl CommandExecutor {
             defender_armor_save,
             defender_invulnerable,
             effective_abilities,
-            indirect_fire_no_los: false,
+            indirect_fire_no_los,
             is_overwatch: false,
             target_has_stealth,
             distance_mils,
@@ -1472,6 +1777,8 @@ impl CommandExecutor {
             bonus_ap,
             bonus_fnp,
             critical_hit_threshold,
+            command_reroll_active: false,
+            defender_command_reroll_active: false,
         };
 
         // Get defender model slice for mutation
@@ -1544,6 +1851,23 @@ impl CommandExecutor {
             }
         }
 
+        // Consecrated Ground: -1 VP per Custodes model destroyed
+        // Source: Custodes.md - Consecrated Ground secondary
+        if !batch_result.models_destroyed.is_empty()
+            && state.units[defender_unit_idx].has_keyword(wh40k_core_types::Keyword::AdeptusCustodes)
+        {
+            let custodes_player = state.units[defender_unit_idx].owner;
+            for _ in &batch_result.models_destroyed {
+                if let Some(penalty) = crate::scoring::score_consecrated_ground_loss(state, custodes_player) {
+                    let current = state.player(custodes_player).mission_progress.secondary_vp.value();
+                    if current > 0 {
+                        state.player_mut(custodes_player).mission_progress.secondary_vp =
+                            wh40k_core_types::VictoryPoints::new((current - penalty.value()).max(0));
+                    }
+                }
+            }
+        }
+
         // Check if the entire unit was destroyed
         let unit_destroyed = state.units[defender_unit_idx].models_alive() == 0;
         if unit_destroyed {
@@ -1594,6 +1918,13 @@ impl CommandExecutor {
                         ),
                     });
                 }
+            }
+
+            // Consecrated Ground: +3 VP when enemy unit destroyed
+            // Source: Custodes.md - Consecrated Ground secondary
+            if let Some((vp, event)) = crate::scoring::score_consecrated_ground_kill(state, attacker_owner) {
+                state.player_mut(attacker_owner).mission_progress.secondary_vp += vp;
+                all_events.push(event);
             }
         }
 
@@ -1734,6 +2065,113 @@ impl CommandExecutor {
 
         Ok(all_events)
     }
+
+    // ===== Scoring application helpers =====
+
+    fn apply_score_objective(
+        state: &mut GameState,
+        player: PlayerId,
+        objective_id: wh40k_core_types::ObjectiveId,
+    ) -> Result<Vec<GameEvent>, ExecutionError> {
+        // Award 5 VP for controlling an objective (standard CP primary scoring amount)
+        // Source: CP_Rules.md - Primary objective scoring
+        let round = state.battle_round;
+        state.player_mut(player).score_vp(5);
+        state.player_mut(player).mission_progress.primary_vp += wh40k_core_types::VictoryPoints::new(5);
+        state.player_mut(player).mission_progress.record_round_score(
+            round,
+            wh40k_core_types::VictoryPoints::new(5),
+        );
+
+        Ok(vec![GameEvent::ObjectiveSecured {
+            objective: objective_id,
+            player,
+        }])
+    }
+
+    fn apply_raze_objective(
+        state: &mut GameState,
+        player: PlayerId,
+        objective_id: wh40k_core_types::ObjectiveId,
+    ) -> Result<Vec<GameEvent>, ExecutionError> {
+        // Razing awards 5 VP and removes the objective from the board
+        // Source: CP_Rules.md - Mission 4: Scorched Earth
+        state.player_mut(player).score_vp(5);
+        state.player_mut(player).mission_progress.primary_vp += wh40k_core_types::VictoryPoints::new(5);
+        state.player_mut(player).mission_progress.razed_this_turn = true;
+
+        // Remove the razed objective from the board
+        state.board.objectives.retain(|o| o.id != objective_id);
+
+        Ok(vec![
+            GameEvent::ObjectiveSecured {
+                objective: objective_id,
+                player,
+            },
+        ])
+    }
+
+    // ===== Wound allocation helpers =====
+
+    fn apply_allocate_wound(
+        state: &mut GameState,
+        target_model_id: wh40k_core_types::ModelId,
+    ) -> Result<Vec<GameEvent>, ExecutionError> {
+        // Find the model and mark it as the wound allocation target
+        // Source: 40k_revised.md - Wound Allocation
+        let mut found = false;
+        for unit in &mut state.units {
+            for model in &mut unit.models {
+                if model.id == target_model_id && model.alive {
+                    model.allocation_status = wh40k_core_types::AllocationStatus::WoundedAllocated;
+                    found = true;
+                    break;
+                }
+            }
+            if found { break; }
+        }
+
+        if !found {
+            return Err(ExecutionError::EntityNotFound {
+                entity: format!("Model {}", target_model_id),
+            });
+        }
+
+        Ok(Vec::new())
+    }
+
+    // ===== Overwatch helpers =====
+
+    fn apply_assign_overwatch_target(
+        state: &mut GameState,
+        unit_id: UnitId,
+    ) -> Result<Vec<GameEvent>, ExecutionError> {
+        // The unit_id is the unit FIRING overwatch
+        // The target is derived from the current reaction window (the charging unit)
+        // Source: 40k_revised.md - Fire Overwatch stratagem
+
+        // Find the charging unit from the most recent charge declaration in the event log
+        let target_unit_id = state.event_bus.log().iter().rev()
+            .find_map(|entry| {
+                if let GameEvent::ChargeDeclared { unit, .. } = &entry.event {
+                    Some(*unit)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(unit_id); // Fallback to self if no charge found
+
+        // Mark overwatch as used this turn
+        state.turn_flags.overwatch_used_this_turn = true;
+
+        // Remove the reaction window since overwatch has been resolved
+        state.reaction_windows.pop();
+
+        Ok(vec![GameEvent::OverwatchFired {
+            unit: unit_id,
+            target: target_unit_id,
+        }])
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1781,6 +2219,7 @@ mod tests {
             turn_flags: TurnFlags::new(),
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
+            deployment_config: None,
         };
 
         state.players[0].first_turn = true;
@@ -1938,6 +2377,418 @@ mod tests {
         // Unit should no longer be engaged
         let unit = state.unit(UnitId::new(1)).unwrap();
         assert_eq!(unit.engagement_status, EngagementStatus::NotEngaged);
+    }
+
+    #[test]
+    fn test_execute_fall_back_desperate_escape_non_battle_shocked() {
+        // Setup: Place an enemy model within engagement range of the friendly
+        // unit's starting position. When the non-battle-shocked unit falls back,
+        // it should trigger desperate escape tests for passing through enemies.
+        //
+        // Source: 40k_revised.md §5.5 - "When a model moves over an enemy model
+        // during Fall Back: Roll 1D6 before any models move. On 1-2: One model
+        // from the unit is destroyed."
+        let seed = [1u8; 32]; // Use seed that produces deterministic rolls
+        let ctx = wh40k_dice::DiceContext::new(
+            seed, wh40k_dice::StreamKind::DesperateEscape, 0, 0,
+        );
+        let dice_roller = wh40k_dice::DiceRoller::new(ctx);
+
+        let mut state = GameState {
+            content_version: "test".to_string(),
+            scenario_id: None,
+            battle_round: BattleRound::new(1),
+            active_player: PlayerId::new(0),
+            current_phase: Phase::Movement,
+            current_subphase: wh40k_core_types::SubPhase::SelectUnitToMove,
+            decision_owner: PlayerId::new(0),
+            players: [
+                crate::state::PlayerState::new(PlayerId::new(0), "P0".to_string()),
+                crate::state::PlayerState::new(PlayerId::new(1), "P1".to_string()),
+            ],
+            units: Vec::new(),
+            board: wh40k_geometry::Board::combat_patrol(),
+            event_bus: wh40k_event_system::EventBus::new(),
+            command_history: wh40k_command_system::CommandHistory::new(),
+            dice_roller,
+            active_effects: Vec::new(),
+            reaction_windows: Vec::new(),
+            turn_flags: crate::state::TurnFlags::new(),
+            game_outcome: GameOutcome::InProgress,
+            deterministic_counter: 0,
+            deployment_config: None,
+        };
+
+        state.players[0].first_turn = true;
+
+        // Friendly unit: 3 models at position (10, 5), engaged, NOT battle-shocked
+        let unit_id = UnitId::new(1);
+        let models: Vec<crate::unit::ModelState> = (0..3).map(|i| {
+            crate::unit::ModelState::new(
+                wh40k_core_types::ModelId::new(100 + i),
+                unit_id,
+                wh40k_core_types::Wounds::new(3),
+                Position::from_inches(10, 5),
+                BaseSize::MM32,
+                Vec::new(),
+                Vec::new(),
+                false,
+                None,
+            )
+        }).collect();
+
+        let mut unit = crate::unit::UnitState::new(
+            unit_id,
+            PlayerId::new(0),
+            "Friendly Infantry".to_string(),
+            wh40k_core_types::DatasheetId::new(1),
+            KeywordSet::from_keywords(&[Keyword::Infantry]),
+            models,
+            wh40k_core_types::MoveCharacteristic::from_inches(6),
+            wh40k_core_types::Toughness::new(4),
+            wh40k_core_types::ArmorSave::THREE_PLUS,
+            None,
+            wh40k_core_types::Leadership::new(7),
+            wh40k_core_types::ObjectiveControl::new(2),
+        );
+        unit.status = UnitStatus::OnBattlefield;
+        unit.engagement_status = EngagementStatus::Engaged;
+        state.units.push(unit);
+
+        // Enemy unit: 2 models within engagement range of the friendly unit
+        // Place them very close (within 1" + bases) so within_engagement_range_2d returns true
+        let enemy_id = UnitId::new(2);
+        let enemy_models: Vec<crate::unit::ModelState> = (0..2).map(|i| {
+            crate::unit::ModelState::new(
+                wh40k_core_types::ModelId::new(200 + i),
+                enemy_id,
+                wh40k_core_types::Wounds::new(3),
+                // Place within engagement range of (10, 5)
+                // 32mm base radius ~= 0.63". Engagement range = 1".
+                // Center distance for within ER: < 1" + 2*0.63" = ~2.26"
+                Position::new(
+                    wh40k_core_types::Inches::from_inches(10) + wh40k_core_types::Inches::from_inches(2),
+                    wh40k_core_types::Inches::from_inches(5),
+                ),
+                BaseSize::MM32,
+                Vec::new(),
+                Vec::new(),
+                false,
+                None,
+            )
+        }).collect();
+
+        let mut enemy_unit = crate::unit::UnitState::new(
+            enemy_id,
+            PlayerId::new(1),
+            "Enemy Infantry".to_string(),
+            wh40k_core_types::DatasheetId::new(2),
+            KeywordSet::from_keywords(&[Keyword::Infantry]),
+            enemy_models,
+            wh40k_core_types::MoveCharacteristic::from_inches(6),
+            wh40k_core_types::Toughness::new(4),
+            wh40k_core_types::ArmorSave::THREE_PLUS,
+            None,
+            wh40k_core_types::Leadership::new(7),
+            wh40k_core_types::ObjectiveControl::new(2),
+        );
+        enemy_unit.status = UnitStatus::OnBattlefield;
+        state.units.push(enemy_unit);
+
+        let cmd = Command::FallBack {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(5, 5),
+        };
+
+        let events = CommandExecutor::execute(&mut state, &cmd).unwrap();
+
+        // The unit should have fallen back successfully
+        assert!(state.turn_flags.has_fell_back(UnitId::new(1)));
+
+        // There should be a MoveCompleted event
+        assert!(events.iter().any(|e| matches!(e, GameEvent::MoveCompleted {
+            action: MovementAction::FallBack,
+            ..
+        })));
+
+        // Desperate escape tests were rolled (2 enemy models within ER = 2 tests).
+        // Whether models were destroyed depends on the dice rolls, but the code
+        // path was exercised. We verify the unit is no longer engaged.
+        let unit = state.unit(UnitId::new(1)).unwrap();
+        assert_eq!(unit.engagement_status, EngagementStatus::NotEngaged);
+    }
+
+    #[test]
+    fn test_execute_fall_back_fly_keyword_exempt_from_desperate_escape() {
+        // Units with FLY keyword are exempt from non-battle-shocked desperate
+        // escape tests.
+        // Source: 40k_revised.md §5.5 - "Exception: TITANIC and FLY models do
+        // not require this test"
+        let seed = [2u8; 32];
+        let ctx = wh40k_dice::DiceContext::new(
+            seed, wh40k_dice::StreamKind::DesperateEscape, 0, 0,
+        );
+        let dice_roller = wh40k_dice::DiceRoller::new(ctx);
+
+        let mut state = GameState {
+            content_version: "test".to_string(),
+            scenario_id: None,
+            battle_round: BattleRound::new(1),
+            active_player: PlayerId::new(0),
+            current_phase: Phase::Movement,
+            current_subphase: wh40k_core_types::SubPhase::SelectUnitToMove,
+            decision_owner: PlayerId::new(0),
+            players: [
+                crate::state::PlayerState::new(PlayerId::new(0), "P0".to_string()),
+                crate::state::PlayerState::new(PlayerId::new(1), "P1".to_string()),
+            ],
+            units: Vec::new(),
+            board: wh40k_geometry::Board::combat_patrol(),
+            event_bus: wh40k_event_system::EventBus::new(),
+            command_history: wh40k_command_system::CommandHistory::new(),
+            dice_roller,
+            active_effects: Vec::new(),
+            reaction_windows: Vec::new(),
+            turn_flags: crate::state::TurnFlags::new(),
+            game_outcome: GameOutcome::InProgress,
+            deterministic_counter: 0,
+            deployment_config: None,
+        };
+
+        state.players[0].first_turn = true;
+
+        // Friendly FLY unit: 3 models at position (10, 5), engaged
+        let unit_id = UnitId::new(1);
+        let models: Vec<crate::unit::ModelState> = (0..3).map(|i| {
+            crate::unit::ModelState::new(
+                wh40k_core_types::ModelId::new(100 + i),
+                unit_id,
+                wh40k_core_types::Wounds::new(3),
+                Position::from_inches(10, 5),
+                BaseSize::MM32,
+                Vec::new(),
+                Vec::new(),
+                false,
+                None,
+            )
+        }).collect();
+
+        let mut unit = crate::unit::UnitState::new(
+            unit_id,
+            PlayerId::new(0),
+            "Friendly FLY Unit".to_string(),
+            wh40k_core_types::DatasheetId::new(1),
+            // FLY keyword should exempt from desperate escape
+            KeywordSet::from_keywords(&[Keyword::Infantry, Keyword::Fly]),
+            models,
+            wh40k_core_types::MoveCharacteristic::from_inches(6),
+            wh40k_core_types::Toughness::new(4),
+            wh40k_core_types::ArmorSave::THREE_PLUS,
+            None,
+            wh40k_core_types::Leadership::new(7),
+            wh40k_core_types::ObjectiveControl::new(2),
+        );
+        unit.status = UnitStatus::OnBattlefield;
+        unit.engagement_status = EngagementStatus::Engaged;
+        state.units.push(unit);
+
+        // Enemy unit within engagement range
+        let enemy_id = UnitId::new(2);
+        let enemy_model = crate::unit::ModelState::new(
+            wh40k_core_types::ModelId::new(200),
+            enemy_id,
+            wh40k_core_types::Wounds::new(3),
+            Position::new(
+                wh40k_core_types::Inches::from_inches(10) + wh40k_core_types::Inches::from_inches(2),
+                wh40k_core_types::Inches::from_inches(5),
+            ),
+            BaseSize::MM32,
+            Vec::new(),
+            Vec::new(),
+            false,
+            None,
+        );
+
+        let mut enemy_unit = crate::unit::UnitState::new(
+            enemy_id,
+            PlayerId::new(1),
+            "Enemy Infantry".to_string(),
+            wh40k_core_types::DatasheetId::new(2),
+            KeywordSet::from_keywords(&[Keyword::Infantry]),
+            vec![enemy_model],
+            wh40k_core_types::MoveCharacteristic::from_inches(6),
+            wh40k_core_types::Toughness::new(4),
+            wh40k_core_types::ArmorSave::THREE_PLUS,
+            None,
+            wh40k_core_types::Leadership::new(7),
+            wh40k_core_types::ObjectiveControl::new(2),
+        );
+        enemy_unit.status = UnitStatus::OnBattlefield;
+        state.units.push(enemy_unit);
+
+        let cmd = Command::FallBack {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(5, 5),
+        };
+
+        let events = CommandExecutor::execute(&mut state, &cmd).unwrap();
+
+        // FLY unit should have fallen back without any ModelDestroyed events
+        // (exempt from desperate escape)
+        assert!(state.turn_flags.has_fell_back(UnitId::new(1)));
+        assert!(!events.iter().any(|e| matches!(e, GameEvent::ModelDestroyed { .. })));
+
+        // All 3 models should still be alive
+        let unit = state.unit(UnitId::new(1)).unwrap();
+        assert_eq!(unit.models_alive(), 3);
+        assert_eq!(unit.engagement_status, EngagementStatus::NotEngaged);
+    }
+
+    #[test]
+    fn test_execute_fall_back_titanic_keyword_exempt_from_desperate_escape() {
+        // Units with TITANIC keyword are exempt from non-battle-shocked desperate
+        // escape tests.
+        // Source: 40k_revised.md §5.5 - "Exception: TITANIC and FLY models do
+        // not require this test"
+        let seed = [3u8; 32];
+        let ctx = wh40k_dice::DiceContext::new(
+            seed, wh40k_dice::StreamKind::DesperateEscape, 0, 0,
+        );
+        let dice_roller = wh40k_dice::DiceRoller::new(ctx);
+
+        let mut state = GameState {
+            content_version: "test".to_string(),
+            scenario_id: None,
+            battle_round: BattleRound::new(1),
+            active_player: PlayerId::new(0),
+            current_phase: Phase::Movement,
+            current_subphase: wh40k_core_types::SubPhase::SelectUnitToMove,
+            decision_owner: PlayerId::new(0),
+            players: [
+                crate::state::PlayerState::new(PlayerId::new(0), "P0".to_string()),
+                crate::state::PlayerState::new(PlayerId::new(1), "P1".to_string()),
+            ],
+            units: Vec::new(),
+            board: wh40k_geometry::Board::combat_patrol(),
+            event_bus: wh40k_event_system::EventBus::new(),
+            command_history: wh40k_command_system::CommandHistory::new(),
+            dice_roller,
+            active_effects: Vec::new(),
+            reaction_windows: Vec::new(),
+            turn_flags: crate::state::TurnFlags::new(),
+            game_outcome: GameOutcome::InProgress,
+            deterministic_counter: 0,
+            deployment_config: None,
+        };
+
+        state.players[0].first_turn = true;
+
+        // Friendly TITANIC unit: 1 model at position (10, 5), engaged
+        let unit_id = UnitId::new(1);
+        let model = crate::unit::ModelState::new(
+            wh40k_core_types::ModelId::new(100),
+            unit_id,
+            wh40k_core_types::Wounds::new(12),
+            Position::from_inches(10, 5),
+            BaseSize::MM32,
+            Vec::new(),
+            Vec::new(),
+            false,
+            None,
+        );
+
+        let mut unit = crate::unit::UnitState::new(
+            unit_id,
+            PlayerId::new(0),
+            "Friendly Titanic Unit".to_string(),
+            wh40k_core_types::DatasheetId::new(1),
+            // TITANIC keyword should exempt from desperate escape
+            KeywordSet::from_keywords(&[Keyword::Monster, Keyword::Titanic]),
+            vec![model],
+            wh40k_core_types::MoveCharacteristic::from_inches(10),
+            wh40k_core_types::Toughness::new(8),
+            wh40k_core_types::ArmorSave::THREE_PLUS,
+            None,
+            wh40k_core_types::Leadership::new(6),
+            wh40k_core_types::ObjectiveControl::new(5),
+        );
+        unit.status = UnitStatus::OnBattlefield;
+        unit.engagement_status = EngagementStatus::Engaged;
+        state.units.push(unit);
+
+        // Enemy unit within engagement range
+        let enemy_id = UnitId::new(2);
+        let enemy_model = crate::unit::ModelState::new(
+            wh40k_core_types::ModelId::new(200),
+            enemy_id,
+            wh40k_core_types::Wounds::new(3),
+            Position::new(
+                wh40k_core_types::Inches::from_inches(10) + wh40k_core_types::Inches::from_inches(2),
+                wh40k_core_types::Inches::from_inches(5),
+            ),
+            BaseSize::MM32,
+            Vec::new(),
+            Vec::new(),
+            false,
+            None,
+        );
+
+        let mut enemy_unit = crate::unit::UnitState::new(
+            enemy_id,
+            PlayerId::new(1),
+            "Enemy Infantry".to_string(),
+            wh40k_core_types::DatasheetId::new(2),
+            KeywordSet::from_keywords(&[Keyword::Infantry]),
+            vec![enemy_model],
+            wh40k_core_types::MoveCharacteristic::from_inches(6),
+            wh40k_core_types::Toughness::new(4),
+            wh40k_core_types::ArmorSave::THREE_PLUS,
+            None,
+            wh40k_core_types::Leadership::new(7),
+            wh40k_core_types::ObjectiveControl::new(2),
+        );
+        enemy_unit.status = UnitStatus::OnBattlefield;
+        state.units.push(enemy_unit);
+
+        let cmd = Command::FallBack {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(5, 5),
+        };
+
+        let events = CommandExecutor::execute(&mut state, &cmd).unwrap();
+
+        // TITANIC unit should have fallen back without any ModelDestroyed events
+        assert!(state.turn_flags.has_fell_back(UnitId::new(1)));
+        assert!(!events.iter().any(|e| matches!(e, GameEvent::ModelDestroyed { .. })));
+
+        // Model should still be alive
+        let unit = state.unit(UnitId::new(1)).unwrap();
+        assert_eq!(unit.models_alive(), 1);
+        assert_eq!(unit.engagement_status, EngagementStatus::NotEngaged);
+    }
+
+    #[test]
+    fn test_execute_fall_back_no_enemies_in_er_no_desperate_escape() {
+        // If the enemy models are NOT within engagement range, no desperate
+        // escape tests should be triggered for non-battle-shocked units.
+        let mut state = make_executor_test_state();
+        state.unit_mut(UnitId::new(1)).unwrap().engagement_status = EngagementStatus::Engaged;
+
+        // The default test state has the enemy unit at (30, 20) which is far
+        // away from the friendly unit at (10, 5). No desperate escape tests.
+        let cmd = Command::FallBack {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(5, 5),
+        };
+
+        let events = CommandExecutor::execute(&mut state, &cmd).unwrap();
+
+        // No ModelDestroyed events (no enemies in ER to trigger desperate escape)
+        assert!(!events.iter().any(|e| matches!(e, GameEvent::ModelDestroyed { .. })));
+
+        assert!(state.turn_flags.has_fell_back(UnitId::new(1)));
+        let unit = state.unit(UnitId::new(1)).unwrap();
+        assert_eq!(unit.models_alive(), 1);
     }
 
     #[test]
@@ -2235,6 +3086,8 @@ mod tests {
     fn test_execute_ka_tah_stance_stored() {
         let mut state = make_executor_test_state();
         state.current_phase = Phase::Fight;
+        // Add AdeptusCustodes keyword required by validator
+        state.units[0].keywords |= KeywordSet::ADEPTUS_CUSTODES;
 
         let cmd = Command::ChooseKaTahStance {
             unit_id: UnitId::new(1),
@@ -2250,6 +3103,8 @@ mod tests {
     fn test_execute_vaultswords_profile_stored() {
         let mut state = make_executor_test_state();
         state.current_phase = Phase::Fight;
+        // Add BladeChampion keyword required by validator
+        state.units[0].keywords |= KeywordSet::BLADE_CHAMPION;
 
         let cmd = Command::ChooseVaultswordsProfile {
             model_id: ModelId::new(100),

@@ -3,12 +3,35 @@ import { Panel } from '@/components/shared/Panel';
 import { Button } from '@/components/shared/Button';
 import type { AiDifficulty } from '@/types/game';
 
-const DIFFICULTY_OPTIONS: { value: AiDifficulty; label: string; description: string }[] = [
-  { value: 'greedy', label: 'Greedy', description: 'Picks the best immediate move (depth 0)' },
-  { value: 'one_ply', label: 'One Ply', description: 'Looks one move ahead (depth 1)' },
-  { value: 'negamax_2', label: 'Negamax D2', description: 'Alpha-beta search depth 2' },
-  { value: 'negamax_3', label: 'Negamax D3', description: 'Alpha-beta search depth 3' },
+const DIFFICULTY_GROUPS: { group: string; options: { value: AiDifficulty; label: string; description: string }[] }[] = [
+  {
+    group: 'Basic',
+    options: [
+      { value: 'Basic_Recruit', label: 'Recruit', description: 'Picks the best immediate move' },
+      { value: 'Basic_Battle_Ready', label: 'Battle Ready', description: 'Looks one move ahead' },
+      { value: 'Basic_Veteran', label: 'Veteran', description: 'Tactical search (depth 2)' },
+      { value: 'Basic_Elite', label: 'Elite', description: 'Deep tactical search (depth 3)' },
+    ],
+  },
+  {
+    group: 'Perturabo',
+    options: [
+      { value: 'Perturabo_Shallow', label: 'Shallow', description: 'Iterative deepening (depth 4)' },
+      { value: 'Perturabo_Regular', label: 'Regular', description: 'Iterative deepening with quiescence (depth 6)' },
+      { value: 'Perturabo_Deep', label: 'Deep', description: 'Full search with extensions (depth 8)' },
+    ],
+  },
+  {
+    group: 'Alpharius',
+    options: [
+      { value: 'Alpharius_Shallow', label: 'Shallow', description: 'MCTS search (100 simulations)' },
+      { value: 'Alpharius_Regular', label: 'Regular', description: 'MCTS search (800 simulations)' },
+      { value: 'Alpharius_Deep', label: 'Deep', description: 'Competition MCTS (1600 simulations)' },
+    ],
+  },
 ];
+
+const ALL_OPTIONS = DIFFICULTY_GROUPS.flatMap((g) => g.options);
 
 export function AiControls() {
   const aiDifficulty = useGameStore((s) => s.aiDifficulty);
@@ -53,14 +76,18 @@ export function AiControls() {
           onChange={(e) => setAiDifficulty(e.target.value as AiDifficulty)}
           className="w-full bg-surface border border-gray-600 rounded px-2 py-1 text-sm text-gray-200"
         >
-          {DIFFICULTY_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
+          {DIFFICULTY_GROUPS.map((group) => (
+            <optgroup key={group.group} label={group.group}>
+              {group.options.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
         <p className="text-[10px] text-gray-500 mt-1">
-          {DIFFICULTY_OPTIONS.find((o) => o.value === aiDifficulty)?.description}
+          {ALL_OPTIONS.find((o) => o.value === aiDifficulty)?.description}
         </p>
       </div>
 

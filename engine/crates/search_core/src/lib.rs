@@ -3862,6 +3862,7 @@ mod tests {
             turn_flags: wh40k_game_core::state::TurnFlags::new(),
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
+            deployment_config: None,
         }
     }
 

@@ -64,6 +64,7 @@ fn create_test_game_state(seed: u64) -> GameState {
         turn_flags: TurnFlags::new(),
         game_outcome: GameOutcome::InProgress,
         deterministic_counter: 0,
+        deployment_config: None,
     }
 }
 

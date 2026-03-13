@@ -19,6 +19,16 @@ export const ENHANCEMENTS = {
   ],
 } as const;
 
+// Patrol Squad options (Choose One)
+// Source: Custodes.md §2 - Force Composition
+export const PATROL_SQUADS = {
+  CUSTODES: [
+    { id: 0, name: 'Custodian Wardens', models: 3, description: '3 models (T6, W3, 2+/4++, OC2). Mixed loadout: 1 Castellan axe (S9 D3) + 2 Guardian spears (S7 D2). Higher model count, OC 6 total.' },
+    { id: 1, name: 'Allarus Custodians', models: 2, description: '2 models (T7, W4, 2+/4++, OC2, TERMINATOR). Balistus grenade launcher (18", D6 Blast) + Guardian spears. Maximum durability, OC 4 total.' },
+  ],
+  WORLD_EATERS: [] as { id: number; name: string; models: number; description: string }[],
+} as const;
+
 // Secondary Objective IDs
 export const SECONDARIES = {
   CUSTODES: [
@@ -41,7 +51,7 @@ export const MISSIONS = [
   { id: 5, name: 'Display of Might', description: 'Symbolic Sites — 5VP each for controlling objectives, claiming symbolic sites with CHARACTERs, and maintaining claims across turns. Break Their Spirit limits Insane Bravery to within 6" of WARLORD.' },
 ] as const;
 
-type SetupStep = 'faction_select' | 'enhancement_select' | 'secondary_select' | 'mission_select' | 'ready';
+type SetupStep = 'faction_select' | 'enhancement_select' | 'secondary_select' | 'patrol_squad_select' | 'mission_select' | 'ready';
 
 interface SetupState {
   step: SetupStep;
@@ -49,6 +59,7 @@ interface SetupState {
   opponentFaction: number | null;
   playerEnhancement: number | null;
   playerSecondary: number | null;
+  playerPatrolSquad: number | null;
   missionId: number | null;
 
   // Actions
@@ -56,9 +67,11 @@ interface SetupState {
   selectFaction: (faction: number) => void;
   selectEnhancement: (enhancementId: number) => void;
   selectSecondary: (secondaryId: number) => void;
+  selectPatrolSquad: (squadId: number) => void;
   selectMission: (missionId: number) => void;
   reset: () => void;
   isReady: () => boolean;
+  hasPatrolSquadChoice: () => boolean;
 }
 
 export const useSetupStore = create<SetupState>()(
@@ -68,6 +81,7 @@ export const useSetupStore = create<SetupState>()(
     opponentFaction: null,
     playerEnhancement: null,
     playerSecondary: null,
+    playerPatrolSquad: null,
     missionId: null,
 
     setStep: (step) => {
@@ -94,6 +108,16 @@ export const useSetupStore = create<SetupState>()(
     selectSecondary: (secondaryId) => {
       set((state) => {
         state.playerSecondary = secondaryId;
+        // If the faction has patrol squad choices, go to that step; otherwise skip to mission
+        const faction = state.playerFaction;
+        const hasSquads = faction === FACTIONS.CUSTODES && PATROL_SQUADS.CUSTODES.length > 0;
+        state.step = hasSquads ? 'patrol_squad_select' : 'mission_select';
+      });
+    },
+
+    selectPatrolSquad: (squadId) => {
+      set((state) => {
+        state.playerPatrolSquad = squadId;
         state.step = 'mission_select';
       });
     },
@@ -112,6 +136,7 @@ export const useSetupStore = create<SetupState>()(
         state.opponentFaction = null;
         state.playerEnhancement = null;
         state.playerSecondary = null;
+        state.playerPatrolSquad = null;
         state.missionId = null;
       });
     },
@@ -122,6 +147,11 @@ export const useSetupStore = create<SetupState>()(
         s.playerEnhancement !== null &&
         s.playerSecondary !== null &&
         s.missionId !== null;
+    },
+
+    hasPatrolSquadChoice: () => {
+      const s = get();
+      return s.playerFaction === FACTIONS.CUSTODES && PATROL_SQUADS.CUSTODES.length > 0;
     },
   })),
 );

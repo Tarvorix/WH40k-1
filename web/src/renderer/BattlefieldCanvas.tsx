@@ -38,21 +38,68 @@ export function BattlefieldCanvas() {
   const setTargetUnit = useGameStore((s) => s.setTargetUnit);
   const setHoveredUnit = useGameStore((s) => s.setHoveredUnit);
   const applyAction = useGameStore((s) => s.applyAction);
+  const submitDeploy = useGameStore((s) => s.submitDeploy);
+  const submitMove = useGameStore((s) => s.submitMove);
+
+  // Handle clicks on empty board space for free movement/deployment
+  const handleBoardClick = useCallback((boardX: number, boardY: number) => {
+    const gs = useGameStore.getState().gameState;
+    const selUnitId = useGameStore.getState().selectedUnitId;
+    if (!gs) return;
+
+    // Deployment: click on board to place selected undeployed unit
+    if (gs.phase === 'PreBattle' && selUnitId != null) {
+      const unit = gs.units.find((u) => u.id === selUnitId);
+      if (unit && unit.status === 'Undeployed') {
+        submitDeploy(selUnitId, boardX, boardY);
+        return;
+      }
+    }
+
+    // Deployment: if no unit selected, auto-select first undeployed unit for the decision owner
+    if (gs.phase === 'PreBattle' && selUnitId == null) {
+      const firstUndeployed = gs.units.find(
+        (u) => u.owner === gs.decision_owner && u.status === 'Undeployed',
+      );
+      if (firstUndeployed) {
+        selectUnit(firstUndeployed.id);
+        submitDeploy(firstUndeployed.id, boardX, boardY);
+        return;
+      }
+    }
+
+    // Movement: click on board to move selected unit
+    if (gs.phase === 'Movement' && selUnitId != null) {
+      const unit = gs.units.find((u) => u.id === selUnitId);
+      if (unit && unit.status === 'OnBattlefield' && !unit.turn_flags.has_moved && unit.owner === gs.decision_owner) {
+        submitMove(selUnitId, boardX, boardY);
+        return;
+      }
+    }
+
+    // Otherwise deselect
+    selectUnit(null);
+  }, [submitDeploy, submitMove, selectUnit]);
 
   // Initialize PixiJS
   useEffect(() => {
     if (!containerRef.current || appRef.current) return;
 
+    // Use container dimensions if available, fallback to canvas constants
+    const container = containerRef.current;
+    const initWidth = container.clientWidth || CANVAS_WIDTH;
+    const initHeight = container.clientHeight || CANVAS_HEIGHT;
+
     const app = new PIXI.Application({
-      width: CANVAS_WIDTH,
-      height: CANVAS_HEIGHT,
+      width: initWidth,
+      height: initHeight,
       backgroundColor: BOARD_BG_COLOR,
       antialias: true,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
     });
 
-    containerRef.current.appendChild(app.view as HTMLCanvasElement);
+    container.appendChild(app.view as HTMLCanvasElement);
     appRef.current = app;
 
     // Create world container for camera transforms
@@ -100,7 +147,20 @@ export function BattlefieldCanvas() {
     // Draw initial board grid
     renderers.board.draw();
 
+    // Responsive canvas resizing via ResizeObserver
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0 && appRef.current && cameraRef.current) {
+          appRef.current.renderer.resize(width, height);
+          cameraRef.current.fitToBoard();
+        }
+      }
+    });
+    resizeObserver.observe(container);
+
     return () => {
+      resizeObserver.disconnect();
       camera.destroy();
       app.destroy(true, { children: true, texture: true });
       appRef.current = null;
@@ -116,7 +176,7 @@ export function BattlefieldCanvas() {
 
     const r = renderersRef.current;
     r.terrain.update(gameState.board);
-    r.deployment.update(gameState.board);
+    r.deployment.update(gameState.board, gameState.phase, gameState.decision_owner);
     r.objectives.update(gameState.board.objectives);
     r.units.update(
       gameState.units,
@@ -135,8 +195,9 @@ export function BattlefieldCanvas() {
       setTargetUnit,
       setHoveredUnit,
       applyAction,
+      handleBoardClick,
     );
-  }, [gameState, decisionSurface, selectedUnitId, targetUnitId, hoveredUnitId, selectUnit, setTargetUnit, setHoveredUnit, applyAction]);
+  }, [gameState, decisionSurface, selectedUnitId, targetUnitId, hoveredUnitId, selectUnit, setTargetUnit, setHoveredUnit, applyAction, handleBoardClick]);
 
   // Update movement/attack previews when selection changes
   useEffect(() => {

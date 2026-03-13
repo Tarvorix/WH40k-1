@@ -62,5 +62,13 @@ export const MIN_ZOOM = 0.5;
 export const MAX_ZOOM = 4.0;
 export const ZOOM_SPEED = 0.1;
 
+// Per-model rendering
+/** Convert a model's base size in mm to a pixel radius on the board. */
+export function baseRadiusPx(baseSizeMm: number): number {
+  return (baseSizeMm / 2 / 25.4) * PX_PER_INCH;
+}
+
 // Touch
 export const LONG_PRESS_MS = 500;
+export const TAP_THRESHOLD_PX = 10;
+export const TAP_THRESHOLD_MS = 300;

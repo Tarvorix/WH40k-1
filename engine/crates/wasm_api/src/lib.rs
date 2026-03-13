@@ -12,7 +12,7 @@ mod error;
 use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
 
-use wh40k_core_types::{FactionId, MissionId};
+use wh40k_core_types::{FactionId, Inches, MissionId, PlayerId, Position, UnitId};
 use wh40k_command_system::Command;
 use wh40k_dice::SeedBundle;
 use wh40k_game_core::{CommandExecutor, CommandValidator, GameState, ScenarioLoader};
@@ -133,6 +133,9 @@ pub fn init_panic_hook() {
 /// * `faction_b` - Faction ID for Player B (Defender)
 /// * `mission`   - Mission / scenario ID
 /// * `seed_json` - JSON with `{"seed":[...32 bytes...]}` or `{"seed_u64":12345}`
+/// * `enhancement_a/b` - Enhancement choice (-1 = none)
+/// * `secondary_a/b` - Secondary objective choice (-1 = none)
+/// * `patrol_squad_a/b` - Patrol squad choice (-1 = default/Wardens, 0 = Wardens, 1 = Allarus)
 ///
 /// # Returns
 /// JSON-encoded `GameView`.
@@ -142,15 +145,57 @@ pub fn create_match(
     faction_b: u32,
     mission: u32,
     seed_json: &str,
+    enhancement_a: i32,
+    enhancement_b: i32,
+    secondary_a: i32,
+    secondary_b: i32,
+    patrol_squad_a: i32,
+    patrol_squad_b: i32,
 ) -> Result<String, JsValue> {
     let seed = parse_seed(seed_json).map_err(JsValue::from)?;
 
-    let state = ScenarioLoader::load_scenario(
+    // Convert patrol squad choices: -1 means default (None), >= 0 means specific choice
+    let sq_a = if patrol_squad_a >= 0 { Some(patrol_squad_a as usize) } else { None };
+    let sq_b = if patrol_squad_b >= 0 { Some(patrol_squad_b as usize) } else { None };
+
+    let mut state = ScenarioLoader::load_scenario_with_squads(
         FactionId(faction_a),
         FactionId(faction_b),
         Some(MissionId(mission)),
         seed,
+        sq_a,
+        sq_b,
     );
+
+    // Apply enhancement and secondary selections
+    // Source: CP_Rules.md - Pre-battle setup selections
+    if enhancement_a >= 0 {
+        let enh_id = wh40k_core_types::EnhancementId::new(enhancement_a as u32);
+        state.players[0].enhancement_choice = Some(enh_id);
+        // Find warlord (first CHARACTER unit)
+        let warlord = state.units.iter()
+            .find(|u| u.owner == wh40k_core_types::PlayerId::new(0) && u.is_character())
+            .map(|u| u.id);
+        if let Some(warlord_id) = warlord {
+            wh40k_game_core::scoring::apply_enhancement(&mut state, wh40k_core_types::PlayerId::new(0), enh_id, warlord_id);
+        }
+    }
+    if enhancement_b >= 0 {
+        let enh_id = wh40k_core_types::EnhancementId::new(enhancement_b as u32);
+        state.players[1].enhancement_choice = Some(enh_id);
+        let warlord = state.units.iter()
+            .find(|u| u.owner == wh40k_core_types::PlayerId::new(1) && u.is_character())
+            .map(|u| u.id);
+        if let Some(warlord_id) = warlord {
+            wh40k_game_core::scoring::apply_enhancement(&mut state, wh40k_core_types::PlayerId::new(1), enh_id, warlord_id);
+        }
+    }
+    if secondary_a >= 0 {
+        state.players[0].secondary_choice = Some(wh40k_core_types::SecondaryObjectiveId::new(secondary_a as u32));
+    }
+    if secondary_b >= 0 {
+        state.players[1].secondary_choice = Some(wh40k_core_types::SecondaryObjectiveId::new(secondary_b as u32));
+    }
 
     // Create a replay recorder from the initial state.
     let recorder = ReplayRecorder::new(&state);
@@ -330,7 +375,10 @@ pub fn apply_action(index: u32) -> Result<String, JsValue> {
 /// Run the AI search at the specified difficulty level and return the result.
 ///
 /// # Arguments
-/// * `difficulty` - One of: "greedy", "one_ply", "negamax_2", "negamax_3"
+/// * `difficulty` - AI difficulty tier:
+///   - Basic (heuristic evaluator): "Basic_Recruit", "Basic_Battle_Ready", "Basic_Veteran", "Basic_Elite"
+///   - Perturabo (iterative deepening + NNUE when trained): "Perturabo_Shallow", "Perturabo_Regular", "Perturabo_Deep"
+///   - Alpharius (MCTS + policy/value net when trained): "Alpharius_Operative", "Alpharius_Headhunter", "Alpharius_Primarch"
 ///
 /// # Returns
 /// JSON-encoded `AiResultView`.
@@ -339,19 +387,20 @@ pub fn run_ai_decision(difficulty: &str) -> Result<String, JsValue> {
     let result = with_state(|state| {
         let perspective = state.decision_owner;
         match difficulty {
-            "greedy" => wh40k_search_core::greedy_choose(state, perspective),
-            "one_ply" => wh40k_search_core::one_ply_choose(state, perspective),
-            "negamax_2" => wh40k_search_core::negamax_choose(state, perspective, 2),
-            "negamax_3" => wh40k_search_core::negamax_choose(state, perspective, 3),
-            other => {
-                // Try to parse "negamax_N" generically.
-                if let Some(rest) = other.strip_prefix("negamax_") {
-                    if let Ok(depth) = rest.parse::<u8>() {
-                        return wh40k_search_core::negamax_choose(state, perspective, depth);
-                    }
-                }
-                None
-            }
+            // Basic tier: hand-tuned heuristic evaluator
+            "Basic_Recruit" => wh40k_search_core::greedy_choose(state, perspective),
+            "Basic_Battle_Ready" => wh40k_search_core::one_ply_choose(state, perspective),
+            "Basic_Veteran" => wh40k_search_core::negamax_choose(state, perspective, 2),
+            "Basic_Elite" => wh40k_search_core::negamax_choose(state, perspective, 3),
+            // Perturabo tier: iterative deepening search (NNUE eval when trained, heuristic for now)
+            "Perturabo_Shallow" => wh40k_search_core::id_search_choose(state, perspective, 4),
+            "Perturabo_Regular" => wh40k_search_core::id_search_choose(state, perspective, 6),
+            "Perturabo_Deep" => wh40k_search_core::id_search_choose(state, perspective, 8),
+            // Alpharius tier: MCTS search (policy/value net when trained, heuristic prior for now)
+            "Alpharius_Shallow" => wh40k_search_core::mcts_choose_fast(state, perspective),
+            "Alpharius_Regular" => wh40k_search_core::mcts_choose(state, perspective),
+            "Alpharius_Deep" => wh40k_search_core::mcts_choose_competition(state, perspective),
+            _ => None,
         }
     })
     .map_err(JsValue::from)?;
@@ -424,7 +473,123 @@ pub fn apply_ai_action() -> Result<String, JsValue> {
 }
 
 // ===========================================================================
-// 10. export_replay
+// 10. submit_place_unit (direct command - bypasses decision cache)
+// ===========================================================================
+
+/// Deploy a unit at an arbitrary position within the player's deployment zone.
+///
+/// This bypasses the ActionGenerator's pre-sampled positions, allowing the
+/// human player to click anywhere on the map. The engine validator enforces
+/// all placement rules (zone containment, board bounds, unit ownership, etc.).
+///
+/// # Arguments
+/// * `player` - Player ID (0 or 1)
+/// * `unit_id` - Unit to deploy
+/// * `x` - X coordinate in inches (f64)
+/// * `y` - Y coordinate in inches (f64)
+///
+/// # Returns
+/// JSON-encoded `GameView` reflecting the new state, or an error if invalid.
+#[wasm_bindgen]
+pub fn submit_place_unit(player: u32, unit_id: u32, x: f64, y: f64) -> Result<String, JsValue> {
+    let position = Position {
+        x: Inches::from_f64(x),
+        y: Inches::from_f64(y),
+    };
+
+    let cmd = Command::PlaceUnit {
+        player: PlayerId::new(player),
+        unit_id: UnitId::new(unit_id),
+        position,
+    };
+
+    // Execute the command (internally validates via CommandValidator).
+    GAME_STATE.with(|state_cell| -> Result<(), WasmError> {
+        let mut state_borrow = state_cell.borrow_mut();
+        let state = state_borrow
+            .as_mut()
+            .ok_or_else(|| WasmError::new("No game state loaded"))?;
+
+        let events = CommandExecutor::execute(state, &cmd)
+            .map_err(WasmError::from)?;
+
+        // Record to replay recorder if present.
+        REPLAY_RECORDER.with(|rec_cell| {
+            let mut rec_borrow = rec_cell.borrow_mut();
+            if let Some(recorder) = rec_borrow.as_mut() {
+                recorder.record_command(state, &cmd, &events, true);
+            }
+        });
+
+        Ok(())
+    }).map_err(JsValue::from)?;
+
+    // Clear the stale decision cache.
+    DECISION_CACHE.with(|cell| cell.replace(Vec::new()));
+
+    let view = with_state(game_state_to_view).map_err(JsValue::from)?;
+    to_json(&view).map_err(JsValue::from)
+}
+
+// ===========================================================================
+// 11. submit_normal_move (direct command - bypasses decision cache)
+// ===========================================================================
+
+/// Move a unit to an arbitrary destination within its movement range.
+///
+/// This bypasses the ActionGenerator's pre-sampled tactical destinations,
+/// allowing the human player to click anywhere on the map. The engine
+/// validator enforces all movement rules (range, engagement, board bounds).
+///
+/// # Arguments
+/// * `unit_id` - Unit to move
+/// * `x` - Destination X in inches (f64)
+/// * `y` - Destination Y in inches (f64)
+///
+/// # Returns
+/// JSON-encoded `GameView` reflecting the new state, or an error if invalid.
+#[wasm_bindgen]
+pub fn submit_normal_move(unit_id: u32, x: f64, y: f64) -> Result<String, JsValue> {
+    let destination = Position {
+        x: Inches::from_f64(x),
+        y: Inches::from_f64(y),
+    };
+
+    let cmd = Command::NormalMove {
+        unit_id: UnitId::new(unit_id),
+        destination,
+    };
+
+    // Execute the command (internally validates via CommandValidator).
+    GAME_STATE.with(|state_cell| -> Result<(), WasmError> {
+        let mut state_borrow = state_cell.borrow_mut();
+        let state = state_borrow
+            .as_mut()
+            .ok_or_else(|| WasmError::new("No game state loaded"))?;
+
+        let events = CommandExecutor::execute(state, &cmd)
+            .map_err(WasmError::from)?;
+
+        // Record to replay recorder if present.
+        REPLAY_RECORDER.with(|rec_cell| {
+            let mut rec_borrow = rec_cell.borrow_mut();
+            if let Some(recorder) = rec_borrow.as_mut() {
+                recorder.record_command(state, &cmd, &events, true);
+            }
+        });
+
+        Ok(())
+    }).map_err(JsValue::from)?;
+
+    // Clear the stale decision cache.
+    DECISION_CACHE.with(|cell| cell.replace(Vec::new()));
+
+    let view = with_state(game_state_to_view).map_err(JsValue::from)?;
+    to_json(&view).map_err(JsValue::from)
+}
+
+// ===========================================================================
+// 12. export_replay
 // ===========================================================================
 
 /// Finalise the replay recorder and export it as a JSON string.
