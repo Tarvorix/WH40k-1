@@ -230,6 +230,11 @@ pub struct PlayerState {
 
     /// Mission progress tracking.
     pub mission_progress: MissionProgress,
+
+    /// Extra CP gained this battle round (beyond the standard +1 per Command Phase).
+    /// Per 40k_revised.md §4.1: "each player can only gain 1 additional CP per
+    /// Battle Round from any source" beyond the standard Command Phase gain.
+    pub extra_cp_gained_this_round: i8,
 }
 
 impl PlayerState {
@@ -248,12 +253,29 @@ impl PlayerState {
             faction_round_flags: FactionRoundFlags::default(),
             stratagem_usage: StratagemUsageTracker::default(),
             mission_progress: MissionProgress::default(),
+            extra_cp_gained_this_round: 0,
         }
     }
 
-    /// Gain command points.
+    /// Gain command points (standard Command Phase gain — not subject to extra CP cap).
     pub fn gain_cp(&mut self, amount: i8) {
         self.cp += CommandPoints::new(amount);
+    }
+
+    /// Gain extra command points from abilities/stratagems (subject to the +1 per round cap).
+    /// Per 40k_revised.md §4.1: "Outside the standard 1 CP gain, each player can
+    /// only gain 1 additional CP per Battle Round from any source."
+    /// Returns the amount actually gained (0 if capped).
+    pub fn gain_extra_cp(&mut self, amount: i8) -> i8 {
+        if self.extra_cp_gained_this_round >= 1 {
+            return 0; // Already gained extra CP this round
+        }
+        let actual = amount.min(1 - self.extra_cp_gained_this_round);
+        if actual > 0 {
+            self.cp += CommandPoints::new(actual);
+            self.extra_cp_gained_this_round += actual;
+        }
+        actual
     }
 
     /// Spend command points. Returns true if successful, false if insufficient.
@@ -348,6 +370,14 @@ pub struct TurnFlags {
     /// Source: CP_Rules.md §8.1 - Fight Phase Sequence
     /// Source: 40k_revised.md §10.1 - Fight Phase Structure
     pub fight_alternation_next_player: Option<PlayerId>,
+
+    /// Archeotech Recovery (Mission 2): Gamma objective selected for removal at round 4.
+    /// Source: CP_Rules.md - Mission 2: Irradiated Power Cells
+    pub archeotech_gamma_objective: Option<wh40k_core_types::ObjectiveId>,
+
+    /// Archeotech Recovery (Mission 2): Beta objective selected for removal at round 5.
+    /// Source: CP_Rules.md - Mission 2: Irradiated Power Cells
+    pub archeotech_beta_objective: Option<wh40k_core_types::ObjectiveId>,
 }
 
 impl TurnFlags {

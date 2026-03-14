@@ -339,6 +339,204 @@ impl ActionGenerator {
     pub fn generate(state: &GameState, player: PlayerId) -> CandidateSet {
         let mut candidates = CandidateSet::new(player, state.current_phase);
 
+        // Check for reaction windows first — these take priority over normal phase actions
+        if state.has_reaction_window() {
+            if let Some(window) = state.current_reaction_window() {
+                let window_owner = window.owner;
+                // Generate candidates from the reaction window's legal actions
+                for action in &window.legal_actions {
+                    match action {
+                        wh40k_event_system::ReactionAction::FireOverwatch(unit_id) => {
+                            // Fire Overwatch: shoot at the charger, hitting only on 6s, costs 1CP
+                            // Source: CP_Rules.md - Fire Overwatch stratagem
+                            if let Some(unit) = state.unit(*unit_id) {
+                                if state.player(window_owner).cp.value() >= 1 {
+                                    candidates.add(
+                                        Command::AssignOverwatchTarget {
+                                            unit_id: *unit_id,
+                                        },
+                                        TacticalIntent::OffensiveStratagem,
+                                        format!("Fire Overwatch with {}", unit.name),
+                                    );
+                                }
+                            }
+                        }
+                        wh40k_event_system::ReactionAction::HeroicIntervention(unit_id) => {
+                            // Heroic Intervention: CHARACTER charges the enemy, no Fights First
+                            // Source: CP_Rules.md §11 - Heroic Intervention stratagem, costs 2CP
+                            if let Some(unit) = state.unit(*unit_id) {
+                                if state.player(window_owner).cp.value() >= 2 {
+                                    candidates.add(
+                                        Command::UseStratagem {
+                                            player: window_owner,
+                                            stratagem_id: wh40k_core_types::StratagemId::new(5), // HEROIC_INTERVENTION
+                                            target: wh40k_command_system::StratagemTarget::Unit(*unit_id),
+                                        },
+                                        TacticalIntent::OffensiveStratagem,
+                                        format!("{} heroic intervention", unit.name),
+                                    );
+                                }
+                            }
+                        }
+                        wh40k_event_system::ReactionAction::Decline => {}
+                        _ => {}
+                    }
+                }
+            }
+            // Always allow declining the reaction
+            candidates.add(
+                Command::DeclineStratagem { player },
+                TacticalIntent::DeclineStratagem,
+                "Decline reaction".to_string(),
+            );
+            Self::pre_validate(&mut candidates, state);
+            return candidates;
+        }
+
+        // Check for pending charge rolls — units that declared charges but haven't rolled yet
+        let pending_charge_units: Vec<UnitId> = state
+            .turn_flags
+            .declared_charge_targets
+            .keys()
+            .filter(|uid| !state.turn_flags.charge_roll_results.contains_key(uid))
+            .copied()
+            .collect();
+        if !pending_charge_units.is_empty() {
+            // Generate a single charge roll action per pending unit.
+            // The roll value 0 is a sentinel — the executor will roll actual 2D6 dice.
+            // Source: 40k_revised.md §9.3 - "Roll 2D6 to determine charge distance"
+            for unit_id in pending_charge_units {
+                if let Some(unit) = state.unit(unit_id) {
+                    candidates.add(
+                        Command::ResolveChargeRoll { unit_id, roll: 0 },
+                        TacticalIntent::ChargeHighValueTarget,
+                        format!("{} rolls charge", unit.name),
+                    );
+                }
+            }
+            Self::pre_validate(&mut candidates, state);
+            return candidates;
+        }
+
+        // Check for units with successful charge rolls that need to make charge moves.
+        // A unit is in charged_this_turn only on successful rolls (mark_charged is called).
+        // We filter to units in charged_this_turn that haven't completed their move yet.
+        // A charge move is "completed" when the unit becomes Engaged (set by apply_charge_move).
+        let pending_charge_moves: Vec<UnitId> = state
+            .turn_flags
+            .charged_this_turn
+            .iter()
+            .filter(|uid| {
+                // Must have a charge roll result
+                state.turn_flags.charge_roll_results.contains_key(uid)
+                    // Must not already be engaged (charge move sets engagement)
+                    && state.unit(**uid).map_or(false, |u| {
+                        matches!(u.engagement_status, EngagementStatus::NotEngaged)
+                    })
+            })
+            .copied()
+            .collect();
+        if !pending_charge_moves.is_empty() {
+            for unit_id in pending_charge_moves {
+                let charge_roll = state.turn_flags.get_charge_roll(unit_id).unwrap_or(0);
+                let charge_dist_mils = Inches::from_inches(charge_roll as i32).mils();
+
+                if let Some(unit) = state.unit(unit_id) {
+                    if let Some(pos) = unit.reference_position() {
+                        let unit_base = unit.models.first()
+                            .map(|m| m.base_size)
+                            .unwrap_or(wh40k_core_types::BaseSize::MM25);
+
+                        // Get charge targets and compute a destination within roll distance
+                        // that also ends in engagement range of the target.
+                        // Must also validate: on board, not ending in ER of non-target enemies.
+                        if let Some(targets) = state.turn_flags.get_charge_targets(unit_id) {
+                            let targets_clone = targets.clone();
+                            for &target_id in &targets_clone {
+                                if let Some(target) = state.unit(target_id) {
+                                    if let Some(target_pos) = target.reference_position() {
+                                        // Compute destination: move toward target, clamped to charge roll distance
+                                        let dist = distance(pos, target_pos).mils();
+                                        let dest = if dist <= charge_dist_mils || dist == 0 {
+                                            target_pos
+                                        } else {
+                                            let ratio = charge_dist_mils as f64 / dist as f64;
+                                            let dx = target_pos.x.mils() - pos.x.mils();
+                                            let dy = target_pos.y.mils() - pos.y.mils();
+                                            Position {
+                                                x: Inches::from_mils(pos.x.mils() + (dx as f64 * ratio) as i32),
+                                                y: Inches::from_mils(pos.y.mils() + (dy as f64 * ratio) as i32),
+                                            }
+                                        };
+
+                                        // Check ER against actual target models (not just reference position)
+                                        let in_er = target.models.iter()
+                                            .filter(|m| m.alive)
+                                            .any(|m| wh40k_geometry::within_engagement_range_2d(
+                                                dest, unit_base, m.position, m.base_size,
+                                            ));
+
+                                        if !in_er {
+                                            continue;
+                                        }
+
+                                        // Check destination is on the board
+                                        if !state.board.contains(dest) {
+                                            continue;
+                                        }
+
+                                        // Check no non-target enemies would be in ER
+                                        // Source: 40k_revised.md §9.4 - cannot end in ER of non-target enemies
+                                        let owner = unit.owner;
+                                        let ends_in_er_of_non_target = state.units.iter().any(|enemy| {
+                                            if enemy.owner == owner || enemy.is_destroyed() || !enemy.is_on_battlefield() {
+                                                return false;
+                                            }
+                                            if targets_clone.contains(&enemy.id) {
+                                                return false;
+                                            }
+                                            enemy.models.iter().filter(|m| m.alive).any(|m| {
+                                                let will_be_in_er = wh40k_geometry::within_engagement_range_2d(
+                                                    dest, unit_base, m.position, m.base_size,
+                                                );
+                                                let was_in_er = wh40k_geometry::within_engagement_range_2d(
+                                                    pos, unit_base, m.position, m.base_size,
+                                                );
+                                                will_be_in_er && !was_in_er
+                                            })
+                                        });
+
+                                        if ends_in_er_of_non_target {
+                                            continue;
+                                        }
+
+                                        candidates.add(
+                                            Command::MakeChargeMove {
+                                                unit_id,
+                                                destination: dest,
+                                            },
+                                            TacticalIntent::ChargeHighValueTarget,
+                                            format!("{} charges into {}", unit.name, target.name),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+
+                        // If no valid charge move destination was found, the charge effectively
+                        // failed to reach any target — skip this unit (it stays in place).
+                        // The EndPhase candidate from generate_phase_control_candidates will
+                        // handle advancing past the charge phase.
+                    }
+                }
+            }
+            // Only return early if we generated charge move candidates
+            if !candidates.candidates.is_empty() {
+                Self::pre_validate(&mut candidates, state);
+                return candidates;
+            }
+        }
+
         match state.current_phase {
             Phase::Command => {
                 Self::generate_command_phase_candidates(state, player, &mut candidates);
@@ -366,8 +564,20 @@ impl ActionGenerator {
         // Always allow phase control actions
         Self::generate_phase_control_candidates(state, player, &mut candidates);
 
-        candidates.sort_by_priority();
+        Self::pre_validate(&mut candidates, state);
         candidates
+    }
+
+    /// Remove any candidates whose commands would fail validation.
+    /// Called on every exit path from generate() to ensure the UI and AI
+    /// never see invalid options.
+    fn pre_validate(candidates: &mut CandidateSet, state: &GameState) {
+        candidates.candidates.retain(|action| {
+            action.commands.iter().all(|cmd| {
+                wh40k_game_core::CommandValidator::validate(state, cmd).is_legal()
+            })
+        });
+        candidates.sort_by_priority();
     }
 
     /// Generate candidates from a pre-computed legal command list.
@@ -641,15 +851,25 @@ impl ActionGenerator {
                 }
 
                 if !weapon_targets.is_empty() {
-                    // Generate a multi-command macro: SelectUnitToShoot + DeclareShootingTargets
+                    // Generate a multi-command macro:
+                    // SelectUnitToShoot + DeclareShootingTargets + ResolveShootingAttack per weapon
+                    let mut commands = vec![
+                        Command::SelectUnitToShoot { unit_id: unit.id },
+                        Command::DeclareShootingTargets {
+                            unit_id: unit.id,
+                            targets: weapon_targets.clone(),
+                        },
+                    ];
+                    // Add ResolveShootingAttack for each weapon-target pair
+                    for (weapon_id, target_id) in &weapon_targets {
+                        commands.push(Command::ResolveShootingAttack {
+                            attacker_id: unit.id,
+                            target_id: *target_id,
+                            weapon_id: *weapon_id,
+                        });
+                    }
                     candidates.add_multi(
-                        vec![
-                            Command::SelectUnitToShoot { unit_id: unit.id },
-                            Command::DeclareShootingTargets {
-                                unit_id: unit.id,
-                                targets: weapon_targets.clone(),
-                            },
-                        ],
+                        commands,
                         intent,
                         format!("{} shoots at {} ({} weapons)", unit.name, target.name, weapon_targets.len()),
                         vec![unit.id],
@@ -673,6 +893,7 @@ impl ActionGenerator {
                     && u.is_on_battlefield()
                     && !u.is_destroyed()
                     && !state.turn_flags.charged_this_turn.contains(&u.id)
+                    && !state.turn_flags.declared_charge_targets.contains_key(&u.id)
                     && !state.turn_flags.advanced_this_turn.contains(&u.id)
                     && !state.turn_flags.fell_back_this_turn.contains(&u.id)
                     && matches!(u.engagement_status, EngagementStatus::NotEngaged)
@@ -777,16 +998,170 @@ impl ActionGenerator {
                 TacticalIntent::FightPreserve
             };
 
-            candidates.add(
-                Command::SelectUnitToFight { unit_id: unit.id },
-                intent,
-                format!("{} fights", unit.name),
-            );
+            // Find enemy units in engagement range to fight
+            let unit_pos = match unit.reference_position() {
+                Some(p) => p,
+                None => continue,
+            };
+            let unit_base = unit.models.first()
+                .map(|m| m.base_size)
+                .unwrap_or(wh40k_core_types::BaseSize::MM25);
+
+            // Collect melee weapon-target pairs for all engaged enemies
+            let mut weapon_targets: Vec<(wh40k_core_types::WeaponId, UnitId)> = Vec::new();
+            let mut target_names: Vec<String> = Vec::new();
+
+            for enemy in &state.units {
+                if enemy.owner == player || enemy.is_destroyed() || !enemy.is_on_battlefield() {
+                    continue;
+                }
+                // Check if any enemy model is in engagement range
+                let in_er = enemy.models.iter().filter(|m| m.alive).any(|m| {
+                    wh40k_geometry::within_engagement_range_2d(
+                        unit_pos, unit_base, m.position, m.base_size,
+                    )
+                });
+                if !in_er {
+                    continue;
+                }
+
+                // Add melee weapons only for models in engagement range of this enemy.
+                // Source: CP_Rules.md §8.3 — only models within ER can attack.
+                for model in unit.models.iter().filter(|m| m.alive) {
+                    let model_in_er = enemy.models.iter().filter(|em| em.alive).any(|em| {
+                        wh40k_geometry::within_engagement_range_2d(
+                            model.position, model.base_size,
+                            em.position, em.base_size,
+                        )
+                    });
+                    if model_in_er {
+                        // Vaultswords profile filtering: if this model has a chosen profile,
+                        // only use the selected weapon (not all 3 profiles).
+                        // Source: Custodes.md — Tristraen selects one Vaultswords profile per fight.
+                        let chosen_profile = state.turn_flags.get_vaultswords_profile(model.id);
+                        for weapon in &model.melee_weapons {
+                            if let Some(profile) = chosen_profile {
+                                // Filter to only the chosen profile's weapon
+                                let matches = match profile {
+                                    "Behemor" => weapon.id == wh40k_core_types::WeaponId::new(1000),
+                                    "Hurricanus" => weapon.id == wh40k_core_types::WeaponId::new(1001),
+                                    "Victus" => weapon.id == wh40k_core_types::WeaponId::new(1002),
+                                    _ => true, // Unknown profile, allow all
+                                };
+                                if matches {
+                                    weapon_targets.push((weapon.id, enemy.id));
+                                }
+                            } else {
+                                // No profile chosen — include all weapons
+                                // (shouldn't happen if ChooseVaultswordsProfile was generated first)
+                                weapon_targets.push((weapon.id, enemy.id));
+                            }
+                        }
+                    }
+                }
+                target_names.push(enemy.name.clone());
+            }
+
+            // Compute pile-in positions: each model moves up to 3" toward closest enemy.
+            // Source: CP_Rules.md §8.3 — Pile In: up to 3" toward closest enemy model.
+            let pile_in_positions: Vec<(wh40k_core_types::ModelId, Position)> = unit.models
+                .iter()
+                .filter(|m| m.alive)
+                .filter_map(|model| {
+                    // Find closest enemy model position
+                    let closest_enemy_pos = state.units.iter()
+                        .filter(|e| e.owner != player && !e.is_destroyed() && e.is_on_battlefield())
+                        .flat_map(|e| e.models.iter().filter(|em| em.alive))
+                        .map(|em| (em.position, distance(model.position, em.position).mils()))
+                        .min_by_key(|(_, d)| *d);
+
+                    if let Some((enemy_pos, dist)) = closest_enemy_pos {
+                        if dist <= 0 { return None; } // Already on top
+                        let pile_in_dist = 3000i32.min(dist); // 3" in mils, or less
+                        let ratio = pile_in_dist as f64 / dist as f64;
+                        let dx = enemy_pos.x.mils() - model.position.x.mils();
+                        let dy = enemy_pos.y.mils() - model.position.y.mils();
+                        let new_pos = Position {
+                            x: Inches::from_mils(model.position.x.mils() + (dx as f64 * ratio) as i32),
+                            y: Inches::from_mils(model.position.y.mils() + (dy as f64 * ratio) as i32),
+                        };
+                        Some((model.id, new_pos))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            if weapon_targets.is_empty() {
+                // No melee weapons or no targets — still generate SelectUnitToFight
+                // with pile in (can pile in even without weapons)
+                let mut commands: Vec<Command> = vec![
+                    Command::SelectUnitToFight { unit_id: unit.id },
+                ];
+                if !pile_in_positions.is_empty() {
+                    commands.push(Command::PileIn {
+                        unit_id: unit.id,
+                        positions: pile_in_positions.clone(),
+                    });
+                }
+                candidates.add_multi(
+                    commands,
+                    intent,
+                    format!("{} fights", unit.name),
+                    vec![unit.id],
+                );
+            } else {
+                // Full fight macro: Select + PileIn + Declare + Resolve + Consolidate
+                // Source: CP_Rules.md §8.3 — Pile In → Make Attacks → Consolidate
+                let mut commands: Vec<Command> = vec![
+                    Command::SelectUnitToFight { unit_id: unit.id },
+                ];
+
+                // Pile In (before attacks)
+                if !pile_in_positions.is_empty() {
+                    commands.push(Command::PileIn {
+                        unit_id: unit.id,
+                        positions: pile_in_positions.clone(),
+                    });
+                }
+
+                // Declare targets and resolve attacks
+                commands.push(Command::DeclareMeleeTargets {
+                    unit_id: unit.id,
+                    targets: weapon_targets.clone(),
+                });
+                for (weapon_id, target_id) in &weapon_targets {
+                    commands.push(Command::ResolveMeleeAttack {
+                        attacker_id: unit.id,
+                        target_id: *target_id,
+                        weapon_id: *weapon_id,
+                    });
+                }
+
+                // Consolidate (after attacks) — reuse same direction logic
+                // Source: CP_Rules.md §8.3 — Consolidate: up to 3" toward closest enemy
+                if !pile_in_positions.is_empty() {
+                    commands.push(Command::Consolidate {
+                        unit_id: unit.id,
+                        positions: pile_in_positions,
+                    });
+                }
+
+                let target_str = target_names.join(", ");
+                candidates.add_multi(
+                    commands,
+                    intent,
+                    format!("{} fights {}", unit.name, target_str),
+                    vec![unit.id],
+                );
+            }
         }
 
-        // Ka'tah stance choices for Custodes units
+        // Ka'tah stance choices for Custodes units that haven't chosen a stance yet
         for unit in &eligible_units {
-            if unit.has_keyword(wh40k_core_types::Keyword::AdeptusCustodes) {
+            if unit.has_keyword(wh40k_core_types::Keyword::AdeptusCustodes)
+                && state.turn_flags.get_ka_tah_stance(unit.id).is_none()
+            {
                 candidates.add(
                     Command::ChooseKaTahStance {
                         unit_id: unit.id,
@@ -806,11 +1181,13 @@ impl ActionGenerator {
             }
         }
 
-        // Vaultswords profile choices for Tristraen
+        // Vaultswords profile choices for Tristraen (only if not already chosen)
         for unit in &eligible_units {
             if unit.has_keyword(wh40k_core_types::Keyword::BladeChampion) {
                 for model in &unit.models {
-                    if model.alive {
+                    if model.alive
+                        && state.turn_flags.get_vaultswords_profile(model.id).is_none()
+                    {
                         for profile in &["Behemor", "Hurricanus", "Victus"] {
                             candidates.add(
                                 Command::ChooseVaultswordsProfile {
@@ -924,6 +1301,27 @@ impl ActionGenerator {
                         );
                     }
                 }
+
+                // Epic Challenge (1CP): CHARACTER gains Precision in melee
+                // Source: 40k_revised.md - Epic Challenge stratagem
+                if !state.player(player).stratagem_usage.used_this_phase(wh40k_core_types::StratagemId::new(7)) {
+                    for unit in state.units.iter().filter(|u| {
+                        u.owner == player && u.is_on_battlefield() && !u.is_destroyed()
+                            && u.is_character()
+                            && (u.engagement_status == wh40k_core_types::EngagementStatus::Engaged
+                                || state.turn_flags.charged_this_turn(u.id))
+                    }) {
+                        candidates.add(
+                            Command::UseStratagem {
+                                player,
+                                stratagem_id: wh40k_core_types::StratagemId::new(7), // EPIC_CHALLENGE
+                                target: wh40k_command_system::StratagemTarget::Unit(unit.id),
+                            },
+                            TacticalIntent::OffensiveStratagem,
+                            format!("Epic Challenge on {} (1CP)", unit.name),
+                        );
+                    }
+                }
             }
 
             Phase::Movement => {
@@ -942,6 +1340,27 @@ impl ActionGenerator {
                             },
                             TacticalIntent::MovementReaction,
                             format!("Rapid Ingress for {} (1CP)", unit.name),
+                        );
+                    }
+                }
+            }
+
+            Phase::Command => {
+                // Insane Bravery (1CP): auto-pass one battle-shock test
+                // Source: 40k_revised.md - Insane Bravery stratagem
+                if !state.player(player).stratagem_usage.used_this_phase(wh40k_core_types::StratagemId::new(6)) {
+                    for unit in state.units.iter().filter(|u| {
+                        u.owner == player && u.is_on_battlefield() && !u.is_destroyed()
+                            && u.battle_shocked
+                    }) {
+                        candidates.add(
+                            Command::UseStratagem {
+                                player,
+                                stratagem_id: wh40k_core_types::StratagemId::new(6), // INSANE_BRAVERY
+                                target: wh40k_command_system::StratagemTarget::Unit(unit.id),
+                            },
+                            TacticalIntent::DefensiveStratagem,
+                            format!("Insane Bravery on {} (1CP)", unit.name),
                         );
                     }
                 }
@@ -979,22 +1398,111 @@ impl ActionGenerator {
             }
         }
 
-        if has_world_eaters && state.current_phase == Phase::Fight {
-            // Horrifying Butchery (1CP): enemy unit in ER takes -1Ld modifier
-            if !state.player(player).stratagem_usage.used_this_phase(wh40k_core_types::StratagemId::new(100)) {
-                for unit in state.units.iter().filter(|u| {
-                    u.owner == player && u.is_on_battlefield() && !u.is_destroyed()
-                        && u.has_keyword(wh40k_core_types::Keyword::WorldEaters)
-                }) {
-                    candidates.add(
-                        Command::UseStratagem {
-                            player,
-                            stratagem_id: wh40k_core_types::StratagemId::new(100),
-                            target: wh40k_command_system::StratagemTarget::Unit(unit.id),
-                        },
-                        TacticalIntent::OffensiveStratagem,
-                        format!("Horrifying Butchery on {} (1CP)", unit.name),
-                    );
+        if has_world_eaters {
+            if state.current_phase == Phase::Fight {
+                // Horrifying Butchery (1CP): enemy unit in ER takes -1Ld modifier
+                // Source: Frenzied_Reavers.md - Horrifying Butchery
+                if !state.player(player).stratagem_usage.used_this_phase(wh40k_core_types::StratagemId::new(100)) {
+                    for unit in state.units.iter().filter(|u| {
+                        u.owner == player && u.is_on_battlefield() && !u.is_destroyed()
+                            && u.has_keyword(wh40k_core_types::Keyword::WorldEaters)
+                    }) {
+                        candidates.add(
+                            Command::UseStratagem {
+                                player,
+                                stratagem_id: wh40k_core_types::StratagemId::new(100),
+                                target: wh40k_command_system::StratagemTarget::Unit(unit.id),
+                            },
+                            TacticalIntent::OffensiveStratagem,
+                            format!("Horrifying Butchery on {} (1CP)", unit.name),
+                        );
+                    }
+                }
+
+                // Berserk Resilience (1CP): WE CHARACTER gets +2 to Fight-on-Death rolls
+                // Source: Frenzied_Reavers.md - Berserk Resilience
+                if !state.player(player).stratagem_usage.used_this_phase(wh40k_core_types::StratagemId::new(101)) {
+                    for unit in state.units.iter().filter(|u| {
+                        u.owner == player && u.is_on_battlefield() && !u.is_destroyed()
+                            && u.is_character()
+                            && u.has_keyword(wh40k_core_types::Keyword::WorldEaters)
+                    }) {
+                        candidates.add(
+                            Command::UseStratagem {
+                                player,
+                                stratagem_id: wh40k_core_types::StratagemId::new(101),
+                                target: wh40k_command_system::StratagemTarget::Unit(unit.id),
+                            },
+                            TacticalIntent::DefensiveStratagem,
+                            format!("Berserk Resilience on {} (1CP)", unit.name),
+                        );
+                    }
+                }
+            }
+
+            if state.current_phase == Phase::Shooting {
+                // Bloodlust (1CP): Jakhals unit can shoot after falling back
+                // Source: Frenzied_Reavers.md - Bloodlust
+                if !state.player(player).stratagem_usage.used_this_phase(wh40k_core_types::StratagemId::new(102)) {
+                    for unit in state.units.iter().filter(|u| {
+                        u.owner == player && u.is_on_battlefield() && !u.is_destroyed()
+                            && u.name == "Jakhals"
+                            && state.turn_flags.fell_back_this_turn.contains(&u.id)
+                    }) {
+                        candidates.add(
+                            Command::UseStratagem {
+                                player,
+                                stratagem_id: wh40k_core_types::StratagemId::new(102),
+                                target: wh40k_command_system::StratagemTarget::Unit(unit.id),
+                            },
+                            TacticalIntent::OffensiveStratagem,
+                            format!("Bloodlust on {} (1CP)", unit.name),
+                        );
+                    }
+                }
+            }
+        }
+
+        if has_custodes {
+            if state.current_phase == Phase::Movement {
+                // Inescapable Vengeance (1CP): unit can shoot after advancing (all weapons)
+                // Source: Custodes.md - Inescapable Vengeance
+                if !state.player(player).stratagem_usage.used_this_phase(wh40k_core_types::StratagemId::new(201)) {
+                    for unit in state.units.iter().filter(|u| {
+                        u.owner == player && u.is_on_battlefield() && !u.is_destroyed()
+                            && u.has_keyword(wh40k_core_types::Keyword::AdeptusCustodes)
+                    }) {
+                        candidates.add(
+                            Command::UseStratagem {
+                                player,
+                                stratagem_id: wh40k_core_types::StratagemId::new(201),
+                                target: wh40k_command_system::StratagemTarget::Unit(unit.id),
+                            },
+                            TacticalIntent::OffensiveStratagem,
+                            format!("Inescapable Vengeance on {} (1CP)", unit.name),
+                        );
+                    }
+                }
+            }
+
+            if state.current_phase == Phase::Charge {
+                // Overawing Magnificence (1CP): -1 to enemy charge rolls against target
+                // Source: Custodes.md - Overawing Magnificence
+                if !state.player(player).stratagem_usage.used_this_phase(wh40k_core_types::StratagemId::new(202)) {
+                    for unit in state.units.iter().filter(|u| {
+                        u.owner == player && u.is_on_battlefield() && !u.is_destroyed()
+                            && u.has_keyword(wh40k_core_types::Keyword::AdeptusCustodes)
+                    }) {
+                        candidates.add(
+                            Command::UseStratagem {
+                                player,
+                                stratagem_id: wh40k_core_types::StratagemId::new(202),
+                                target: wh40k_command_system::StratagemTarget::Unit(unit.id),
+                            },
+                            TacticalIntent::DefensiveStratagem,
+                            format!("Overawing Magnificence on {} (1CP)", unit.name),
+                        );
+                    }
                 }
             }
         }
@@ -1081,7 +1589,19 @@ impl ActionGenerator {
         _player: PlayerId,
         candidates: &mut CandidateSet,
     ) {
-        // End phase is always an option (when there are no more units to activate)
+        // During PreBattle, don't offer EndPhase if ANY player still has undeployed units.
+        // Deployment must be completed before the game can start.
+        // Source: CP_Rules.md - "The Defender sets up their army first, then the Attacker"
+        if state.current_phase == Phase::PreBattle {
+            let any_undeployed = state.units.iter().any(|u| {
+                u.status == wh40k_core_types::UnitStatus::Undeployed
+            });
+            if any_undeployed {
+                return;
+            }
+        }
+
+        // End phase is an option when there are no more units to activate
         candidates.add(
             Command::EndPhase {
                 phase: state.current_phase,
@@ -1190,6 +1710,32 @@ impl ActionGenerator {
         _unit: &UnitState,
     ) -> Vec<(Position, u8)> {
         let mut destinations = Vec::new();
+        let board_w = state.board.dimensions.width.mils();
+        let board_h = state.board.dimensions.height.mils();
+
+        // Helper: clamp a destination so actual distance from current_pos <= total_move,
+        // and position stays within board bounds.
+        let clamp_to_range =
+            |dest: Position, max_dist: i32| -> Position {
+                let dist = distance(current_pos, dest).mils();
+                let pos = if dist > max_dist && dist > 0 {
+                    // Move along the direction but only as far as max_dist
+                    let ratio = max_dist as f64 / dist as f64;
+                    let dx = dest.x.mils() - current_pos.x.mils();
+                    let dy = dest.y.mils() - current_pos.y.mils();
+                    Position {
+                        x: Inches::from_mils(current_pos.x.mils() + (dx as f64 * ratio) as i32),
+                        y: Inches::from_mils(current_pos.y.mils() + (dy as f64 * ratio) as i32),
+                    }
+                } else {
+                    dest
+                };
+                // Clamp to board bounds
+                Position {
+                    x: Inches::from_mils(pos.x.mils().clamp(1000, board_w - 1000)),
+                    y: Inches::from_mils(pos.y.mils().clamp(1000, board_h - 1000)),
+                }
+            };
 
         // Generate for low/average/high advance rolls to cover D6 range
         for advance_roll in [2u8, 4u8, 6u8] {
@@ -1199,33 +1745,23 @@ impl ActionGenerator {
             for obj in &state.board.objectives {
                 let dist = distance(current_pos, obj.position).mils();
                 if dist <= total_move && dist > move_dist_mils {
-                    destinations.push((obj.position, advance_roll));
+                    let clamped = clamp_to_range(obj.position, total_move);
+                    destinations.push((clamped, advance_roll));
                 }
             }
 
             // Advance towards enemy deployment zone
-            let board_h = state.board.dimensions.height.mils();
-            let mid_x = state.board.dimensions.width.mils() / 2;
             let target_y = if state.player(player).first_turn {
                 board_h - 1000
             } else {
                 1000
             };
-            let dy = target_y - current_pos.y.mils();
-            let clamped_y = if dy.abs() > total_move {
-                current_pos.y.mils() + (dy.signum() * total_move)
-            } else {
-                target_y
+            let raw_dest = Position {
+                x: current_pos.x, // Keep same X to avoid diagonal overshoot
+                y: Inches::from_mils(target_y),
             };
-            let clamped_y = clamped_y.clamp(1000, board_h - 1000);
-
-            destinations.push((
-                Position {
-                    x: Inches::from_mils(mid_x),
-                    y: Inches::from_mils(clamped_y),
-                },
-                advance_roll,
-            ));
+            let clamped = clamp_to_range(raw_dest, total_move);
+            destinations.push((clamped, advance_roll));
         }
 
         destinations
@@ -2020,6 +2556,7 @@ mod tests {
                     let candidates = ActionGenerator::generate(&state, player);
                     if candidates.candidates.is_empty() { break; }
 
+                    let mut applied = false;
                     for action in &candidates.candidates {
                         let mut clone = state.clone();
                         let ok = action.commands.iter()
@@ -2029,9 +2566,11 @@ mod tests {
                                 CommandExecutor::execute(&mut state, cmd).unwrap();
                                 commands_executed += 1;
                             }
+                            applied = true;
                             break;
                         }
                     }
+                    if !applied { break; }
                 }
 
                 assert!(commands_executed > 5,

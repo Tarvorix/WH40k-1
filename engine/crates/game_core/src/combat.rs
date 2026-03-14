@@ -1376,15 +1376,12 @@ fn apply_mortal_wounds_devastating(
             wounds_inflicted.push((model_id, wounds_actually_lost));
         }
 
-        // If model was destroyed, remaining mortal pool for THIS model is lost
-        // But the overall pool continues to the next model
+        // If model was destroyed, excess mortal wounds from this devastating
+        // wound attack are LOST — they do NOT carry over to the next model.
+        // Source: 40k_revised.md §8.7 — "Excess damage CARRIES OVER to
+        // other models in the unit (UNLESS from HAZARDOUS or DEVASTATING WOUNDS)"
         if !models[target_idx].alive {
-            // The remaining mortal wounds continue to next model
-            // (this is different from normal devastating wounds where excess per-model is lost)
-            // Actually for Devastating Wounds: "Each mortal wound inflicts one point of damage.
-            // Excess damage from mortal wounds is lost (same as normal attacks)."
-            // So excess IS lost. We break out of the per-model loop above,
-            // but the remaining pool continues to next model.
+            mortal_pool = 0;
         }
     }
 }

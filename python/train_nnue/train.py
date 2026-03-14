@@ -238,7 +238,7 @@ def run_training(
 
     # Learning rate scheduler: reduce on plateau
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=5, verbose=True,
+        optimizer, mode='min', factor=0.5, patience=5,
     )
 
     # Training loop
@@ -246,13 +246,17 @@ def run_training(
     training_log = []
     start_time = time.time()
 
-    print(f"\nStarting training for {epochs} epochs...")
-    print(f"  Batch size: {batch_size}")
-    print(f"  Learning rate: {learning_rate}")
-    print(f"  Train samples: {train_size:,}")
+    print(f"\n{'='*60}")
+    print(f"  PERTURABO TRAINING — Gen {generation}")
+    print(f"{'='*60}")
+    print(f"  Batch size:     {batch_size}")
+    print(f"  Learning rate:  {learning_rate}")
+    print(f"  Train samples:  {train_size:,}")
     if val_size > 0:
-        print(f"  Val samples: {val_size:,}")
-    print()
+        print(f"  Val samples:    {val_size:,}")
+    print(f"  Epochs:         {epochs}")
+    print(f"  Device:         {device}")
+    print(f"{'='*60}\n")
 
     for epoch in range(1, epochs + 1):
         epoch_start = time.time()
@@ -277,6 +281,9 @@ def run_training(
             scheduler.step(train_metrics['loss'])
 
         epoch_time = time.time() - epoch_start
+        elapsed_total = time.time() - start_time
+        eta_secs = (elapsed_total / epoch) * (epochs - epoch)
+        pct = (epoch / epochs) * 100
 
         # Log
         log_entry = {
@@ -292,18 +299,19 @@ def run_training(
 
         training_log.append(log_entry)
 
-        # Print progress
+        # Print progress with percentage and ETA
         val_str = ""
+        acc_str = ""
         if val_metrics:
-            val_str = f"  val_loss={val_metrics['val_loss']:.6f}  acc={val_metrics['accuracy']:.3f}"
+            val_str = f"  val={val_metrics['val_loss']:.6f}"
+            acc_str = f"  acc={val_metrics['accuracy']:.1%}"
 
         print(
-            f"Epoch {epoch:3d}/{epochs}  "
-            f"loss={train_metrics['loss']:.6f}  "
-            f"outcome_loss={train_metrics['outcome_loss']:.6f}"
-            f"{val_str}  "
+            f"[{pct:5.1f}%] Epoch {epoch:3d}/{epochs}  "
+            f"loss={train_metrics['loss']:.6f}"
+            f"{val_str}{acc_str}  "
             f"lr={optimizer.param_groups[0]['lr']:.2e}  "
-            f"time={epoch_time:.1f}s"
+            f"{epoch_time:.1f}s  ETA: {eta_secs:.0f}s"
         )
 
         # Checkpoint
@@ -316,11 +324,18 @@ def run_training(
                 'train_loss': train_metrics['loss'],
                 'training_log': training_log,
             }, ckpt_path)
-            print(f"  -> Checkpoint saved: {ckpt_path}")
+            print(f"         Checkpoint saved: {ckpt_path}")
 
     total_time = time.time() - start_time
-    print(f"\nTraining complete in {total_time:.1f}s")
-    print(f"Best validation loss: {best_val_loss:.6f}")
+    print(f"\n{'='*60}")
+    print(f"  TRAINING COMPLETE")
+    print(f"{'='*60}")
+    print(f"  Total time:         {total_time:.1f}s")
+    print(f"  Final loss:         {train_metrics['loss']:.6f}")
+    print(f"  Best val loss:      {best_val_loss:.6f}")
+    if val_metrics:
+        print(f"  Final accuracy:     {val_metrics['accuracy']:.1%}")
+    print(f"{'='*60}")
 
     # Export final model to .nnue format
     nnue_path = output_path / f"{model_id}.nnue"
@@ -481,27 +496,36 @@ def main():
         base = Path(args.output_dir)
         data_dir = base / "shards"
         ckpt_dir = base / "checkpoints"
+        pipeline_start = time.time()
+
+        gen = args.generation
 
         # Step 1: Generate
         print("=" * 60)
-        print("STEP 1: Generate training data")
+        print(f"  PERTURABO PIPELINE — Gen {gen}")
+        print(f"  Step 1/3: Self-Play Data Generation")
         print("=" * 60)
+        print(f"  Games: {args.num_games}")
+        print(f"  Output: {data_dir}")
+        print()
         generate_training_data(args.num_games, str(data_dir))
 
         # Step 2: Train
         print("\n" + "=" * 60)
-        print("STEP 2: Train NNUE model")
+        print(f"  PERTURABO PIPELINE — Gen {gen}")
+        print(f"  Step 2/3: NNUE Training")
         print("=" * 60)
         result = run_training(
             shard_dir=str(data_dir),
             output_dir=str(ckpt_dir),
             epochs=args.epochs,
-            generation=args.generation,
+            generation=gen,
         )
 
         # Step 3: Gate
         print("\n" + "=" * 60)
-        print("STEP 3: Gating evaluation")
+        print(f"  PERTURABO PIPELINE — Gen {gen}")
+        print(f"  Step 3/3: Gating Evaluation")
         print("=" * 60)
         gate_result = run_gating(
             candidate_path=result['nnue_path'],
@@ -509,14 +533,20 @@ def main():
         )
 
         # Summary
+        pipeline_time = time.time() - pipeline_start
         print("\n" + "=" * 60)
-        print("PIPELINE COMPLETE")
+        print(f"  PERTURABO PIPELINE COMPLETE — Gen {gen}")
         print("=" * 60)
-        print(f"  Model: {result['model_id']}")
-        print(f"  NNUE:  {result['nnue_path']}")
-        print(f"  Loss:  {result['final_loss']:.6f}")
-        print(f"  Gating win rate: {gate_result['win_rate']:.1%}")
-        print(f"  Promoted: {'YES' if gate_result['promoted'] else 'NO'}")
+        print(f"  Model ID:       {result['model_id']}")
+        print(f"  NNUE path:      {result['nnue_path']}")
+        print(f"  Samples:        {result['total_samples']:,}")
+        print(f"  Final loss:     {result['final_loss']:.6f}")
+        print(f"  Best val loss:  {result['best_val_loss']:.6f}")
+        print(f"  Gating record:  {gate_result['candidate_wins']}W-{gate_result['baseline_wins']}L-{gate_result['draws']}D")
+        print(f"  Win rate:       {gate_result['win_rate']:.1%}")
+        print(f"  PROMOTED:       {'YES' if gate_result['promoted'] else 'NO'}")
+        print(f"  Pipeline time:  {pipeline_time:.1f}s ({pipeline_time/60:.1f}m)")
+        print("=" * 60)
 
     else:
         parser.print_help()

@@ -419,8 +419,11 @@ export const useGameStore = create<GameState>()(
     runAiTurn: async () => {
       // Loop to handle consecutive AI decisions (e.g. deploying all units)
       // without recursive calls that could stack overflow
+      const MAX_AI_ITERATIONS = 200;
       let iteration = 0;
-      while (true) {
+      let lastActionLabel = '';
+      let sameActionCount = 0;
+      while (iteration < MAX_AI_ITERATIONS) {
         iteration++;
         const current = get();
         if (!current.gameState?.in_progress) {
@@ -446,7 +449,26 @@ export const useGameStore = create<GameState>()(
           console.log(`[runAiTurn] iter=${iteration}: AI returned no result, breaking`);
           break;
         }
-        console.log(`[runAiTurn] iter=${iteration}: applying AI action: ${get().aiResult?.best_action_label}`);
+        const actionLabel = get().aiResult?.best_action_label ?? '';
+        console.log(`[runAiTurn] iter=${iteration}: applying AI action: ${actionLabel}`);
+
+        // Detect repeated identical actions (stuck loop)
+        if (actionLabel === lastActionLabel) {
+          sameActionCount++;
+          if (sameActionCount >= 3) {
+            console.error(`[runAiTurn] iter=${iteration}: same action repeated ${sameActionCount} times ("${actionLabel}"), breaking to prevent infinite loop`);
+            set((state) => {
+              state.error = `AI stuck: repeated "${actionLabel}" ${sameActionCount} times`;
+              state.aiResult = null;
+              state.loading = false;
+            });
+            break;
+          }
+        } else {
+          lastActionLabel = actionLabel;
+          sameActionCount = 1;
+        }
+
         try {
           await get().applyAiAction();
         } catch (error) {
@@ -458,6 +480,14 @@ export const useGameStore = create<GameState>()(
           });
           break;
         }
+      }
+      if (iteration >= MAX_AI_ITERATIONS) {
+        console.error(`[runAiTurn] hit max iterations (${MAX_AI_ITERATIONS}), breaking`);
+        set((state) => {
+          state.error = `AI exceeded maximum iterations (${MAX_AI_ITERATIONS})`;
+          state.aiResult = null;
+          state.loading = false;
+        });
       }
       console.log(`[runAiTurn] finished after ${iteration} iterations`);
     },

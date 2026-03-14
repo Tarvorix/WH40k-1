@@ -883,7 +883,7 @@ impl ScenarioLoader {
             );
             model_counter += 1;
 
-            let unit = UnitState::new(
+            let mut unit = UnitState::new(
                 unit_id,
                 owner,
                 "Vorrakh".to_string(),
@@ -897,6 +897,9 @@ impl ScenarioLoader {
                 Leadership::new(6),
                 ObjectiveControl::new(3),
             );
+            // Vorrakh has Deadly Demise D3
+            // Source: Frenzied_Reavers.md - Daemon Prince datasheet
+            unit.deadly_demise = 3; // D3 mortal wounds
             units.push(unit);
         }
 

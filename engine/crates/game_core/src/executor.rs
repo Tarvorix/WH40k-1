@@ -890,9 +890,22 @@ impl CommandExecutor {
     fn apply_resolve_charge_roll(
         state: &mut GameState,
         unit_id: UnitId,
-        roll: u8,
+        roll_param: u8,
     ) -> Result<Vec<GameEvent>, ExecutionError> {
         use wh40k_core_types::Inches;
+
+        // If roll_param is 0, roll actual 2D6 dice. Otherwise use the provided value.
+        // Source: 40k_revised.md §9.3 - "Roll 2D6 to determine charge distance"
+        let roll = if roll_param == 0 {
+            let (rolled, _, _) = state.dice_roller.roll_2d6(
+                wh40k_dice::RollPurpose::ChargeRoll {
+                    charging_unit: unit_id.raw(),
+                },
+            );
+            rolled
+        } else {
+            roll_param
+        };
 
         // Look up declared targets
         let targets = state.turn_flags.get_charge_targets(unit_id)
@@ -971,6 +984,8 @@ impl CommandExecutor {
         } else {
             // Charge failed - unit doesn't move, no Fights First
             // Source: 40k_revised.md Section 9.4 - "Charge fails, no models move"
+            // Still record the roll result so ActionGenerator knows this charge is resolved
+            state.turn_flags.set_charge_roll(unit_id, roll);
             events.push(GameEvent::ChargeRollMade {
                 unit: unit_id,
                 roll,
@@ -1859,10 +1874,15 @@ impl CommandExecutor {
             let custodes_player = state.units[defender_unit_idx].owner;
             for _ in &batch_result.models_destroyed {
                 if let Some(penalty) = crate::scoring::score_consecrated_ground_loss(state, custodes_player) {
-                    let current = state.player(custodes_player).mission_progress.secondary_vp.value();
-                    if current > 0 {
+                    let current_secondary = state.player(custodes_player).mission_progress.secondary_vp.value();
+                    if current_secondary > 0 {
+                        let deduction = penalty.value().min(current_secondary);
                         state.player_mut(custodes_player).mission_progress.secondary_vp =
-                            wh40k_core_types::VictoryPoints::new((current - penalty.value()).max(0));
+                            wh40k_core_types::VictoryPoints::new(current_secondary - deduction);
+                        // Also deduct from total VP (min 0)
+                        let current_vp = state.player(custodes_player).vp.value();
+                        state.player_mut(custodes_player).vp =
+                            wh40k_core_types::VictoryPoints::new((current_vp - deduction).max(0));
                     }
                 }
             }
@@ -1871,6 +1891,58 @@ impl CommandExecutor {
         // Check if the entire unit was destroyed
         let unit_destroyed = state.units[defender_unit_idx].models_alive() == 0;
         if unit_destroyed {
+            // Deadly Demise: roll D6, on 6 deal mortal wounds to all units within 6"
+            // Source: 40k_revised.md - Deadly Demise X
+            let deadly_demise_value = state.units[defender_unit_idx].deadly_demise;
+            if deadly_demise_value > 0 {
+                let destroyed_pos = state.units[defender_unit_idx].reference_position()
+                    .unwrap_or(wh40k_core_types::Position::ORIGIN);
+                let (roll, _) = state.dice_roller.roll_d6(
+                    wh40k_dice::RollPurpose::AbilityTest {
+                        ability_name: "Deadly Demise".to_string(),
+                    },
+                );
+                if roll == 6 {
+                    // Roll D3 for mortal wound count (Deadly Demise D3)
+                    let (mw_roll, _) = state.dice_roller.roll_d3(
+                        wh40k_dice::RollPurpose::DamageRoll {
+                            weapon_id: 0,
+                            damage_type: "Deadly Demise D3".to_string(),
+                        },
+                    );
+                    let mortal_wounds = mw_roll;
+                    // Apply mortal wounds to all units within 6"
+                    let range = wh40k_core_types::Inches::from_inches(6);
+                    for unit in &mut state.units {
+                        if unit.id == target_id || unit.is_destroyed() || !unit.is_on_battlefield() {
+                            continue;
+                        }
+                        if let Some(unit_pos) = unit.reference_position() {
+                            if destroyed_pos.distance(unit_pos) <= range {
+                                // Apply mortal wounds
+                                for model in unit.models.iter_mut().filter(|m| m.alive) {
+                                    let current_wounds = model.wounds_remaining.value();
+                                    if current_wounds <= mortal_wounds {
+                                        model.alive = false;
+                                        model.wounds_remaining = wh40k_core_types::Wounds::new(0);
+                                    } else {
+                                        model.wounds_remaining = wh40k_core_types::Wounds::new(
+                                            current_wounds - mortal_wounds,
+                                        );
+                                    }
+                                    break; // Apply to one model per unit
+                                }
+                                all_events.push(GameEvent::MortalWoundsInflicted {
+                                    target_unit: unit.id,
+                                    wounds: mortal_wounds,
+                                    source: "Deadly Demise".to_string(),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
             state.units[defender_unit_idx].status = UnitStatus::Destroyed;
             all_events.push(GameEvent::UnitDestroyed {
                 unit: target_id,
@@ -1885,14 +1957,16 @@ impl CommandExecutor {
             if target_keywords.has(wh40k_core_types::Keyword::Character) {
                 let attacker_is_moe = attacker_keywords.has(wh40k_core_types::Keyword::MasterOfExecutions);
                 if attacker_is_moe {
-                    state.player_mut(attacker_owner).gain_cp(1);
-                    all_events.push(GameEvent::CommandPointsGained {
-                        player: attacker_owner,
-                        amount: 1,
-                        reason: wh40k_event_system::CpReason::Custom(
-                            "A Worthy Skull (Master of Executions destroyed CHARACTER)".to_string(),
-                        ),
-                    });
+                    let gained = state.player_mut(attacker_owner).gain_extra_cp(1);
+                    if gained > 0 {
+                        all_events.push(GameEvent::CommandPointsGained {
+                            player: attacker_owner,
+                            amount: 1,
+                            reason: wh40k_event_system::CpReason::Custom(
+                                "A Worthy Skull (Master of Executions destroyed CHARACTER)".to_string(),
+                            ),
+                        });
+                    }
                 }
             }
 
@@ -1909,20 +1983,23 @@ impl CommandExecutor {
                     },
                 );
                 if roll >= 3 {
-                    state.player_mut(attacker_owner).gain_cp(1);
-                    all_events.push(GameEvent::CommandPointsGained {
-                        player: attacker_owner,
-                        amount: 1,
-                        reason: wh40k_event_system::CpReason::Custom(
-                            format!("Warrior Exemplar (roll: {}, 3+ = 1CP)", roll),
-                        ),
-                    });
+                    let gained = state.player_mut(attacker_owner).gain_extra_cp(1);
+                    if gained > 0 {
+                        all_events.push(GameEvent::CommandPointsGained {
+                            player: attacker_owner,
+                            amount: 1,
+                            reason: wh40k_event_system::CpReason::Custom(
+                                format!("Warrior Exemplar (roll: {}, 3+ = 1CP)", roll),
+                            ),
+                        });
+                    }
                 }
             }
 
             // Consecrated Ground: +3 VP when enemy unit destroyed
             // Source: Custodes.md - Consecrated Ground secondary
             if let Some((vp, event)) = crate::scoring::score_consecrated_ground_kill(state, attacker_owner) {
+                state.player_mut(attacker_owner).score_vp(vp.value());
                 state.player_mut(attacker_owner).mission_progress.secondary_vp += vp;
                 all_events.push(event);
             }

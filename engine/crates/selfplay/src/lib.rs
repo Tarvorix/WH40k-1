@@ -995,7 +995,11 @@ pub fn create_ai_worker(config: &PlayerConfig) -> Result<Box<dyn AiWorker>, Self
                 .search_config
                 .clone()
                 .unwrap_or_else(|| SearchConfig::iterative_deepening(*max_depth));
-            let worker: Box<dyn AiWorker> = if let Some(ref weights) = config.weights {
+            let worker: Box<dyn AiWorker> = if let Some(ref artifact) = config.model_artifact {
+                // Use NNUE evaluator with iterative deepening
+                Box::new(IterativeDeepeningSearch::with_nnue(artifact, search_config)
+                    .map_err(|e| SelfPlayError::ModelError(format!("{}", e)))?)
+            } else if let Some(ref weights) = config.weights {
                 Box::new(IterativeDeepeningSearch::with_weights_and_config(
                     weights.clone(),
                     search_config,
@@ -1299,6 +1303,11 @@ pub fn play_single_game(
     let mut error_message: Option<String> = None;
 
     // Main game loop
+    let mut last_action_label = String::new();
+    let mut same_action_count: usize = 0;
+    let mut last_state_hash: u64 = 0;
+    let mut same_state_count: usize = 0;
+
     while state.is_in_progress() {
         // Safety: prevent infinite loops
         if commands_executed >= MAX_COMMANDS_PER_GAME {
@@ -1307,6 +1316,26 @@ pub fn play_single_game(
                 commands_executed
             ));
             break;
+        }
+
+        // Detect stuck state (same game state hash repeating)
+        let current_hash = state.compute_hash();
+        if current_hash == last_state_hash {
+            same_state_count += 1;
+            if same_state_count >= 5 {
+                error_message = Some(format!(
+                    "Game stuck: state unchanged {} iters at BR{} {:?} P{} (cmd {})",
+                    same_state_count,
+                    state.battle_round.number(),
+                    state.current_phase,
+                    state.decision_owner.raw(),
+                    commands_executed,
+                ));
+                break;
+            }
+        } else {
+            last_state_hash = current_hash;
+            same_state_count = 0;
         }
 
         let decision_player = state.decision_owner;
@@ -1321,6 +1350,25 @@ pub fn play_single_game(
 
         match search_result {
             Some(result) => {
+                // Detect repeated identical actions (stuck AI)
+                if result.best_action.label == last_action_label {
+                    same_action_count += 1;
+                    if same_action_count >= 5 {
+                        error_message = Some(format!(
+                            "AI stuck: '{}' repeated {}x at BR{} {:?} P{} (cmd {})",
+                            last_action_label, same_action_count,
+                            state.battle_round.number(),
+                            state.current_phase,
+                            state.decision_owner.raw(),
+                            commands_executed,
+                        ));
+                        break;
+                    }
+                } else {
+                    last_action_label = result.best_action.label.clone();
+                    same_action_count = 1;
+                }
+
                 // Collect training sample before executing the action
                 if collect_training_data {
                     let sparse = encode_sparse_features(&state, decision_player);
@@ -1358,6 +1406,20 @@ pub fn play_single_game(
 
                 // Execute each command in the macro-action
                 for cmd in result.best_commands() {
+                    // Re-validate before executing to catch stale commands
+                    let validation = wh40k_game_core::CommandValidator::validate(&state, cmd);
+                    if validation.is_illegal() {
+                        // Command became invalid — skip it instead of failing
+                        eprintln!(
+                            "[selfplay] Skipping invalid command at BR{} {:?} P{}: {:?}",
+                            state.battle_round.number(),
+                            state.current_phase,
+                            state.decision_owner.raw(),
+                            cmd,
+                        );
+                        continue;
+                    }
+
                     // Record replay frame before execution
                     if let Some(ref mut rec) = recorder {
                         rec.record_command(
@@ -2480,8 +2542,11 @@ impl GatingHarness {
     ) -> Result<GatingResult, SelfPlayError> {
         let start = Instant::now();
 
-        let nnue_config = PlayerConfig::nnue_with_model("NNUE", nnue_artifact.clone());
-        let heuristic_config = PlayerConfig::greedy("Heuristic");
+        // Use iterative deepening (depth 6) for both sides so the NNUE
+        // is tested as Perturabo's evaluator — its actual use case.
+        let mut nnue_config = PlayerConfig::nnue_with_model("NNUE", nnue_artifact.clone());
+        nnue_config.ai_type = AiType::IterativeDeepening(6);
+        let heuristic_config = PlayerConfig::iterative_deepening("Heuristic", 6);
 
         let match_configs = GameVariation::generate_configs(
             self.config.num_games,

@@ -189,7 +189,7 @@ class NnueModel(nn.Module):
                 -32768, 32767
             ).to(torch.int16)
             out_b = torch.clamp(
-                torch.round(self.output.bias.data.item() * OUTPUT_SCALE),
+                torch.round(self.output.bias.data * OUTPUT_SCALE),
                 -(2**31), 2**31 - 1
             ).to(torch.int32)
 

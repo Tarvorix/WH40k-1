@@ -32,6 +32,11 @@ build/
 .venv/
 venv/
 
+# Training data & models (regeneratable)
+engine/shards/
+engine/checkpoints/
+*.nnue
+
 # Content compiled output
 content/compiled/*.bin
 content/compiled/*.pack

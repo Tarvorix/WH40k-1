@@ -290,7 +290,9 @@ static ALL_STRATAGEMS: &[StratagemDef] = &[
         cp_cost: 1,
         valid_phases: &[Phase::Charge],
         timing: StratagemTiming::AfterChargeMoveComplete,
-        required_keywords: &[Keyword::Vehicle],
+        // Required keywords left empty — custom validation checks VEHICLE or MONSTER.
+        // Source: CP_Rules.md §11 (VEHICLE), Frenzied_Reavers.md (MONSTER also eligible)
+        required_keywords: &[],
         must_be_friendly: true,
         must_be_enemy: false,
         once_per_battle: false,
@@ -426,7 +428,7 @@ pub fn apply_stratagem_effects(
         }
 
         id if id == ids::COUNTER_OFFENSIVE => {
-            // Counter-Operative: target unit gains Fights First
+            // Counter-Offensive: target unit gains Fights First
             if let Some(uid) = target_unit {
                 let effect_id = state.next_counter() as u32;
                 state.active_effects.push(ActiveEffect {
@@ -464,7 +466,8 @@ pub fn apply_stratagem_effects(
 
         id if id == ids::GO_TO_GROUND => {
             // Go to Ground: INFANTRY gains 6++ invulnerable save + Benefit of Cover
-            // Lasts until start of next command phase
+            // Lasts until end of phase (opponent's Shooting phase).
+            // Source: CP_Rules.md §11 — Go to Ground: "Until end of phase"
             if let Some(uid) = target_unit {
                 let eid1 = state.next_counter() as u32;
                 let eid2 = state.next_counter() as u32;
@@ -473,7 +476,7 @@ pub fn apply_stratagem_effects(
                     source: EffectSource::Stratagem(ids::GO_TO_GROUND),
                     target: EffectTarget::Unit(uid),
                     effect_type: EffectType::GrantInvulnerableSave(6),
-                    duration: EffectDuration::UntilStartOfNextCommandPhase,
+                    duration: EffectDuration::UntilEndOfPhase,
                     stacking: StackingBehavior::BestOnly,
                     applied_round: round,
                     applied_phase: phase,
@@ -483,7 +486,7 @@ pub fn apply_stratagem_effects(
                     source: EffectSource::Stratagem(ids::GO_TO_GROUND),
                     target: EffectTarget::Unit(uid),
                     effect_type: EffectType::GrantBenefitOfCover,
-                    duration: EffectDuration::UntilStartOfNextCommandPhase,
+                    duration: EffectDuration::UntilEndOfPhase,
                     stacking: StackingBehavior::Unique,
                     applied_round: round,
                     applied_phase: phase,
@@ -645,9 +648,10 @@ pub fn apply_stratagem_effects(
                     .unwrap_or(4);
                 let vehicle_owner = state.unit(uid).map(|u| u.owner);
 
-                // Find an enemy unit within Engagement Range of the VEHICLE.
+                // Find all enemy units within Engagement Range of the VEHICLE/MONSTER
+                // and auto-select the best target (most alive models = most impactful).
                 // Per the rules, the player "selects one enemy unit within Engagement Range."
-                // We select the first eligible enemy unit found (closest alive model).
+                // TODO: For human play, expose this as a player choice via the UI.
                 let vehicle_ref_pos = state.unit(uid)
                     .and_then(|u| u.reference_position());
                 let vehicle_base = state.unit(uid)
@@ -655,6 +659,7 @@ pub fn apply_stratagem_effects(
                     .unwrap_or(wh40k_core_types::BaseSize::MM25);
 
                 let mut enemy_target: Option<UnitId> = None;
+                let mut best_target_models: usize = 0;
                 if let (Some(v_owner), Some(v_pos)) = (vehicle_owner, vehicle_ref_pos) {
                     for other_unit in &state.units {
                         if other_unit.owner == v_owner
@@ -663,17 +668,18 @@ pub fn apply_stratagem_effects(
                         {
                             continue;
                         }
-                        for model in other_unit.models.iter().filter(|m| m.alive) {
-                            if wh40k_geometry::within_engagement_range_2d(
+                        let in_er = other_unit.models.iter().any(|m| {
+                            m.alive && wh40k_geometry::within_engagement_range_2d(
                                 v_pos, vehicle_base,
-                                model.position, model.base_size,
-                            ) {
+                                m.position, m.base_size,
+                            )
+                        });
+                        if in_er {
+                            let alive = other_unit.models_alive();
+                            if alive > best_target_models {
+                                best_target_models = alive;
                                 enemy_target = Some(other_unit.id);
-                                break;
                             }
-                        }
-                        if enemy_target.is_some() {
-                            break;
                         }
                     }
                 }
@@ -952,9 +958,11 @@ mod tests {
     }
 
     #[test]
-    fn test_tank_shock_requires_vehicle_keyword() {
+    fn test_tank_shock_no_static_keyword_requirement() {
+        // Tank Shock uses custom validation (VEHICLE or MONSTER) instead of
+        // required_keywords, so static def has empty keywords.
         let def = get_stratagem_def(ids::TANK_SHOCK).unwrap();
-        assert!(def.required_keywords.contains(&Keyword::Vehicle));
+        assert!(def.required_keywords.is_empty());
     }
 
     #[test]

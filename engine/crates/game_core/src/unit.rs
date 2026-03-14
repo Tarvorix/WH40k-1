@@ -92,6 +92,11 @@ pub struct UnitState {
     /// Source: Custodes.md - Watchman of Terra (OC 4 in Engagement Range)
     pub enhancement_oc_requires_engaged: bool,
 
+    /// Deadly Demise value (0 = none). When the last model is destroyed, roll D6.
+    /// On 6, deal this many mortal wounds to all units within 6".
+    /// Source: 40k_revised.md - Deadly Demise X
+    pub deadly_demise: u8,
+
     /// The starting model count for this unit (for half-strength calculations).
     starting_model_count: usize,
 }
@@ -137,6 +142,7 @@ impl UnitState {
             wargear_abilities: Vec::new(),
             enhancement_oc_override: None,
             enhancement_oc_requires_engaged: false,
+            deadly_demise: 0,
             starting_model_count: starting_count,
         }
     }

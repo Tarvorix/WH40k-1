@@ -94,6 +94,18 @@ The AI subsystem is a layered system combining classical game-tree search with n
 | 4 | `LazySmpSearch` | 1→d | Multi-threaded ID (skeleton) | Future parallelism |
 | Alt | `MctsSearch` | N/A | PUCT tree search | Long-range planning |
 
+### Named AI Tiers (WASM/Web)
+
+The web frontend exposes named difficulty tiers via `run_ai_decision(difficulty)`:
+
+| Tier | Difficulty Levels | Search Method |
+|------|------------------|---------------|
+| **Basic** | Recruit, Battle_Ready, Veteran, Elite | Greedy → OnePly → Negamax(2) → Negamax(3) |
+| **Perturabo** | Shallow, Regular, Deep | Iterative Deepening depth 4 → 6 → 8 |
+| **Alpharius** | Operative, Headhunter, Primarch | MCTS fast → standard → competition |
+
+Perturabo is the primary Stockfish-style tier for NNUE training. Alpharius is the AlphaZero-style tier for policy/value training.
+
 All workers implement the `AiWorker` trait:
 ```rust
 pub trait AiWorker: Send {
@@ -539,6 +551,25 @@ Generates `CandidateSet` (collection of `MacroAction` options) per phase:
 - **Charge Phase:** Single-target and multi-charge options (up to 3 targets ranked by distance)
 - **Fight Phase:** Fight order selection, Ka'tah stance, Vaultsword profiles
 - **Setup/Reaction:** Legal commands from `DecisionSurface`
+
+**Charge Sub-Phase Flow:** Before falling through to phase-specific generation, `generate()` checks for mandatory sub-steps in priority order:
+1. **Reaction windows** → DeclineStratagem (or UseOverwatch in future)
+2. **Pending charge rolls** → ResolveChargeRoll with `roll: 0` sentinel (executor rolls actual 2D6)
+3. **Pending charge moves** → MakeChargeMove with validated destination (checks ER against actual target models, non-target enemy proximity, board bounds)
+4. Normal phase-specific generation
+
+**Deployment Gating:** EndPhase is blocked during PreBattle if any player still has undeployed units. This prevents the AI from skipping deployment.
+
+**Duplicate Action Prevention:** Candidates for Ka'tah stances and Vaultswords profiles are only generated for units/models that haven't already chosen this turn (checked via `TurnFlags`).
+
+**Pre-Validation Filter:** All generated candidates are validated against `CommandValidator` before being returned. Invalid candidates are silently removed, preventing the UI from showing illegal options and preventing AI stuck loops:
+```rust
+candidates.candidates.retain(|action| {
+    action.commands.iter().all(|cmd| {
+        CommandValidator::validate(state, cmd).is_legal()
+    })
+});
+```
 
 ### Action Vocabulary (528 = 33 × 16)
 
@@ -1374,17 +1405,25 @@ File naming: `shard_XXXXXX.bin` (bincode) / `shard_XXXXXX.json` (debug).
 2. Load scenario (seed, factions, mission, enhancements, secondaries)
 3. Main loop:
    a. Get decision owner from game state
-   b. Call AI's choose_action() → SearchResult
-   c. If collecting training data:
+   b. Safety checks:
+      - Command limit: break at MAX_COMMANDS_PER_GAME (10,000)
+      - State hash stagnation: break if state unchanged for 5 iterations
+   c. Call AI's choose_action() → SearchResult
+   d. Repeated action detection: break if same action chosen 5x consecutively
+   e. If collecting training data:
       - Extract sparse features for current state
       - Encode legal action mask (528 bools)
       - Record chosen action's vocab index
       - Store search score
-   d. Execute each command in the macro-action
-   e. Continue until game ends or MAX_COMMANDS_PER_GAME
+   f. Execute each command in the macro-action
+   g. Continue until game ends or safety limit hit
 4. Label all samples with game outcome (+1/-1/0 from each player's perspective)
-5. Return MatchResult
+5. Return MatchResult (includes error_message if safety limit triggered)
 ```
+
+**Scoring:** Primary and secondary objectives are scored automatically during phase transitions (end of Command Phase). No explicit scoring commands needed — the phase state machine in `phase.rs` calls `score_primary_objectives()` and `score_secondary_objectives()` at the end of each player's Command Phase.
+
+**Dice Rolls:** Charge rolls use actual 2D6 via `state.dice_roller` (not AI-chosen values). The `ResolveChargeRoll { roll: 0 }` sentinel triggers real dice in the executor.
 
 ### Game Variation for Diversity
 
@@ -1637,6 +1676,36 @@ The complete reinforcement learning loop:
 3. `gate` — Evaluate candidate vs baseline
 4. `benchmark` — Throughput testing
 5. `pipeline` — Run generate → train → gate sequentially
+
+**Native CLI commands (Rust):**
+```bash
+# Self-play data generation
+cargo run -p wh40k_native_api --release -- selfplay \
+  --games 10000 --ai greedy --output-dir ./shards/gen0
+
+# Play a single game (verbose)
+cargo run -p wh40k_native_api --release -- play \
+  --ai-a id --ai-b greedy -v
+
+# Benchmark (head-to-head)
+cargo run -p wh40k_native_api --release -- benchmark \
+  --games 100 --ai-a id --ai-b greedy
+```
+
+**Measured Throughput (Apple M-series):**
+
+| Step | Speed | Notes |
+|------|-------|-------|
+| Greedy selfplay | ~139K games/hr | ~120 samples/game, 50/50 completion |
+| ID selfplay | ~70 games/hr | Deeper search, higher quality data |
+| NNUE training (50 epochs, 1.2M samples) | ~19 min | Apple Metal (MPS) GPU |
+| Gating (100 games) | ~2 sec | Greedy NNUE vs heuristic |
+
+**Gen 0 Baseline Results:**
+- 10,000 greedy games → 1,201,758 samples → 294 shards (~4 min)
+- Training: loss 0.428 → 0.319, accuracy 59.4% (50 epochs, ~19 min)
+- Gating: 7% win rate vs heuristic (expected for Gen 0 — bootstrap only)
+- Improvement loop: Gen 1+ uses stronger AI (one-ply/negamax) for better training signal
 
 ---
 

@@ -9,4 +9,5 @@ wh40k_core_types = { workspace = true }
 wh40k_game_core = { workspace = true }
 wh40k_geometry = { workspace = true }
 wh40k_command_system = { workspace = true }
+wh40k_event_system = { workspace = true }
 serde = { workspace = true }

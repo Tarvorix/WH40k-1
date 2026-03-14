@@ -769,6 +769,11 @@ pub struct ObjectiveMarker {
     pub control_status: ObjectiveControlStatus,
     /// Optional label for the objective (e.g., "A", "B", "Center").
     pub label: String,
+    /// Which player has "secured" this objective (via non-Battle-shocked BATTLELINE).
+    /// Once secured, the player retains control even without models in range,
+    /// until the opponent actively controls it at a subsequent Command Phase.
+    /// Source: CP_Rules.md §12.3 — Securing Objective Markers
+    pub secured_by: Option<PlayerId>,
 }
 
 impl ObjectiveMarker {
@@ -780,6 +785,7 @@ impl ObjectiveMarker {
             height: Inches::ZERO,
             control_status: ObjectiveControlStatus::Uncontrolled,
             label: label.into(),
+            secured_by: None,
         }
     }
 
@@ -796,6 +802,7 @@ impl ObjectiveMarker {
             height,
             control_status: ObjectiveControlStatus::Uncontrolled,
             label: label.into(),
+            secured_by: None,
         }
     }
 

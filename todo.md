@@ -1,7 +1,158 @@
 # WH40K Combat Patrol Engine - Implementation TODO
 
-**Status: Phase 13 COMPLETE. Per-model rendering & formation system implemented.**
-**Total tests passing: 1322+ | Workspace compiles clean | TypeScript compiles clean**
+**Status: Phase 15 COMPLETE. Rules audit: 5 bugs fixed, 8 missing mechanics addressed, 4 minor issues resolved.**
+**Total tests passing: 1336 (all workspace tests) | Workspace compiles clean | TypeScript compiles clean**
+
+### Phase 15: Rules Audit Fixes (2026-03-14)
+
+Full audit of code vs 40k_revised.md, CP_Rules.md, Custodes.md, and Frenzied_Reavers.md.
+~90% of core mechanics correctly implemented. The following bugs and gaps were identified.
+
+#### BUGS — Critical (affect game correctness)
+
+- [x] **BUG 1: Battle-shock not cleared at start of Command Phase**
+  - File: `game_core/src/phase.rs:236-247`
+  - Rule: 40k_revised.md §4.2 — "Duration: Until start of that player's next Command Phase"
+  - Issue: `start_command_phase()` only tests units below half-strength. It does NOT clear `battle_shocked = false` for ALL of the active player's units before running new tests. If a unit was battle-shocked last round but is no longer below half-strength, the flag persists incorrectly.
+  - Fix: At start of Command Phase, clear `battle_shocked = false` for ALL active player's units before re-testing.
+
+- [x] **BUG 2: Skull Takers secondary NEVER scores**
+  - File: `game_core/src/scoring.rs:277`
+  - Rule: Frenzied_Reavers.md — "At the end of the Fight phase"
+  - Issue: `score_secondary_objectives()` is only called at end of Command Phase (phase.rs:139-146). Skull Takers checks `state.current_phase == Phase::Fight` which is never true when called during Command Phase. VP is never awarded.
+  - Fix: Call secondary scoring at end of Fight Phase for fight-phase secondaries, or add a separate end-of-fight scoring hook.
+
+- [x] **BUG 3: Raise the Vexillas scores at wrong timing**
+  - File: `game_core/src/scoring.rs:326-365`
+  - Rule: Custodes.md — "at the end of YOUR turn" (not end of Command Phase)
+  - Issue: Scored during `score_secondary_objectives()` called at end of Command Phase. Should be scored at end of the player's turn (after Fight Phase). Evaluates objective control before the player has had Movement/Shooting/Charge/Fight to capture objectives.
+  - Fix: Score Raise the Vexillas at end of turn instead of end of Command Phase.
+
+- [x] **BUG 4: Devastating Wounds excess mortal wounds carry over (should be lost)**
+  - File: `game_core/src/combat.rs:1261-1390`
+  - Rule: 40k_revised.md §8.7 — "Excess damage CARRIES OVER to other models UNLESS from HAZARDOUS or DEVASTATING WOUNDS"
+  - Issue: In `apply_mortal_wounds_devastating()`, when a model is destroyed (line 1371 `break`), the outer `while mortal_pool > 0` loop continues to the next model, carrying over remaining mortal wounds. For Devastating Wounds, excess per model should be LOST.
+  - Example: DW deals 3 damage to a 2W model. Model dies after 2 wounds. The remaining 1 MW incorrectly carries over to next model.
+  - Fix: After model destroyed in DW, set `mortal_pool = 0` or break from outer loop.
+
+- [x] **BUG 5: Go to Ground duration too long**
+  - File: `game_core/src/stratagem.rs:476-477`
+  - Rule: CP_Rules.md §11 — "Until end of phase" (opponent's Shooting phase)
+  - Issue: Code uses `EffectDuration::UntilStartOfNextCommandPhase`, persisting the 6++ invulnerable save and Benefit of Cover through the entire rest of the opponent's turn AND into the next Command Phase. Should only last until end of current Shooting Phase.
+  - Fix: Change duration to `UntilEndOfPhase`.
+
+#### MISSING MECHANICS — Medium Priority
+
+- [x] **MISSING 1: Battle-shock Desperate Escape enforcement on Fall Back**
+  - Rule: 40k_revised.md §5.5 — "Battle-shocked Fall Back: Take Desperate Escape test for EVERY model in the unit (before any models move)"
+  - Status: ALREADY IMPLEMENTED in executor.rs:637-771. Both battle-shocked (all models) and non-battle-shocked (per enemy model passed) paths exist with FLY/TITANIC exemptions and dedicated tests.
+
+- [x] **MISSING 2: Display of Might — Break Their Spirit mission rule**
+  - Rule: CP_Rules.md Mission 6 — "Insane Bravery can only be used if target unit within 6\" of WARLORD"
+  - Status: Not implemented. Insane Bravery has no Mission 6-specific restriction in stratagem validation.
+  - File: `game_core/src/stratagem.rs` (Insane Bravery validation)
+
+- [x] **MISSING 3: Archeotech Recovery — automatic objective removal at round boundaries**
+  - Rule: CP_Rules.md Mission 2 — "Start of round 3: Defender removes Gamma NML objective. Start of round 4: Gamma removed; Attacker selects Beta NML objective. Start of round 5: Beta removed."
+  - Status: Scoring function exists but automatic objective removal at specific round boundaries is not wired into phase transitions.
+  - File: `game_core/src/phase.rs` (end_battle_round or start of round hooks)
+
+- [x] **MISSING 4: CP gain cap per battle round**
+  - Rule: 40k_revised.md §4.1 — "Outside the standard 1 CP gain, each player can only gain 1 additional CP per Battle Round from any source"
+  - Status: Not enforced. Players can gain unlimited extra CP from abilities (Warrior Exemplar, Supply Lines, Retrieve Intelligence, A Worthy Skull).
+  - File: `game_core/src/state.rs` (PlayerState::gain_cp) — need to track extra CP gained per round and cap at 1.
+
+- [x] **MISSING 5: Grenade stratagem full restrictions**
+  - Rule: CP_Rules.md — "Unit hasn't Advanced, Fallen Back, or shot; not in Engagement Range; target visible and not in ER of friendly units"
+  - Status: Grenade stratagem rolls 6D6 without validating these conditions.
+  - File: `game_core/src/stratagem.rs` (Grenade validation/execution)
+
+- [x] **MISSING 6: Heroic Intervention WALKER restriction for VEHICLEs**
+  - Rule: CP_Rules.md — "VEHICLE must be WALKER" to use Heroic Intervention
+  - Status: Not validated. Any eligible unit can use Heroic Intervention regardless of VEHICLE/WALKER status.
+  - File: `game_core/src/stratagem.rs` (Heroic Intervention validation)
+
+- [x] **MISSING 7: Consecrated Ground incremental scoring wiring**
+  - Rule: Custodes.md — "+3VP each time enemy unit destroyed, -1VP each time Custodes model destroyed"
+  - Status: Helper functions `score_consecrated_ground_kill()` and `score_consecrated_ground_loss()` exist in scoring.rs but need to be confirmed wired into the executor when units/models are destroyed.
+  - File: `game_core/src/executor.rs` (unit/model destruction handlers)
+
+- [x] **MISSING 8: Bloodlust condition — Jakhals must have lost models**
+  - Rule: Frenzied_Reavers.md — "One JAKHALS unit that lost one or more models from the attacking unit's attacks"
+  - Status: The condition that the Jakhals unit must have lost models from the shooting is not validated before allowing the stratagem.
+  - File: `game_core/src/stratagem.rs` (Bloodlust validation)
+
+#### MINOR ISSUES
+
+- [x] **Typo**: `stratagem.rs:429` — Comment says "Counter-Operative" instead of "Counter-Offensive"
+- [x] **Tank Shock player agency**: Improved auto-selection to pick best target (most models). TODO for human play: expose as player choice via UI.
+- [x] **Tank Shock MONSTER eligibility**: Changed from static VEHICLE keyword to custom validation accepting VEHICLE or MONSTER. Vorrakh can now use Tank Shock.
+- [x] **Secured Objective logic review**: Rewrote with proper `secured_by` field on ObjectiveMarker. Once secured by BATTLELINE, persists even when BATTLELINE moves away. Only broken when opponent actively controls via OC superiority.
+
+---
+
+### Phase 14: Rules Compliance, Combat Resolution, Scoring & Perturabo Pipeline (2026-03-14)
+
+#### Engine Bug Fixes
+- [x] Fix AI charge phase infinite loop (full sub-phase flow: Declare → Roll 2D6 → Move)
+- [x] Fix charge rolls — use actual 2D6 dice instead of AI-chosen values
+- [x] Fix deployment skipping — block EndPhase during PreBattle when units still undeployed
+- [x] Fix MakeChargeMove loop — validate ER against actual target models + non-target enemy proximity
+- [x] Fix Ka'tah stance loop — filter units that already chose a stance
+- [x] Fix Vaultswords profile loop — filter models that already chose a profile
+- [x] Add generic pre-validation filter on ALL ActionGenerator exit paths
+- [x] Cap deployment search depth to 1 (prevents 3+ min search per game)
+- [x] Add stuck-state detection to selfplay (state hash + repeated action)
+- [x] Add safety limits to web UI runAiTurn (max iterations + repeated action detection)
+
+#### Scoring
+- [x] Wire scoring into phase transitions (primary + secondary at end of Command Phase)
+- [x] Fix double-scoring — only active player scores at their own Command Phase
+- [x] Wire EndOfTurn scoring for BR5 2nd player (split timing)
+- [x] Wire endgame scoring (Battle Ready bonus, mission-specific bonuses)
+- [x] Implement objective Secured mechanic with BATTLELINE requirement (CP_Rules §12.3)
+- [x] Update objective control_status at end of each Command Phase
+
+#### Combat Resolution
+- [x] Wire shooting resolution — ResolveShootingAttack per weapon-target pair
+- [x] Wire melee resolution — DeclareMeleeTargets + ResolveMeleeAttack per weapon
+- [x] Only models in engagement range can fight (CP_Rules §8.3)
+- [x] Add Pile In (3" toward closest enemy before attacks)
+- [x] Add Consolidate (3" toward closest enemy after attacks)
+- [x] Wire Vaultswords profile — only chosen profile's weapon attacks
+
+#### Missing Mechanics Wired
+- [x] Deadly Demise — Vorrakh D3 mortal wounds on destruction (roll D6, trigger on 6)
+- [x] Overwatch firing — reaction windows now generate FireOverwatch candidates
+- [x] Heroic Intervention — reaction windows generate UseStratagem for characters
+- [x] Missing stratagem candidates: Epic Challenge, Insane Bravery, Berserk Resilience, Bloodlust, Inescapable Vengeance, Overawing Magnificence
+- [x] Verified already working: Ka'tah stances in combat, Martial Excellence blessing, Total Carnage fight-on-death
+
+#### Perturabo Training Pipeline
+- [x] IterativeDeepeningSearch now supports AnyEvaluator (heuristic OR NNUE)
+- [x] New `with_nnue()` constructor for ID search with NNUE model
+- [x] Gating uses ID+NNUE vs ID+Heuristic (proper Perturabo evaluation)
+- [x] Gen 0 trained: 1K ID games → 121K samples → 50 epochs → 78.2% accuracy
+- [x] Fix PyTorch 2.9 compatibility (ReduceLROnPlateau, torch.round)
+- [x] Apple Metal (MPS) GPU auto-detected for training
+
+#### Pipeline Commands
+```bash
+# Generate training data (ID selfplay, ~350 games/hr)
+cargo run -p wh40k_native_api --release -- selfplay --games 1000 --ai id --output-dir ./shards/gen0
+
+# Train NNUE (~2 min on Apple Metal)
+cd python && python3 -m train_nnue.train train --shard-dir ../engine/shards/gen0 --output-dir ../engine/checkpoints/gen0 --epochs 50
+
+# Gate (ID+NNUE vs ID+Heuristic)
+python3 -m train_nnue.train gate ../engine/checkpoints/gen0/gen0.nnue --num-games 25
+```
+
+#### Remaining (future work)
+- Deployment positions could be smarter (corners vs near objectives)
+- Movement GUI: range preview on unit selection
+
+---
 
 ### Phase 13: Per-Model Rendering & Formation System (2026-03-13)
 

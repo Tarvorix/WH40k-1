@@ -117,6 +117,10 @@ pub fn run_selfplay(config: SelfPlayCmdConfig) -> SelfPlayCmdResult {
         true, // alternate factions
     );
 
+    // Progress tracking
+    let progress_interval = if config.games <= 20 { 1 } else if config.games <= 100 { 5 } else { 10 };
+    let mut last_progress_time = overall_start;
+
     for (i, match_config) in variations.iter().enumerate() {
         let game_start = Instant::now();
 
@@ -143,24 +147,42 @@ pub fn run_selfplay(config: SelfPlayCmdConfig) -> SelfPlayCmdResult {
 
                 total_games_completed += 1;
 
-                if config.verbose || (i + 1) % 10 == 0 {
+                if config.verbose || (i + 1) % progress_interval == 0 || i + 1 == config.games as usize {
                     let elapsed = game_start.elapsed();
-                    println!("Game {}/{}: {:?} | VP: {}v{} | {} samples | {:.0}ms",
-                        i + 1, config.games,
+                    let total_elapsed = overall_start.elapsed();
+                    let games_done = i + 1;
+                    let games_remaining = config.games as usize - games_done;
+                    let avg_ms = total_elapsed.as_millis() as f64 / games_done as f64;
+                    let eta_secs = (avg_ms * games_remaining as f64) / 1000.0;
+                    let pct = (games_done as f64 / config.games as f64) * 100.0;
+
+                    let error_info = if let Some(ref msg) = result.error_message {
+                        format!(" | ERR: {}", msg)
+                    } else {
+                        String::new()
+                    };
+                    println!("[{:5.1}%] Game {}/{}: {:?} | VP: {}v{} | {} cmds | {} samples | {:.0}ms | ETA: {:.0}s{}",
+                        pct,
+                        games_done, config.games,
                         result.outcome,
                         result.player1_vp, result.player2_vp,
+                        result.total_commands,
                         result.training_samples.len(),
                         elapsed.as_millis(),
+                        eta_secs,
+                        error_info,
                     );
+                    last_progress_time = Instant::now();
                 }
             }
             Err(e) => {
-                if config.verbose {
-                    println!("Game {}/{}: FAILED - {}", i + 1, config.games, e);
-                }
+                println!("[{:5.1}%] Game {}/{}: FAILED - {}",
+                    ((i + 1) as f64 / config.games as f64) * 100.0,
+                    i + 1, config.games, e);
             }
         }
     }
+    let _ = last_progress_time; // suppress unused warning
 
     // Flush remaining samples and finalize to get stats
     let shard_stats = match shard_writer.finalize() {

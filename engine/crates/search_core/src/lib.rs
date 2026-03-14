@@ -31,7 +31,7 @@ use wh40k_game_core::CommandExecutor;
 use wh40k_eval_features::{Score, SCORE_DRAW, SCORE_LOSS, SCORE_WIN};
 use wh40k_eval_heuristic::{Evaluator, HeuristicEvaluator, HeuristicWeights};
 use wh40k_eval_nnue::{
-    BenchmarkResult, NnueEvaluator, NnueModel, NnueModelArtifact,
+    AnyEvaluator, BenchmarkResult, NnueEvaluator, NnueModel, NnueModelArtifact,
     compare_evaluators,
 };
 use wh40k_search_abstraction::{ActionGenerator, MacroAction, TacticalIntent};
@@ -1552,8 +1552,8 @@ impl std::fmt::Display for SearchDiagnostics {
 ///
 /// Source: implementation_v3.md Section 11.1-11.8
 pub struct IterativeDeepeningSearch {
-    /// Position evaluator.
-    evaluator: HeuristicEvaluator,
+    /// Position evaluator (heuristic or NNUE).
+    evaluator: AnyEvaluator,
     /// Search configuration.
     config: SearchConfig,
     /// Transposition table.
@@ -1583,7 +1583,7 @@ impl IterativeDeepeningSearch {
     pub fn with_config(config: SearchConfig) -> Self {
         let tt_size = if config.use_tt { config.tt_size_mb } else { 0 };
         Self {
-            evaluator: HeuristicEvaluator::with_defaults(),
+            evaluator: AnyEvaluator::heuristic_default(),
             tt: if tt_size > 0 {
                 TranspositionTable::with_mb(tt_size)
             } else {
@@ -1603,7 +1603,7 @@ impl IterativeDeepeningSearch {
     pub fn with_weights_and_config(weights: HeuristicWeights, config: SearchConfig) -> Self {
         let tt_size = if config.use_tt { config.tt_size_mb } else { 0 };
         Self {
-            evaluator: HeuristicEvaluator::new(weights),
+            evaluator: AnyEvaluator::Heuristic(HeuristicEvaluator::new(weights)),
             tt: if tt_size > 0 {
                 TranspositionTable::with_mb(tt_size)
             } else {
@@ -1617,6 +1617,27 @@ impl IterativeDeepeningSearch {
             stop_signal: None,
             config,
         }
+    }
+
+    /// Create an iterative deepening search with an NNUE evaluator.
+    pub fn with_nnue(artifact: &NnueModelArtifact, config: SearchConfig) -> Result<Self, wh40k_eval_nnue::NnueError> {
+        let evaluator = AnyEvaluator::nnue_from_artifact(artifact)?;
+        let tt_size = if config.use_tt { config.tt_size_mb } else { 0 };
+        Ok(Self {
+            evaluator,
+            tt: if tt_size > 0 {
+                TranspositionTable::with_mb(tt_size)
+            } else {
+                TranspositionTable::new(1024)
+            },
+            orderer: MoveOrderer::new(config.max_depth as usize + config.max_extensions as usize + config.quiescence_max_depth as usize + 2),
+            stats: SearchStats::default(),
+            time_manager: TimeManager::new(&config),
+            previous_pv: PvLine::new(),
+            iteration_infos: Vec::new(),
+            stop_signal: None,
+            config,
+        })
     }
 
     /// Set an external stop signal (for lazy SMP thread coordination).
@@ -2189,9 +2210,14 @@ impl IterativeDeepeningSearch {
                 None
             };
 
-            let ordered = if self.config.heuristic_root_ordering && depth <= 2 {
+            let ordered = if self.config.heuristic_root_ordering && depth <= 2 && self.evaluator.is_heuristic() {
                 // Use heuristic ordering for shallow depths (more expensive but more accurate)
-                heuristic_order(candidates, state, perspective, &self.evaluator)
+                // Only available with HeuristicEvaluator, not NNUE
+                if let AnyEvaluator::Heuristic(ref h) = self.evaluator {
+                    heuristic_order(candidates, state, perspective, h)
+                } else {
+                    self.orderer.order_moves(candidates, 0, pv_move_index)
+                }
             } else if self.config.use_move_ordering {
                 // Use TT/killer/history ordering for deeper searches (faster)
                 self.orderer.order_moves(candidates, 0, pv_move_index)
@@ -2333,6 +2359,14 @@ impl AiWorker for IterativeDeepeningSearch {
         state: &GameState,
         perspective: PlayerId,
     ) -> Option<SearchResult> {
+        // Cap depth to 1 during deployment — the branching factor is enormous
+        // (20 positions × 8 units) and deep search doesn't help since you can't
+        // react to opponent deployment choices mid-deployment.
+        let saved_max_depth = self.config.max_depth;
+        if state.current_phase == wh40k_core_types::Phase::PreBattle {
+            self.config.max_depth = 1;
+        }
+
         // Reset stats and time manager
         self.stats = SearchStats {
             depth_requested: self.config.max_depth,
@@ -2484,8 +2518,12 @@ impl AiWorker for IterativeDeepeningSearch {
             let best_action = if !root_pv.is_empty() {
                 root_pv.moves[0].clone()
             } else {
-                // Fallback: use heuristic ordering
-                let ordered = heuristic_order(&candidates, state, perspective, &self.evaluator);
+                // Fallback: use ordering (heuristic if available, otherwise static)
+                let ordered = if let AnyEvaluator::Heuristic(ref h) = self.evaluator {
+                    heuristic_order(&candidates, state, perspective, h)
+                } else {
+                    static_order(&candidates)
+                };
                 if !ordered.is_empty() {
                     actions[ordered[0].index].clone()
                 } else {
@@ -2519,6 +2557,9 @@ impl AiWorker for IterativeDeepeningSearch {
         if let Some(ref mut result) = best_result {
             result.stats = self.stats.clone();
         }
+
+        // Restore original max depth after deployment cap
+        self.config.max_depth = saved_max_depth;
 
         best_result
     }

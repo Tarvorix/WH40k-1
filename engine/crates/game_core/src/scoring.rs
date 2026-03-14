@@ -324,44 +324,9 @@ pub fn score_secondary_objectives(
         }
 
         id if id == secondary_ids::RAISE_THE_VEXILLAS => {
-            // Raise the Vexillas: From BR3+, at end of your turn:
-            // Score 3VP if you control BOTH the objective closest to your
-            // battlefield edge AND the objective closest to opponent's edge.
-            // Max 9VP.
-            //
-            // Source: Custodes.md - Raise the Vexillas
-            let max_vexilla_vp: i16 = 9;
-            if state.battle_round.number() >= 3 {
-                let current_secondary = state.player(player).mission_progress.secondary_vp.value();
-                if current_secondary >= max_vexilla_vp {
-                    return results;
-                }
-
-                let (closest_own, closest_enemy) = find_edge_objectives(state, player);
-
-                let controls_own = closest_own
-                    .and_then(|obj_id| calculate_objective_controller(state, obj_id))
-                    == Some(player);
-                let controls_enemy = closest_enemy
-                    .and_then(|obj_id| calculate_objective_controller(state, obj_id))
-                    == Some(player);
-
-                if controls_own && controls_enemy {
-                    let remaining = max_vexilla_vp - current_secondary;
-                    let vp_val = 3i16.min(remaining);
-                    let vp = VictoryPoints::new(vp_val);
-                    results.push((
-                        vp,
-                        GameEvent::VictoryPointsScored {
-                            player,
-                            amount: vp_val as u16,
-                            source: VpSource::SecondaryObjective(
-                                "Raise the Vexillas: control both edge objectives".to_string(),
-                            ),
-                        },
-                    ));
-                }
-            }
+            // Raise the Vexillas scores at end of turn, not here.
+            // Handled by score_secondary_objectives_end_of_turn().
+            // Source: Custodes.md - "at the end of YOUR turn"
         }
 
         id if id == secondary_ids::CONSECRATED_GROUND => {
@@ -378,6 +343,67 @@ pub fn score_secondary_objectives(
 
         _ => {
             // Unknown secondary
+        }
+    }
+
+    results
+}
+
+/// Score secondary objectives that trigger at end of the player's turn.
+///
+/// Called from end_player_turn in the phase system.
+///
+/// Source: Custodes.md - Raise the Vexillas: "at the end of YOUR turn"
+pub fn score_secondary_objectives_end_of_turn(
+    state: &GameState,
+    player: PlayerId,
+) -> Vec<(VictoryPoints, GameEvent)> {
+    let player_state = state.player(player);
+    let secondary_id = match player_state.secondary_choice {
+        Some(id) => id,
+        None => return Vec::new(),
+    };
+
+    let mut results = Vec::new();
+
+    if secondary_id == secondary_ids::RAISE_THE_VEXILLAS {
+        // Raise the Vexillas: From BR3+, at end of your turn:
+        // Score 3VP if you control BOTH the objective closest to your
+        // battlefield edge AND the objective closest to opponent's edge.
+        // Max 9VP.
+        //
+        // Source: Custodes.md - Raise the Vexillas
+        let max_vexilla_vp: i16 = 9;
+        if state.battle_round.number() >= 3 {
+            let current_secondary = state.player(player).mission_progress.secondary_vp.value();
+            if current_secondary >= max_vexilla_vp {
+                return results;
+            }
+
+            let (closest_own, closest_enemy) = find_edge_objectives(state, player);
+
+            let controls_own = closest_own
+                .and_then(|obj_id| calculate_objective_controller(state, obj_id))
+                == Some(player);
+            let controls_enemy = closest_enemy
+                .and_then(|obj_id| calculate_objective_controller(state, obj_id))
+                == Some(player);
+
+            if controls_own && controls_enemy {
+                let remaining = max_vexilla_vp - current_secondary;
+                let vp_val = 3i16.min(remaining);
+                let vp = VictoryPoints::new(vp_val);
+                results.push((
+                    vp,
+                    GameEvent::VictoryPointsScored {
+                        player,
+                        amount: vp_val as u16,
+                        source: VpSource::SecondaryObjective(
+                            "Raise the Vexillas: control both edge objectives".to_string(),
+                        ),
+                    },
+                ));
+            }
         }
     }
 
@@ -462,33 +488,54 @@ pub enum ScoringTiming {
 /// Determine which players should score given the round, timing, and whether
 /// this mission uses BR5 split timing.
 ///
-/// For BR2-4: both players always score regardless of timing.
-/// For BR5 with split timing:
+/// Per CP_Rules.md & 40k_revised.md:
+/// Each player scores at the end of THEIR OWN Command Phase (one per player per round).
+/// Since end_current_phase is called once per player turn, we return only the
+/// active player to avoid double-scoring.
+///
+/// - BR2-4 EndOfCommandPhase: active player only (each player scores once per round)
+/// - BR5 with split timing:
 ///   - EndOfCommandPhase: only the 1st player scores
 ///   - EndOfTurn: only the 2nd player scores
-/// For BR5 without split timing: both players score at EndOfCommandPhase.
+/// - BR5 without split timing: active player at EndOfCommandPhase only
 fn players_to_score(state: &GameState, round: u8, timing: ScoringTiming, has_br5_split: bool) -> Vec<PlayerId> {
-    if round < 5 || !has_br5_split {
-        // BR2-4 or no split: both players score
-        return vec![PlayerId::new(0), PlayerId::new(1)];
-    }
-
-    // BR5 with split timing
     match timing {
         ScoringTiming::EndOfCommandPhase => {
-            // Only the 1st player scores at end of command phase
-            if state.players[0].first_turn {
-                vec![PlayerId::new(0)]
+            if round == 5 && has_br5_split {
+                // BR5 with split: only the 1st player scores at end of command phase
+                let first_player = if state.players[0].first_turn {
+                    PlayerId::new(0)
+                } else {
+                    PlayerId::new(1)
+                };
+                if state.active_player == first_player {
+                    vec![first_player]
+                } else {
+                    // 2nd player's Command Phase in BR5 with split: don't score here
+                    // (they score at EndOfTurn instead)
+                    vec![]
+                }
             } else {
-                vec![PlayerId::new(1)]
+                // BR2-4 or BR5 without split: active player scores at end of their Command Phase
+                vec![state.active_player]
             }
         }
         ScoringTiming::EndOfTurn => {
-            // Only the 2nd player scores at end of turn
-            if state.players[0].first_turn {
-                vec![PlayerId::new(1)]
+            if round == 5 && has_br5_split {
+                // BR5 with split: only the 2nd player scores at end of turn
+                let second_player = if state.players[0].first_turn {
+                    PlayerId::new(1)
+                } else {
+                    PlayerId::new(0)
+                };
+                if state.active_player == second_player {
+                    vec![second_player]
+                } else {
+                    vec![]
+                }
             } else {
-                vec![PlayerId::new(0)]
+                // BR2-4 or BR5 without split: no scoring at end of turn
+                vec![]
             }
         }
     }
@@ -536,6 +583,7 @@ pub fn score_primary_objectives(
 }
 
 /// Default primary scoring: 5VP per objective controlled, rounds 2-5.
+/// Only scores the active player at end of their Command Phase.
 fn score_default_primary(
     state: &GameState,
     round: u8,
@@ -546,29 +594,27 @@ fn score_default_primary(
         return results;
     }
 
-    for player_idx in 0..2u32 {
-        let player = PlayerId::new(player_idx);
-        let mut objectives_controlled = 0u16;
+    let player = state.active_player;
+    let mut objectives_controlled = 0u16;
 
-        for objective in &state.board.objectives {
-            if calculate_objective_controller(state, objective.id) == Some(player) {
-                objectives_controlled += 1;
-            }
+    for objective in &state.board.objectives {
+        if calculate_objective_controller(state, objective.id) == Some(player) {
+            objectives_controlled += 1;
         }
+    }
 
-        if objectives_controlled > 0 {
-            let vp_val = objectives_controlled * 5;
-            let vp = VictoryPoints::new(vp_val as i16);
-            results.push((
+    if objectives_controlled > 0 {
+        let vp_val = objectives_controlled * 5;
+        let vp = VictoryPoints::new(vp_val as i16);
+        results.push((
+            player,
+            vp,
+            GameEvent::VictoryPointsScored {
                 player,
-                vp,
-                GameEvent::VictoryPointsScored {
-                    player,
-                    amount: vp_val,
-                    source: VpSource::PrimaryObjective(ObjectiveId::new(0)),
-                },
-            ));
-        }
+                amount: vp_val,
+                source: VpSource::PrimaryObjective(ObjectiveId::new(0)),
+            },
+        ));
     }
 
     results
@@ -685,17 +731,19 @@ pub fn evaluate_retrieve_intelligence(
     });
 
     if warlord_available {
-        state.player_mut(player).gain_cp(1);
-        events.push(GameEvent::CommandPointsGained {
-            player,
-            amount: 1,
-            reason: wh40k_event_system::CpReason::Custom(
-                format!(
-                    "Retrieve Intelligence: WARLORD on battlefield, selected objective {} (round {})",
-                    selected_objective, round
+        let gained = state.player_mut(player).gain_extra_cp(1);
+        if gained > 0 {
+            events.push(GameEvent::CommandPointsGained {
+                player,
+                amount: 1,
+                reason: wh40k_event_system::CpReason::Custom(
+                    format!(
+                        "Retrieve Intelligence: WARLORD on battlefield, selected objective {} (round {})",
+                        selected_objective, round
+                    ),
                 ),
-            ),
-        });
+            });
+        }
     }
 
     events
@@ -720,34 +768,32 @@ fn score_archeotech_recovery(
         return results;
     }
 
-    // No BR5 split timing for this mission — both players score at end of command phase BR2-5
-    for player_idx in 0..2u32 {
-        let player = PlayerId::new(player_idx);
-        let mut objectives_controlled = 0u16;
+    // No BR5 split timing — active player scores at end of their Command Phase
+    let player = state.active_player;
+    let mut objectives_controlled = 0u16;
 
-        for objective in &state.board.objectives {
-            if calculate_objective_controller(state, objective.id) == Some(player) {
-                objectives_controlled += 1;
-            }
+    for objective in &state.board.objectives {
+        if calculate_objective_controller(state, objective.id) == Some(player) {
+            objectives_controlled += 1;
         }
+    }
 
-        if objectives_controlled > 0 {
-            // 5VP per objective controlled, max 15VP per CP_Rules.md
-            let vp_val = (objectives_controlled * 5).min(15);
-            let vp = VictoryPoints::new(vp_val as i16);
-            results.push((
+    if objectives_controlled > 0 {
+        // 5VP per objective controlled, max 15VP per CP_Rules.md
+        let vp_val = (objectives_controlled * 5).min(15);
+        let vp = VictoryPoints::new(vp_val as i16);
+        results.push((
+            player,
+            vp,
+            GameEvent::VictoryPointsScored {
                 player,
-                vp,
-                GameEvent::VictoryPointsScored {
-                    player,
-                    amount: vp_val,
-                    source: VpSource::MissionRule(format!(
-                        "Archeotech Recovery: {} objective(s) controlled (round {}, max 15VP)",
-                        objectives_controlled, round
-                    )),
-                },
-            ));
-        }
+                amount: vp_val,
+                source: VpSource::MissionRule(format!(
+                    "Archeotech Recovery: {} objective(s) controlled (round {}, max 15VP)",
+                    objectives_controlled, round
+                )),
+            },
+        ));
     }
 
     results
@@ -1121,33 +1167,32 @@ fn score_sweeping_raid(
         return results;
     }
 
-    for player_idx in 0..2u32 {
-        let player = PlayerId::new(player_idx);
-        let mut objectives_controlled = 0u16;
+    // Active player scores at end of their Command Phase
+    let player = state.active_player;
+    let mut objectives_controlled = 0u16;
 
-        for objective in &state.board.objectives {
-            if calculate_objective_controller(state, objective.id) == Some(player) {
-                objectives_controlled += 1;
-            }
+    for objective in &state.board.objectives {
+        if calculate_objective_controller(state, objective.id) == Some(player) {
+            objectives_controlled += 1;
         }
+    }
 
-        if objectives_controlled > 0 {
-            // Max 15VP per scoring (3 objectives × 5VP)
-            let vp_val = (objectives_controlled * 5).min(15);
-            let vp = VictoryPoints::new(vp_val as i16);
-            results.push((
+    if objectives_controlled > 0 {
+        // Max 15VP per scoring (3 objectives × 5VP)
+        let vp_val = (objectives_controlled * 5).min(15);
+        let vp = VictoryPoints::new(vp_val as i16);
+        results.push((
+            player,
+            vp,
+            GameEvent::VictoryPointsScored {
                 player,
-                vp,
-                GameEvent::VictoryPointsScored {
-                    player,
-                    amount: vp_val,
-                    source: VpSource::MissionRule(format!(
+                amount: vp_val,
+                source: VpSource::MissionRule(format!(
                         "Sweeping Raid: {} objective(s) controlled (round {}, max 15VP)",
                         objectives_controlled, round
                     )),
                 },
             ));
-        }
     }
 
     results
@@ -1276,14 +1321,16 @@ pub fn evaluate_supply_lines(
     });
 
     if roll >= 4 {
-        state.player_mut(player).gain_cp(1);
-        events.push(GameEvent::CommandPointsGained {
-            player,
-            amount: 1,
-            reason: wh40k_event_system::CpReason::Custom(
-                format!("Supply Lines: controlled DZ objective, rolled {} (4+)", roll),
-            ),
-        });
+        let gained = state.player_mut(player).gain_extra_cp(1);
+        if gained > 0 {
+            events.push(GameEvent::CommandPointsGained {
+                player,
+                amount: 1,
+                reason: wh40k_event_system::CpReason::Custom(
+                    format!("Supply Lines: controlled DZ objective, rolled {} (4+)", roll),
+                ),
+            });
+        }
     }
 
     events
@@ -1553,7 +1600,7 @@ pub fn calculate_objective_controller(
 }
 
 /// Check if a unit has models within objective control range (3").
-fn is_unit_within_objective_range(
+pub fn is_unit_within_objective_range(
     state: &GameState,
     unit: &crate::unit::UnitState,
     objective_id: ObjectiveId,
@@ -1576,7 +1623,7 @@ fn is_unit_within_objective_range(
 /// NML is the 12" gap in the center.
 ///
 /// Source: CP_Rules.md - Standard deployment zones
-fn is_objective_in_no_mans_land(
+pub fn is_objective_in_no_mans_land(
     objective: &wh40k_geometry::ObjectiveMarker,
 ) -> bool {
     let y_mils = objective.position.y.mils();
@@ -1749,6 +1796,7 @@ mod tests {
             height: Inches::ZERO,
             control_status: wh40k_geometry::ObjectiveControlStatus::Uncontrolled,
             label: "Center".to_string(),
+            secured_by: None,
         };
         assert!(is_objective_in_no_mans_land(&obj_center));
 
@@ -1759,6 +1807,7 @@ mod tests {
             height: Inches::ZERO,
             control_status: wh40k_geometry::ObjectiveControlStatus::Uncontrolled,
             label: "P0 DZ".to_string(),
+            secured_by: None,
         };
         assert!(!is_objective_in_no_mans_land(&obj_p0));
 
@@ -1769,6 +1818,7 @@ mod tests {
             height: Inches::ZERO,
             control_status: wh40k_geometry::ObjectiveControlStatus::Uncontrolled,
             label: "P1 DZ".to_string(),
+            secured_by: None,
         };
         assert!(!is_objective_in_no_mans_land(&obj_p1));
     }
@@ -1784,6 +1834,7 @@ mod tests {
             height: Inches::ZERO,
             control_status: wh40k_geometry::ObjectiveControlStatus::Uncontrolled,
             label: "P1 DZ".to_string(),
+            secured_by: None,
         };
 
         // For Player 0, y=25" is enemy DZ
@@ -1798,6 +1849,7 @@ mod tests {
             height: Inches::ZERO,
             control_status: wh40k_geometry::ObjectiveControlStatus::Uncontrolled,
             label: "P0 DZ".to_string(),
+            secured_by: None,
         };
 
         // For Player 1, y=5" is enemy DZ
@@ -2007,6 +2059,7 @@ mod tests {
                 height: Inches::ZERO,
                 control_status: wh40k_geometry::ObjectiveControlStatus::Uncontrolled,
                 label: "A".to_string(),
+                secured_by: None,
             },
             wh40k_geometry::ObjectiveMarker {
                 id: ObjectiveId::new(2),
@@ -2014,6 +2067,7 @@ mod tests {
                 height: Inches::ZERO,
                 control_status: wh40k_geometry::ObjectiveControlStatus::Uncontrolled,
                 label: "B".to_string(),
+                secured_by: None,
             },
             wh40k_geometry::ObjectiveMarker {
                 id: ObjectiveId::new(3),
@@ -2021,6 +2075,7 @@ mod tests {
                 height: Inches::ZERO,
                 control_status: wh40k_geometry::ObjectiveControlStatus::Uncontrolled,
                 label: "C".to_string(),
+                secured_by: None,
             },
             wh40k_geometry::ObjectiveMarker {
                 id: ObjectiveId::new(4),
@@ -2028,6 +2083,7 @@ mod tests {
                 height: Inches::ZERO,
                 control_status: wh40k_geometry::ObjectiveControlStatus::Uncontrolled,
                 label: "D".to_string(),
+                secured_by: None,
             },
         ];
 
@@ -2137,12 +2193,14 @@ mod tests {
         add_controlling_unit(&mut state, p1, 2, pos_b, 2);
 
         // At end of command phase in BR5: only 1st player (P0) scores
+        state.active_player = p0; // P0's command phase
         let results_cmd = score_clash_of_patrols(&state, 5, ScoringTiming::EndOfCommandPhase);
         assert_eq!(results_cmd.len(), 1);
         assert_eq!(results_cmd[0].0, p0);
         assert_eq!(results_cmd[0].1.value(), 5);
 
         // At end of turn in BR5: only 2nd player (P1) scores
+        state.active_player = p1; // P1's turn ending
         let results_eot = score_clash_of_patrols(&state, 5, ScoringTiming::EndOfTurn);
         assert_eq!(results_eot.len(), 1);
         assert_eq!(results_eot[0].0, p1);
@@ -2261,11 +2319,13 @@ mod tests {
         add_controlling_unit(&mut state, p1, 2, pos_d, 2);
 
         // BR5 end of command phase: only P0 (1st player) scores
+        state.active_player = p0;
         let results_cmd = score_forward_outpost(&state, 5, ScoringTiming::EndOfCommandPhase);
         assert_eq!(results_cmd.len(), 1);
         assert_eq!(results_cmd[0].0, p0);
 
         // BR5 end of turn: only P1 (2nd player) scores
+        state.active_player = p1;
         let results_eot = score_forward_outpost(&state, 5, ScoringTiming::EndOfTurn);
         assert_eq!(results_eot.len(), 1);
         assert_eq!(results_eot[0].0, p1);
@@ -2293,23 +2353,20 @@ mod tests {
     fn test_m4_scorched_earth_threshold_control_more() {
         let mut state = make_scoring_test_state(3);
         let p0 = PlayerId::new(0);
-        let p1 = PlayerId::new(1);
 
         // P0 controls 2 objectives, P1 controls 1
+        // Only active player (P0) scores at end of their Command Phase
         let pos_a = state.board.objectives[0].position;
         let pos_c = state.board.objectives[2].position;
-        let pos_b = state.board.objectives[1].position;
         add_controlling_unit(&mut state, p0, 1, pos_a, 2);
         add_controlling_unit(&mut state, p0, 2, pos_c, 2);
-        add_controlling_unit(&mut state, p1, 3, pos_b, 2);
 
+        state.active_player = p0;
         let results = score_scorched_earth(&state, 3, ScoringTiming::EndOfCommandPhase);
-        // P0: 5VP (control 1+) + 5VP (control more) = 10VP
-        let p0_result = results.iter().find(|(p, _, _)| *p == p0).unwrap();
-        assert_eq!(p0_result.1.value(), 10);
-        // P1: 5VP (control 1+) only
-        let p1_result = results.iter().find(|(p, _, _)| *p == p1).unwrap();
-        assert_eq!(p1_result.1.value(), 5);
+        // P0: 5VP (control 1+) + 5VP (control more than opponent) = 10VP
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0, p0);
+        assert_eq!(results[0].1.value(), 10);
     }
 
     #[test]
@@ -2359,11 +2416,13 @@ mod tests {
         add_controlling_unit(&mut state, p1, 2, pos_b, 2);
 
         // BR5 end of command phase: only P0 (1st player)
+        state.active_player = p0;
         let results_cmd = score_scorched_earth(&state, 5, ScoringTiming::EndOfCommandPhase);
         assert_eq!(results_cmd.len(), 1);
         assert_eq!(results_cmd[0].0, p0);
 
         // BR5 end of turn: only P1 (2nd player)
+        state.active_player = p1;
         let results_eot = score_scorched_earth(&state, 5, ScoringTiming::EndOfTurn);
         assert_eq!(results_eot.len(), 1);
         assert_eq!(results_eot[0].0, p1);
@@ -2511,12 +2570,14 @@ mod tests {
         add_controlling_unit(&mut state, p1, 2, pos_b, 2);
 
         // BR5 end of command phase: only P0 (1st player) scores
+        state.active_player = p0;
         let results_cmd = score_display_of_might(&state, 5, ScoringTiming::EndOfCommandPhase);
         assert_eq!(results_cmd.len(), 1);
         assert_eq!(results_cmd[0].0, p0);
         assert_eq!(results_cmd[0].1.value(), 5); // control 1+ = 5VP
 
         // BR5 end of turn: only P1 (2nd player) scores
+        state.active_player = p1;
         let results_eot = score_display_of_might(&state, 5, ScoringTiming::EndOfTurn);
         assert_eq!(results_eot.len(), 1);
         assert_eq!(results_eot[0].0, p1);
@@ -2526,18 +2587,22 @@ mod tests {
     // ─── ScoringTiming and players_to_score Tests ─────────────────────────
 
     #[test]
-    fn test_players_to_score_br2_4_all_score() {
+    fn test_players_to_score_br2_4_active_player_only() {
+        // BR2-4: only the active player scores at end of their Command Phase
         let state = make_scoring_test_state(3);
+        // active_player is P0 in test state
         let players = players_to_score(&state, 3, ScoringTiming::EndOfCommandPhase, true);
-        assert_eq!(players.len(), 2);
+        assert_eq!(players.len(), 1);
+        assert_eq!(players[0], PlayerId::new(0));
     }
 
     #[test]
     fn test_players_to_score_br5_no_split() {
         let state = make_scoring_test_state(5);
-        // Without BR5 split, both players score
+        // Without BR5 split, active player scores at end of command phase
         let players = players_to_score(&state, 5, ScoringTiming::EndOfCommandPhase, false);
-        assert_eq!(players.len(), 2);
+        assert_eq!(players.len(), 1);
+        assert_eq!(players[0], PlayerId::new(0));
     }
 
     #[test]
@@ -2545,6 +2610,7 @@ mod tests {
         let mut state = make_scoring_test_state(5);
         state.players[0].first_turn = true;
         state.players[1].first_turn = false;
+        state.active_player = PlayerId::new(0); // 1st player's turn
 
         // At end of command phase in BR5 with split: only 1st player
         let players = players_to_score(&state, 5, ScoringTiming::EndOfCommandPhase, true);
@@ -2557,6 +2623,7 @@ mod tests {
         let mut state = make_scoring_test_state(5);
         state.players[0].first_turn = true;
         state.players[1].first_turn = false;
+        state.active_player = PlayerId::new(1); // 2nd player's turn ending
 
         // At end of turn in BR5 with split: only 2nd player
         let players = players_to_score(&state, 5, ScoringTiming::EndOfTurn, true);

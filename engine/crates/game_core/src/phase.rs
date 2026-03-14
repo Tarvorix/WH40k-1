@@ -13,6 +13,7 @@ use wh40k_core_types::{
 use wh40k_event_system::GameEvent;
 
 use crate::effect;
+use crate::scoring;
 use crate::state::GameState;
 
 // ---------------------------------------------------------------------------
@@ -108,11 +109,114 @@ impl PhaseStateMachine {
     }
 
     /// End the current phase and emit the PhaseEnded event.
+    /// For the Command Phase, also triggers automatic primary and secondary scoring.
     fn end_current_phase(state: &mut GameState, phase: Phase) -> Vec<GameEvent> {
-        let events = vec![GameEvent::PhaseEnded {
+        let mut events = vec![GameEvent::PhaseEnded {
             phase,
             player: state.active_player,
         }];
+
+        // Score at end of Command Phase (primary + secondary objectives)
+        // Source: CP_Rules.md - Primary scoring at end of Command Phase (rounds 2+)
+        // Source: 40k_revised.md - Scoring at end of Command Phase
+        if phase == Phase::Command {
+            let mission_id = state.scenario_id;
+            let round = state.battle_round;
+
+            // Primary objective scoring
+            let primary_results = scoring::score_primary_objectives(
+                state,
+                mission_id,
+                scoring::ScoringTiming::EndOfCommandPhase,
+            );
+            for (player, vp, event) in primary_results {
+                state.player_mut(player).score_vp(vp.value());
+                state.player_mut(player).mission_progress.primary_vp += vp;
+                state.player_mut(player).mission_progress.record_round_score(round, vp);
+                events.push(event);
+            }
+
+            // Secondary objective scoring (only for the active player's Command Phase)
+            let active = state.active_player;
+            let secondary_results = scoring::score_secondary_objectives(state, active);
+            for (vp, event) in secondary_results {
+                state.player_mut(active).score_vp(vp.value());
+                state.player_mut(active).mission_progress.secondary_vp += vp;
+                events.push(event);
+            }
+
+            // Update objective control status and apply Secured mechanic.
+            // Source: CP_Rules.md §12.2 - Controlling Objectives
+            // Source: CP_Rules.md §12.3 - Securing Objective Markers
+            //   "At end of Command phase, if you control an objective AND have
+            //    a non-Battle-shocked BATTLELINE unit within range, it is secured.
+            //    You retain control even without models in range, until opponent
+            //    controls it at end of a subsequent Command phase."
+            //
+            // Compute new control statuses first (immutable borrow), then apply (mutable).
+            // Per CP_Rules §12.3: objective is SECURED only if the controlling player
+            // has a non-Battle-shocked BATTLELINE unit within range. Secured objectives
+            // persist until the opponent controls them at a subsequent Command Phase.
+            // Two-step objective control and Secured update:
+            //
+            // Step 1: Determine active OC controller for each objective.
+            // Step 2: Apply Secured mechanic:
+            //   - If a player controls AND has non-BS BATTLELINE in range → mark secured_by.
+            //   - If no active controller but objective was secured → previous controller
+            //     retains control (secured persists regardless of BATTLELINE position).
+            //   - If opponent actively controls → they take over, secured_by is cleared.
+            //
+            // Source: CP_Rules.md §12.3 — Securing Objective Markers
+            let updates: Vec<(wh40k_core_types::ObjectiveId, wh40k_geometry::ObjectiveControlStatus, Option<wh40k_core_types::PlayerId>)> = {
+                state.board.objectives.iter().map(|obj| {
+                    let active_controller = scoring::calculate_objective_controller(state, obj.id);
+
+                    match active_controller {
+                        Some(player) => {
+                            // Player actively controls via OC.
+                            // Check if they also have non-BS BATTLELINE to secure it.
+                            let has_battleline = state.units.iter().any(|u| {
+                                u.owner == player
+                                    && u.is_on_battlefield()
+                                    && !u.is_destroyed()
+                                    && !u.battle_shocked
+                                    && u.is_battleline()
+                                    && scoring::is_unit_within_objective_range(state, u, obj.id)
+                            });
+                            let secured = if has_battleline { Some(player) } else { obj.secured_by };
+                            (obj.id, wh40k_geometry::ObjectiveControlStatus::ControlledBy(player), secured)
+                        }
+                        None => {
+                            // No active OC controller (contested or empty).
+                            // If objective was previously secured, previous controller retains.
+                            if let Some(prev_player) = obj.secured_by {
+                                (obj.id, wh40k_geometry::ObjectiveControlStatus::ControlledBy(prev_player), Some(prev_player))
+                            } else {
+                                (obj.id, wh40k_geometry::ObjectiveControlStatus::Uncontrolled, None)
+                            }
+                        }
+                    }
+                }).collect()
+            };
+            for (obj_id, status, secured) in updates {
+                if let Some(obj) = state.board.objectives.iter_mut().find(|o| o.id == obj_id) {
+                    obj.control_status = status;
+                    obj.secured_by = secured;
+                }
+            }
+        }
+
+        // Score secondary objectives at end of Fight Phase for fight-phase secondaries.
+        // Source: Frenzied_Reavers.md - Skull Takers: "At the end of the Fight phase"
+        if phase == Phase::Fight {
+            let active = state.active_player;
+            let secondary_results = scoring::score_secondary_objectives(state, active);
+            for (vp, event) in secondary_results {
+                state.player_mut(active).score_vp(vp.value());
+                state.player_mut(active).mission_progress.secondary_vp += vp;
+                events.push(event);
+            }
+        }
 
         // Clear phase-level stratagem tracking
         state.turn_flags.clear_phase_flags();
@@ -144,6 +248,16 @@ impl PhaseStateMachine {
 
         state.current_subphase = SubPhase::BattleShockTests;
 
+        // Clear battle-shock for all of the active player's units.
+        // Per 40k_revised.md §4.2: "Duration: Until start of that player's
+        // next Command Phase." Battle-shock expires here, then we re-test
+        // units that are currently below half-strength.
+        for unit in &mut state.units {
+            if unit.owner == player && unit.battle_shocked {
+                unit.battle_shocked = false;
+            }
+        }
+
         // Identify units that need battle-shock tests (below half strength)
         let units_needing_test: Vec<_> = state
             .units
@@ -159,6 +273,50 @@ impl PhaseStateMachine {
 
         for unit_id in &units_needing_test {
             events.push(GameEvent::BattleShockTestRequired { unit: *unit_id });
+        }
+
+        // ── Mission-specific Command Phase mechanics ───────────────────────
+
+        // Mission 5 (Sweeping Raid) — Supply Lines:
+        // At start of Command Phase, if active player controls their own DZ
+        // objective, roll D6. On 4+, gain 1CP.
+        // Source: CP_Rules.md - Mission 5: Sweeping Raid, Supply Lines
+        if state.scenario_id == Some(scoring::mission_ids::SWEEPING_RAID) {
+            let supply_events = scoring::evaluate_supply_lines(state, player);
+            events.extend(supply_events);
+        }
+
+        // Mission 1 (Clash of Patrols) — Retrieve Intelligence:
+        // From BR2+, in Command Phase, select one controlled objective.
+        // If WARLORD on battlefield: gain 1CP. Each objective selectable once total.
+        // Auto-select the first eligible objective for the active player.
+        // Source: CP_Rules.md - Mission 1: Clash of Patrols, Retrieve Intelligence
+        if state.scenario_id == Some(scoring::mission_ids::CLASH_OF_PATROLS)
+            && state.battle_round.number() >= 2
+        {
+            // Find first controlled objective not yet selected by either player
+            let eligible_obj: Option<wh40k_core_types::ObjectiveId> = state
+                .board
+                .objectives
+                .iter()
+                .filter(|obj| {
+                    scoring::calculate_objective_controller(state, obj.id) == Some(player)
+                        && !state.players[0]
+                            .mission_progress
+                            .retrieved_intelligence_objectives
+                            .contains(&obj.id)
+                        && !state.players[1]
+                            .mission_progress
+                            .retrieved_intelligence_objectives
+                            .contains(&obj.id)
+                })
+                .map(|obj| obj.id)
+                .next();
+
+            if let Some(obj_id) = eligible_obj {
+                let ri_events = scoring::evaluate_retrieve_intelligence(state, player, obj_id);
+                events.extend(ri_events);
+            }
         }
 
         events
@@ -268,6 +426,57 @@ impl PhaseStateMachine {
         let mut events = Vec::new();
         let current_player = state.active_player;
 
+        // Score primary objectives at end of turn (for BR5 2nd player with split timing)
+        // Source: CP_Rules.md - BR5 2nd player scores at end of turn
+        {
+            let mission_id = state.scenario_id;
+            let round = state.battle_round;
+            let turn_results = scoring::score_primary_objectives(
+                state,
+                mission_id,
+                scoring::ScoringTiming::EndOfTurn,
+            );
+            for (player, vp, event) in turn_results {
+                state.player_mut(player).score_vp(vp.value());
+                state.player_mut(player).mission_progress.primary_vp += vp;
+                state.player_mut(player).mission_progress.record_round_score(round, vp);
+                events.push(event);
+            }
+        }
+
+        // Score secondary objectives at end of turn for end-of-turn secondaries.
+        // Source: Custodes.md - Raise the Vexillas: "at the end of YOUR turn"
+        {
+            let active = state.active_player;
+            let secondary_results = scoring::score_secondary_objectives_end_of_turn(state, active);
+            for (vp, event) in secondary_results {
+                state.player_mut(active).score_vp(vp.value());
+                state.player_mut(active).mission_progress.secondary_vp += vp;
+                events.push(event);
+            }
+        }
+
+        // ── Mission-specific end-of-turn mechanics ─────────────────────────
+
+        // Mission 3 (Forward Outpost) — Sabotage Enemy Comms:
+        // At end of your turn, if you control objective in opponent's DZ,
+        // opponent cannot use Command Re-roll for rest of battle.
+        // Source: CP_Rules.md - Mission 3: Forward Outpost, Sabotage Enemy Comms
+        if state.scenario_id == Some(scoring::mission_ids::FORWARD_OUTPOST) {
+            let active = state.active_player;
+            let sabotage_events = scoring::evaluate_sabotage_enemy_comms(state, active);
+            events.extend(sabotage_events);
+        }
+
+        // Mission 6 (Display of Might) — Record symbolic site claims:
+        // Track which CHARACTER models are claiming which NML objectives
+        // so consecutive-turn claims can be scored in future rounds.
+        // Source: CP_Rules.md - Mission 6: Display of Might, Claim Sites
+        if state.scenario_id == Some(scoring::mission_ids::DISPLAY_OF_MIGHT) {
+            let round = state.battle_round.number();
+            scoring::record_display_of_might_claims(state, round);
+        }
+
         events.push(GameEvent::TurnEnded {
             player: current_player,
             round: state.battle_round,
@@ -356,9 +565,71 @@ impl PhaseStateMachine {
         if let Some(next_round) = state.battle_round.next() {
             state.battle_round = next_round;
 
-            // Clear faction round flags
+            // Archeotech Recovery (Mission 2): Irradiated Power Cells objective removal.
+            // Source: CP_Rules.md - Mission 2: Archeotech Recovery
+            //   Start of round 3: Defender randomly selects one NML objective = Gamma
+            //   Start of round 4: Gamma is removed
+            //   Start of round 5: Attacker randomly selects remaining NML obj = Beta, removed
+            // We handle selection and removal at round boundaries.
+            if state.scenario_id == Some(scoring::mission_ids::ARCHEOTECH_RECOVERY) {
+                let round_num = next_round.number();
+                if round_num == 3 {
+                    // Mark a random NML objective as Gamma (to be removed at round 4)
+                    let nml_ids: Vec<wh40k_core_types::ObjectiveId> = state.board.objectives.iter()
+                        .filter(|o| scoring::is_objective_in_no_mans_land(o))
+                        .map(|o| o.id)
+                        .collect();
+                    if !nml_ids.is_empty() {
+                        let (roll, _) = state.dice_roller.roll_d6(wh40k_dice::RollPurpose::Misc {
+                            description: "Irradiated Power Cells: select Gamma objective".to_string(),
+                        });
+                        let gamma_idx = (roll as usize - 1) % nml_ids.len();
+                        state.turn_flags.archeotech_gamma_objective = Some(nml_ids[gamma_idx]);
+                    }
+                } else if round_num == 4 {
+                    // Remove Gamma objective
+                    if let Some(gamma_id) = state.turn_flags.archeotech_gamma_objective {
+                        state.board.objectives.retain(|o| o.id != gamma_id);
+                        events.push(GameEvent::VictoryPointsScored {
+                            player: state.active_player,
+                            amount: 0,
+                            source: wh40k_event_system::VpSource::MissionRule(
+                                format!("Archeotech Recovery: Gamma objective {} removed (irradiated)", gamma_id),
+                            ),
+                        });
+                        // Select Beta from remaining NML objectives
+                        let remaining_nml: Vec<wh40k_core_types::ObjectiveId> = state.board.objectives.iter()
+                            .filter(|o| scoring::is_objective_in_no_mans_land(o))
+                            .map(|o| o.id)
+                            .collect();
+                        if !remaining_nml.is_empty() {
+                            let (roll, _) = state.dice_roller.roll_d6(wh40k_dice::RollPurpose::Misc {
+                                description: "Irradiated Power Cells: select Beta objective".to_string(),
+                            });
+                            let beta_idx = (roll as usize - 1) % remaining_nml.len();
+                            state.turn_flags.archeotech_beta_objective = Some(remaining_nml[beta_idx]);
+                        }
+                    }
+                } else if round_num == 5 {
+                    // Remove Beta objective
+                    if let Some(beta_id) = state.turn_flags.archeotech_beta_objective {
+                        state.board.objectives.retain(|o| o.id != beta_id);
+                        events.push(GameEvent::VictoryPointsScored {
+                            player: state.active_player,
+                            amount: 0,
+                            source: wh40k_event_system::VpSource::MissionRule(
+                                format!("Archeotech Recovery: Beta objective {} removed (irradiated)", beta_id),
+                            ),
+                        });
+                    }
+                }
+            }
+
+            // Clear faction round flags and reset extra CP cap for new round
+            // Source: 40k_revised.md §4.1 — extra CP cap resets each battle round
             for player in &mut state.players {
                 player.faction_round_flags.clear();
+                player.extra_cp_gained_this_round = 0;
             }
 
             // Start first player's turn
@@ -385,7 +656,14 @@ impl PhaseStateMachine {
                 player: first_player,
             });
         } else {
-            // Round 5 completed, game ends
+            // Round 5 completed — apply end-of-game scoring before determining winner
+            // Source: CP_Rules.md - End of Game Scoring (Battle Ready bonus, mission-specific bonuses)
+            let endgame_results = scoring::calculate_end_of_game_score(state, state.scenario_id);
+            for (player, vp, event) in endgame_results {
+                state.player_mut(player).score_vp(vp.value());
+                events.push(event);
+            }
+
             let outcome = Self::determine_winner(state);
             state.game_outcome = outcome;
             state.current_phase = Phase::GameEnd;

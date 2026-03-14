@@ -163,8 +163,9 @@ impl CommandValidator {
                 Self::validate_declare_charge(state, *unit_id, targets)
             }
             Command::ResolveChargeRoll { unit_id: _, roll } => {
-                // Validate charge roll is a valid 2D6 result (2-12)
-                if *roll < 2 || *roll > 12 {
+                // roll=0 is a sentinel meaning "roll actual 2D6 dice" (used by ActionGenerator)
+                // Otherwise validate it's a valid 2D6 result (2-12)
+                if *roll != 0 && (*roll < 2 || *roll > 12) {
                     return CommandValidationResult::illegal(
                         format!("Charge roll {} is not a valid 2D6 result (must be 2-12)", roll),
                     );
@@ -1860,6 +1861,18 @@ impl CommandValidator {
             );
         }
 
+        // Mission 3 (Forward Outpost) — Sabotage Enemy Comms:
+        // If command_reroll_blocked is set, player cannot use Command Re-roll.
+        // Source: CP_Rules.md - Mission 3: Sabotage Enemy Comms
+        if stratagem_id == stratagem::ids::COMMAND_REROLL
+            && player_state.mission_progress.command_reroll_blocked
+        {
+            return CommandValidationResult::illegal_with_ref(
+                "Command Re-roll is blocked by Sabotage Enemy Comms (Forward Outpost)",
+                "CP_Rules.md - Mission 3: Sabotage Enemy Comms",
+            );
+        }
+
         // Check phase validity
         // Command Re-roll is valid in any phase
         if stratagem_id != stratagem::ids::COMMAND_REROLL
@@ -1967,6 +1980,36 @@ impl CommandValidator {
             );
         }
 
+        // Mission 6 (Display of Might) — Break Their Spirit:
+        // Insane Bravery can only be used if target unit within 6" of WARLORD.
+        // Source: CP_Rules.md - Mission 6: Display of Might, Break Their Spirit
+        if stratagem_id == stratagem::ids::INSANE_BRAVERY {
+            if state.scenario_id == Some(crate::scoring::mission_ids::DISPLAY_OF_MIGHT) {
+                if let wh40k_command_system::StratagemTarget::Unit(unit_id) = target {
+                    let unit_pos = state.unit(*unit_id).and_then(|u| u.reference_position());
+                    let warlord_nearby = unit_pos.map_or(false, |pos| {
+                        state.units.iter().any(|u| {
+                            u.owner == player
+                                && !u.is_destroyed()
+                                && u.is_on_battlefield()
+                                && u.is_character()
+                                && u.enhancement_oc_override.is_some() // Warlord has an enhancement
+                                && u.reference_position().map_or(false, |wpos| {
+                                    wh40k_geometry::distance(pos, wpos)
+                                        <= wh40k_core_types::Inches::from_inches(6)
+                                })
+                        })
+                    });
+                    if !warlord_nearby {
+                        return CommandValidationResult::illegal_with_ref(
+                            "Break Their Spirit: Insane Bravery requires target unit within 6\" of WARLORD",
+                            "CP_Rules.md - Mission 6: Display of Might, Break Their Spirit",
+                        );
+                    }
+                }
+            }
+        }
+
         // Check target restrictions
         if let wh40k_command_system::StratagemTarget::Unit(unit_id) = target {
             if let Some(unit) = state.unit(*unit_id) {
@@ -2008,6 +2051,99 @@ impl CommandValidator {
                 }
             } else {
                 return CommandValidationResult::illegal("Stratagem target unit not found");
+            }
+        }
+
+        // Tank Shock: target must be a VEHICLE or MONSTER (not enforced via required_keywords
+        // because the static def can't express OR logic).
+        // Source: CP_Rules.md §11 — Tank Shock: "VEHICLE unit"
+        // Source: Frenzied_Reavers.md — Tank Shock available to Vorrakh (MONSTER)
+        if stratagem_id == stratagem::ids::TANK_SHOCK {
+            if let wh40k_command_system::StratagemTarget::Unit(unit_id) = target {
+                if let Some(unit) = state.unit(*unit_id) {
+                    let is_vehicle = unit.has_keyword(wh40k_core_types::Keyword::Vehicle);
+                    let is_monster = unit.has_keyword(wh40k_core_types::Keyword::Monster);
+                    if !is_vehicle && !is_monster {
+                        return CommandValidationResult::illegal_with_ref(
+                            "Tank Shock: target must be a VEHICLE or MONSTER unit",
+                            "CP_Rules.md - Tank Shock: VEHICLE/MONSTER requirement",
+                        );
+                    }
+                }
+            }
+        }
+
+        // Bloodlust: JAKHALS unit must have lost one or more models from enemy shooting.
+        // Source: Frenzied_Reavers.md — Bloodlust: "one JAKHALS unit that lost one or
+        // more models from the attacking unit's attacks"
+        if stratagem_id == stratagem::ids::BLOODLUST {
+            if let wh40k_command_system::StratagemTarget::Unit(unit_id) = target {
+                if let Some(unit) = state.unit(*unit_id) {
+                    // Check if this unit has lost models this phase (models_alive < starting_strength)
+                    let starting = unit.starting_model_count();
+                    let current = unit.models_alive();
+                    if current >= starting {
+                        return CommandValidationResult::illegal_with_ref(
+                            "Bloodlust: JAKHALS unit must have lost one or more models from enemy shooting",
+                            "Frenzied_Reavers.md - Bloodlust: lost models condition",
+                        );
+                    }
+                }
+            }
+        }
+
+        // Heroic Intervention: VEHICLE must be a WALKER to use.
+        // Source: CP_Rules.md §11 — Heroic Intervention: "VEHICLE must be WALKER"
+        if stratagem_id == stratagem::ids::HEROIC_INTERVENTION {
+            if let wh40k_command_system::StratagemTarget::Unit(unit_id) = target {
+                if let Some(unit) = state.unit(*unit_id) {
+                    if unit.has_keyword(wh40k_core_types::Keyword::Vehicle)
+                        && !unit.has_keyword(wh40k_core_types::Keyword::Walker)
+                    {
+                        return CommandValidationResult::illegal_with_ref(
+                            "Heroic Intervention: VEHICLE units must have WALKER keyword",
+                            "CP_Rules.md - Heroic Intervention: VEHICLE must be WALKER",
+                        );
+                    }
+                }
+            }
+        }
+
+        // Grenade stratagem additional restrictions.
+        // Source: CP_Rules.md — Grenade: "GRENADES unit that hasn't Advanced,
+        // Fallen Back, or shot, and isn't in Engagement Range"
+        if stratagem_id == stratagem::ids::GRENADE {
+            if let wh40k_command_system::StratagemTarget::Unit(unit_id) = target {
+                // Cannot use if unit Advanced
+                if state.turn_flags.advanced_this_turn.contains(unit_id) {
+                    return CommandValidationResult::illegal_with_ref(
+                        "Grenade: unit has Advanced this turn",
+                        "CP_Rules.md - Grenade restrictions",
+                    );
+                }
+                // Cannot use if unit Fell Back
+                if state.turn_flags.fell_back_this_turn.contains(unit_id) {
+                    return CommandValidationResult::illegal_with_ref(
+                        "Grenade: unit has Fallen Back this turn",
+                        "CP_Rules.md - Grenade restrictions",
+                    );
+                }
+                // Cannot use if unit already shot
+                if state.turn_flags.units_shot.contains(unit_id) {
+                    return CommandValidationResult::illegal_with_ref(
+                        "Grenade: unit has already shot this turn",
+                        "CP_Rules.md - Grenade restrictions",
+                    );
+                }
+                // Cannot use if unit is within Engagement Range
+                if let Some(unit) = state.unit(*unit_id) {
+                    if unit.engagement_status == wh40k_core_types::EngagementStatus::Engaged {
+                        return CommandValidationResult::illegal_with_ref(
+                            "Grenade: unit is within Engagement Range of enemies",
+                            "CP_Rules.md - Grenade restrictions",
+                        );
+                    }
+                }
             }
         }
 
