@@ -2,7 +2,7 @@
 WH40K NNUE Model Definition (PyTorch)
 
 Mirrors the Rust NNUE architecture exactly:
-    Sparse Features (1203) -> Accumulator (128) -> Hidden1 (32) -> Hidden2 (32) -> Output (1)
+    Sparse Features (1209) -> Accumulator (128) -> Hidden1 (32) -> Hidden2 (32) -> Output (1)
                                [ClippedReLU]       [ClippedReLU]   [ClippedReLU]
 
 Quantization scales (matching Rust eval_nnue):
@@ -18,7 +18,7 @@ import torch.nn as nn
 
 
 # Architecture dimensions (must match Rust NnueDimensions::DEFAULT)
-TOTAL_FEATURES = 1203
+TOTAL_FEATURES = 1209
 ACCUMULATOR_SIZE = 128
 HIDDEN1_SIZE = 32
 HIDDEN2_SIZE = 32
@@ -48,7 +48,7 @@ class NnueModel(nn.Module):
     """NNUE evaluation network matching the Rust quantized architecture.
 
     Architecture:
-        1. Feature transformer: sparse_features -> accumulator (1203 -> 128)
+        1. Feature transformer: sparse_features -> accumulator (1209 -> 128)
         2. Hidden layer 1: accumulator -> hidden1 (128 -> 32)
         3. Hidden layer 2: hidden1 -> hidden2 (32 -> 32)
         4. Output: hidden2 -> scalar (32 -> 1)

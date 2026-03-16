@@ -1,7 +1,32 @@
 # WH40K Engine - Implementation TODO
 
-**Status: Phase 16 COMPLETE — Boarding Actions Fully Implemented**
-**Total tests passing: 1567+ (all workspace tests) | Workspace compiles clean | Web TypeScript clean**
+**Status: Source-Linked Rules Tests — Building tests/rules/ per implementation_v3.md**
+**Total tests passing: 1559 (all workspace tests) | Workspace compiles clean | Web TypeScript clean**
+
+#### Source-Linked Rules Tests (2026-03-16) COMPLETE
+- [x] Step 1: Created rules_tests crate (Cargo.toml, workspace member, symlink tests/rules/)
+- [x] Step 2: core_attack_resolution.rs — §8 wound threshold, hit/wound/save rolls (32 tests)
+- [x] Step 3: core_dice_and_basics.rs — §1-3 engagement range, coherency, modifiers (28 tests)
+- [x] Step 4: core_movement.rs — §5 movement types, advance, fall back, reinforcements (57 tests)
+- [x] Step 5: core_shooting.rs — §7 shooting eligibility, targeting, locked in combat (22 tests)
+- [x] Step 6: core_weapon_abilities.rs — §11 all 18 weapon abilities (51 tests)
+- [x] Step 7: core_charge.rs + core_fight.rs — §9-10 charge/fight phases (80 tests)
+- [x] Step 8: core_command_phase.rs + core_unit_abilities.rs — §4, §12 (61 tests)
+- [x] Step 9: core_stratagems.rs + core_transports.rs + core_objectives.rs — §15, §6, §18 (96 tests)
+- [x] Step 10: cp_missions.rs + cp_setup.rs — CP_Rules missions and setup (50 tests)
+- [x] Step 11: BA test files (8 files) — boarding_actions_complete_v3.md (149 tests)
+- [x] Step 12: Updated rule_coverage_matrix.md with full test→rule mapping
+- [ ] Step 13: Clean up superseded inline tests (optional, low priority)
+
+#### Wire BoardingFeatures into NNUE Pipeline (2026-03-15) COMPLETE
+- [x] Step 1: eval_features — Add BA feature constants (1203-1208), bump FEATURE_SCHEMA_VERSION to 2, update TOTAL_FEATURES to 1209
+- [x] Step 2: eval_features — Modify extract_sparse_features_from_state() to append BA features, add sparse_from_boarding()
+- [x] Step 3: eval_features — Update tests for new feature count and schema version (4 new tests)
+- [x] Step 4: eval_nnue — Update NnueDimensions::DEFAULT comment, PolicyValueDimensions::DEFAULT to use TOTAL_FEATURES, update tests
+- [x] Step 5: selfplay — Add backward compat for v1 shards in validate_shard(), update comments
+- [x] Step 6: trainer_bridge — Update comments and tests for new TOTAL_FEATURES
+- [x] Step 7: Python — Update TOTAL_FEATURES in model.py, policy_value_model.py, export_weights.py, mcts_train.py
+- [x] Step 8: Verify — cargo build clean, 1559 tests pass with 0 failures across all crates
 
 #### Phase 16.8: Integration, Polish & Full Testing for Boarding Actions (2026-03-15) COMPLETE
 - [x] Step 1: Extend replay system — added `game_mode` to ReplayHeader metadata, populated from GameState, included in diff comparison and summary export

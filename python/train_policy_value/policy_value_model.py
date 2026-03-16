@@ -2,10 +2,10 @@
 Policy/Value Dual-Head Neural Network for AlphaGo-Style Training.
 
 Architecture:
-    Sparse Input (1203) → Trunk (128, ReLU) → Policy Head (64 → 528 logits)
+    Sparse Input (1209) → Trunk (128, ReLU) → Policy Head (64 → 640 logits)
                                               → Value Head (64 → 1 tanh)
 
-The policy head outputs logits over the 528-action vocabulary (33 intents × 16 unit slots).
+The policy head outputs logits over the 640-action vocabulary (40 intents × 16 unit slots).
 The value head outputs a scalar in [-1, 1] representing win probability from the
 perspective of the acting player.
 
@@ -22,10 +22,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# Constants matching Rust engine
-TOTAL_FEATURES = 1203
-ACTION_VOCAB_SIZE = 528
-INTENT_COUNT = 33
+# Constants matching Rust engine (40 intents after BA Phase 16.7)
+TOTAL_FEATURES = 1209
+ACTION_VOCAB_SIZE = 640
+INTENT_COUNT = 40
 MAX_UNIT_SLOTS = 16
 
 
@@ -33,8 +33,8 @@ class PolicyValueNet(nn.Module):
     """Dual-head network: shared trunk → policy head + value head.
 
     Architecture:
-        Input (1203) → Trunk Linear (128) → ReLU
-                     → Policy: Linear (64) → ReLU → Linear (528)
+        Input (1209) → Trunk Linear (128) → ReLU
+                     → Policy: Linear (64) → ReLU → Linear (640)
                      → Value: Linear (64) → ReLU → Linear (1) → tanh
     """
 

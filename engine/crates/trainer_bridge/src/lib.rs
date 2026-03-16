@@ -215,7 +215,7 @@ impl PyGameState {
     ///     perspective: Player perspective (0 or 1). Defaults to decision_owner.
     ///
     /// Returns:
-    ///     List of f32 values of length TOTAL_FEATURES (1203).
+    ///     List of f32 values of length TOTAL_FEATURES (1209).
     #[pyo3(signature = (perspective=None))]
     fn encode_state_dense(&self, perspective: Option<u32>) -> Vec<f32> {
         let p = perspective
@@ -239,7 +239,7 @@ impl PyGameState {
     /// Encode the legal action mask over the fixed vocabulary.
     ///
     /// Returns:
-    ///     List of bool of length ACTION_VOCAB_SIZE (528).
+    ///     List of bool of length ACTION_VOCAB_SIZE (640).
     #[pyo3(signature = (perspective=None))]
     fn encode_legal_mask(&mut self, perspective: Option<u32>) -> Vec<bool> {
         let p = perspective
@@ -541,7 +541,7 @@ impl PyTrainingShard {
 /// NNUE network weights accessible from Python.
 ///
 /// Holds all quantized weights for the 4-layer NNUE:
-/// Sparse Features (1203) -> Accumulator (128) -> Hidden1 (32) -> Hidden2 (32) -> Output (1)
+/// Sparse Features (1209) -> Accumulator (128) -> Hidden1 (32) -> Hidden2 (32) -> Output (1)
 ///
 /// Quantization:
 /// - Feature weights: i16
@@ -1539,8 +1539,8 @@ mod tests {
 
     #[test]
     fn test_constants() {
-        assert_eq!(PY_TOTAL_FEATURES, 1203);
-        assert_eq!(PY_ACTION_VOCAB_SIZE, 528);
+        assert_eq!(PY_TOTAL_FEATURES, 1209);
+        assert_eq!(PY_ACTION_VOCAB_SIZE, 640);
     }
 
     #[test]
@@ -1560,7 +1560,7 @@ mod tests {
     #[test]
     fn test_nnue_weights_dimensions() {
         let (inp, acc, h1, h2, out) = PyNnueWeights::dimensions();
-        assert_eq!(inp, 1203);
+        assert_eq!(inp, 1209);
         assert_eq!(acc, 128);
         assert_eq!(h1, 32);
         assert_eq!(h2, 32);

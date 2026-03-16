@@ -297,7 +297,7 @@ pub fn action_to_vocab_index(
 /// Encode a game state as a dense f32 feature vector for training.
 ///
 /// Uses the NNUE sparse feature extraction and converts to a dense vector
-/// of TOTAL_FEATURES (1203) dimensions. This is the canonical state
+/// of TOTAL_FEATURES (1209) dimensions. This is the canonical state
 /// representation for neural network training.
 ///
 /// # Arguments
@@ -305,7 +305,7 @@ pub fn action_to_vocab_index(
 /// * `perspective` - Which player's perspective to encode from
 ///
 /// # Returns
-/// A Vec<f32> of length TOTAL_FEATURES (1203).
+/// A Vec<f32> of length TOTAL_FEATURES (1209).
 pub fn encode_state(state: &GameState, perspective: PlayerId) -> Vec<f32> {
     let sparse = extract_sparse_features_from_state(state, perspective);
     sparse_to_dense(&sparse, TOTAL_FEATURES)
@@ -818,6 +818,7 @@ impl ShardReader {
     }
 
     /// Validate shard compatibility with the current engine.
+    /// Accepts both v1 (1203 features) and v2 (1209 features) shards for backward compat.
     pub fn validate_shard(shard: &TrainingShard) -> Result<(), SelfPlayError> {
         if shard.header.version != SHARD_FORMAT_VERSION {
             return Err(SelfPlayError::ConfigError(format!(
@@ -825,15 +826,21 @@ impl ShardReader {
                 SHARD_FORMAT_VERSION, shard.header.version
             )));
         }
-        if shard.header.feature_schema_version != FEATURE_SCHEMA_VERSION {
+        // Accept current schema (v2) and legacy schema (v1, pre-BA features)
+        if shard.header.feature_schema_version != FEATURE_SCHEMA_VERSION
+            && shard.header.feature_schema_version != 1
+        {
             return Err(SelfPlayError::ConfigError(format!(
-                "Feature schema version mismatch: expected {}, got {}",
+                "Feature schema version mismatch: expected {} or 1, got {}",
                 FEATURE_SCHEMA_VERSION, shard.header.feature_schema_version
             )));
         }
-        if shard.header.total_features != TOTAL_FEATURES {
+        // Accept current feature count (1209) and legacy (1203)
+        if shard.header.total_features != TOTAL_FEATURES
+            && shard.header.total_features != 1203
+        {
             return Err(SelfPlayError::ConfigError(format!(
-                "Total features mismatch: expected {}, got {}",
+                "Total features mismatch: expected {} or 1203, got {}",
                 TOTAL_FEATURES, shard.header.total_features
             )));
         }
@@ -2672,7 +2679,7 @@ impl GatingHarness {
 pub struct PolicyValueSample {
     /// Sparse features for the position (same as TrainingSample).
     pub sparse_features: Vec<(u16, i16)>,
-    /// Legal action mask over ACTION_VOCAB_SIZE (528).
+    /// Legal action mask over ACTION_VOCAB_SIZE (640).
     pub legal_mask: LegalMask,
     /// Policy target: probability distribution over ACTION_VOCAB_SIZE.
     /// From MCTS visit counts (normalized). Zero for illegal actions.
@@ -2689,7 +2696,7 @@ pub struct PolicyValueSample {
 }
 
 /// Encode a policy target from MCTS visit distribution over candidates.
-/// Maps candidate-level visit proportions to the fixed 528-action vocabulary.
+/// Maps candidate-level visit proportions to the fixed 640-action vocabulary.
 pub fn encode_policy_target(
     visit_distribution: &[(usize, f32)],
     candidates: &[wh40k_search_abstraction::MacroAction],

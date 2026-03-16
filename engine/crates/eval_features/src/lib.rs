@@ -457,7 +457,9 @@ impl NnueFeatureSchema {
 // ============================================================================
 
 /// Current feature schema version. Increment when layout changes.
-pub const FEATURE_SCHEMA_VERSION: u32 = 1;
+/// v1: 1203 features (Combat Patrol only)
+/// v2: 1209 features (added 6 Boarding Actions features)
+pub const FEATURE_SCHEMA_VERSION: u32 = 2;
 
 /// Offset to global feature section.
 pub const GLOBAL_FEAT_OFFSET: u16 = 0;
@@ -488,8 +490,25 @@ pub const NNUE_MAX_UNITS: usize = 16;
 /// Total unit feature section size.
 pub const UNIT_FEAT_TOTAL: u16 = UNIT_FEAT_PER_UNIT * NNUE_MAX_UNITS as u16;
 
-/// Total feature space dimensions.
-pub const TOTAL_FEATURES: usize = (UNIT_FEAT_OFFSET + UNIT_FEAT_TOTAL) as usize;
+/// Offset to Boarding Actions feature section.
+pub const BA_FEAT_OFFSET: u16 = UNIT_FEAT_OFFSET + UNIT_FEAT_TOTAL;
+/// Number of Boarding Actions features.
+pub const BA_FEAT_COUNT: u16 = 6;
+/// BA feature: secured objectives (own), scaled count × 20.
+pub const BA_FEAT_SECURED_OBJ: u16 = BA_FEAT_OFFSET;
+/// BA feature: secured objectives (opponent), scaled count × 20.
+pub const BA_FEAT_OPPONENT_SECURED: u16 = BA_FEAT_OFFSET + 1;
+/// BA feature: open hatchways, scaled count × 15.
+pub const BA_FEAT_OPEN_HATCHWAYS: u16 = BA_FEAT_OFFSET + 2;
+/// BA feature: closed hatchways, scaled count × 15.
+pub const BA_FEAT_CLOSED_HATCHWAYS: u16 = BA_FEAT_OFFSET + 3;
+/// BA feature: active tactical manoeuvres (own), scaled count × 20.
+pub const BA_FEAT_ACTIVE_MANOEUVRES: u16 = BA_FEAT_OFFSET + 4;
+/// BA feature: active battlefield commands (own), scaled count × 25.
+pub const BA_FEAT_ACTIVE_COMMANDS: u16 = BA_FEAT_OFFSET + 5;
+
+/// Total feature space dimensions (including Boarding Actions features).
+pub const TOTAL_FEATURES: usize = (BA_FEAT_OFFSET + BA_FEAT_COUNT) as usize;
 
 /// Maximum value for normalized scalar features.
 pub const SCALAR_NORM_MAX: i16 = 127;
@@ -1281,12 +1300,23 @@ pub fn compute_value_score(unit: &UnitState, threat: u16, durability: u16) -> u1
 
 /// Extract sparse features from a GameState for NNUE evaluation.
 /// Combines feature extraction and sparse conversion in one step.
+/// For Boarding Actions games, also appends 6 BA-specific features at indices 1203-1208.
 pub fn extract_sparse_features_from_state(
     state: &GameState,
     perspective: PlayerId,
 ) -> SparseFeatureVec {
     let features = extract_features(state, perspective);
-    extract_sparse_features(&features)
+    let mut sparse = extract_sparse_features(&features);
+
+    // Append BA features if this is a Boarding Actions game.
+    // BA feature indices (1203-1208) are always > all Combat Patrol indices,
+    // so appending in order preserves the sorted invariant.
+    if state.is_boarding_actions() {
+        let ba = extract_boarding_features(state, perspective);
+        sparse_from_boarding(&ba, &mut sparse);
+    }
+
+    sparse
 }
 
 /// Convert a FeatureSet into a sparse feature vector for NNUE input.
@@ -1454,6 +1484,21 @@ fn sparse_from_units(units: &[UnitFeatures], sparse: &mut SparseFeatureVec) {
         sparse.push(base + 60, compute_anti_infantry_relevance(unit));
         sparse.push(base + 61, compute_melee_threat_matchup(unit));
     }
+}
+
+/// Extract sparse features from BoardingFeatures.
+/// Appends 6 BA features at indices BA_FEAT_OFFSET..BA_FEAT_OFFSET+5.
+/// Values are scaled counts clamped to [-127, 127].
+/// For Combat Patrol games, this is never called (sparse vec omits BA features).
+fn sparse_from_boarding(ba: &BoardingFeatures, sparse: &mut SparseFeatureVec) {
+    let clamp = |v: i32| -> i16 { v.clamp(-(SCALAR_NORM_MAX as i32), SCALAR_NORM_MAX as i32) as i16 };
+
+    sparse.push(BA_FEAT_SECURED_OBJ, clamp(ba.secured_objectives as i32 * 20));
+    sparse.push(BA_FEAT_OPPONENT_SECURED, clamp(ba.opponent_secured as i32 * 20));
+    sparse.push(BA_FEAT_OPEN_HATCHWAYS, clamp(ba.open_hatchways as i32 * 15));
+    sparse.push(BA_FEAT_CLOSED_HATCHWAYS, clamp(ba.closed_hatchways as i32 * 15));
+    sparse.push(BA_FEAT_ACTIVE_MANOEUVRES, clamp(ba.own_active_manoeuvres as i32 * 20));
+    sparse.push(BA_FEAT_ACTIVE_COMMANDS, clamp(ba.own_battlefield_commands as i32 * 25));
 }
 
 /// Compute anti-armor relevance for a unit (0-127).
@@ -1804,7 +1849,7 @@ mod tests {
         let schema = NnueFeatureSchema::current();
         assert_eq!(schema.version, FEATURE_SCHEMA_VERSION);
         assert_eq!(schema.total_features, TOTAL_FEATURES);
-        assert_eq!(schema.total_features, 1203);
+        assert_eq!(schema.total_features, 1209);
         assert!(schema.is_compatible(&NnueFeatureSchema::current()));
     }
 
@@ -1827,8 +1872,89 @@ mod tests {
         assert_eq!(GLOBAL_FEAT_SIZE, 31);
         assert_eq!(OBJ_FEAT_TOTAL, 180);
         assert_eq!(UNIT_FEAT_TOTAL, 992);
-        assert_eq!(TOTAL_FEATURES, 1203);
         assert_eq!(UNIT_FEAT_OFFSET, 211);
         assert_eq!(OBJ_FEAT_OFFSET, 31);
+        // BA features start after unit features
+        assert_eq!(BA_FEAT_OFFSET, 1203);
+        assert_eq!(BA_FEAT_COUNT, 6);
+        assert_eq!(TOTAL_FEATURES, 1209);
+    }
+
+    #[test]
+    fn test_ba_feature_indices() {
+        assert_eq!(BA_FEAT_SECURED_OBJ, 1203);
+        assert_eq!(BA_FEAT_OPPONENT_SECURED, 1204);
+        assert_eq!(BA_FEAT_OPEN_HATCHWAYS, 1205);
+        assert_eq!(BA_FEAT_CLOSED_HATCHWAYS, 1206);
+        assert_eq!(BA_FEAT_ACTIVE_MANOEUVRES, 1207);
+        assert_eq!(BA_FEAT_ACTIVE_COMMANDS, 1208);
+    }
+
+    #[test]
+    fn test_sparse_from_boarding_default() {
+        // Default BoardingFeatures (all zeros) should produce no sparse entries
+        // because SparseFeatureVec::push skips zero values
+        let ba = BoardingFeatures::default();
+        let mut sparse = SparseFeatureVec::with_capacity(10);
+        sparse_from_boarding(&ba, &mut sparse);
+        assert_eq!(sparse.features.len(), 0);
+    }
+
+    #[test]
+    fn test_sparse_from_boarding_values() {
+        let ba = BoardingFeatures {
+            secured_objectives: 3,
+            opponent_secured: 2,
+            open_hatchways: 5,
+            closed_hatchways: 3,
+            own_active_manoeuvres: 4,
+            own_battlefield_commands: 2,
+            ..Default::default()
+        };
+        let mut sparse = SparseFeatureVec::with_capacity(10);
+        sparse_from_boarding(&ba, &mut sparse);
+        assert_eq!(sparse.features.len(), 6);
+        // secured_objectives: 3 * 20 = 60
+        assert_eq!(sparse.features[0].index, BA_FEAT_SECURED_OBJ);
+        assert_eq!(sparse.features[0].value, 60);
+        // opponent_secured: 2 * 20 = 40
+        assert_eq!(sparse.features[1].index, BA_FEAT_OPPONENT_SECURED);
+        assert_eq!(sparse.features[1].value, 40);
+        // open_hatchways: 5 * 15 = 75
+        assert_eq!(sparse.features[2].index, BA_FEAT_OPEN_HATCHWAYS);
+        assert_eq!(sparse.features[2].value, 75);
+        // closed_hatchways: 3 * 15 = 45
+        assert_eq!(sparse.features[3].index, BA_FEAT_CLOSED_HATCHWAYS);
+        assert_eq!(sparse.features[3].value, 45);
+        // own_active_manoeuvres: 4 * 20 = 80
+        assert_eq!(sparse.features[4].index, BA_FEAT_ACTIVE_MANOEUVRES);
+        assert_eq!(sparse.features[4].value, 80);
+        // own_battlefield_commands: 2 * 25 = 50
+        assert_eq!(sparse.features[5].index, BA_FEAT_ACTIVE_COMMANDS);
+        assert_eq!(sparse.features[5].value, 50);
+    }
+
+    #[test]
+    fn test_sparse_from_boarding_clamping() {
+        // Values should be clamped to [-127, 127]
+        let ba = BoardingFeatures {
+            secured_objectives: 7, // 7 * 20 = 140, clamped to 127
+            open_hatchways: 10,    // 10 * 15 = 150, clamped to 127
+            own_battlefield_commands: 6, // 6 * 25 = 150, clamped to 127
+            ..Default::default()
+        };
+        let mut sparse = SparseFeatureVec::with_capacity(10);
+        sparse_from_boarding(&ba, &mut sparse);
+        // Only non-zero features are pushed (3 non-zero fields)
+        assert_eq!(sparse.features.len(), 3);
+        // secured_objectives: 7 * 20 = 140, clamped to 127
+        assert_eq!(sparse.features[0].index, BA_FEAT_SECURED_OBJ);
+        assert_eq!(sparse.features[0].value, 127);
+        // open_hatchways: 10 * 15 = 150, clamped to 127
+        assert_eq!(sparse.features[1].index, BA_FEAT_OPEN_HATCHWAYS);
+        assert_eq!(sparse.features[1].value, 127);
+        // own_battlefield_commands: 6 * 25 = 150, clamped to 127
+        assert_eq!(sparse.features[2].index, BA_FEAT_ACTIVE_COMMANDS);
+        assert_eq!(sparse.features[2].value, 127);
     }
 }

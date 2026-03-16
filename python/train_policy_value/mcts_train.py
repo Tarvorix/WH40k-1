@@ -15,9 +15,9 @@ Loss function:
 
 Data format (from Rust PolicyValueShard JSON):
     Each sample contains:
-        - sparse_features: Vec<(u16, i16)>  -> dense [1203] input
-        - legal_mask: { mask: Vec<bool> }    -> bool [528]
-        - policy_target: Vec<f32>            -> float [528]
+        - sparse_features: Vec<(u16, i16)>  -> dense [1209] input
+        - legal_mask: { mask: Vec<bool> }    -> bool [640]
+        - policy_target: Vec<f32>            -> float [640]
         - value_target: f32                  -> scalar in [-1, 1]
         - perspective: u32                   -> player id
         - progress: f32                      -> game progress [0, 1]

@@ -8,7 +8,7 @@
 //!
 //! The NNUE uses a 4-layer quantized neural network:
 //! ```text
-//! Sparse Features (1203) → Accumulator (128) → Hidden1 (32) → Hidden2 (32) → Output (1)
+//! Sparse Features (1209) → Accumulator (128) → Hidden1 (32) → Hidden2 (32) → Output (1)
 //!                           [ClippedReLU]       [ClippedReLU]   [ClippedReLU]
 //! ```
 //!
@@ -188,7 +188,7 @@ pub struct NnueDimensions {
 }
 
 impl NnueDimensions {
-    /// Default architecture: 1203 → 128 → 32 → 32 → 1
+    /// Default architecture: 1209 → 128 → 32 → 32 → 1
     pub const DEFAULT: Self = Self {
         input_size: TOTAL_FEATURES,
         accumulator_size: DEFAULT_ACCUMULATOR_SIZE,
@@ -1441,19 +1441,19 @@ pub fn compare_evaluators(
 // Policy/Value Model (Dual-Head Network for AlphaGo-Style Training)
 // ============================================================================
 
-/// Action vocabulary size for the policy head (33 intents x 16 unit slots).
-pub const ACTION_VOCAB_SIZE: usize = 528;
+/// Action vocabulary size for the policy head (40 intents x 16 unit slots).
+pub const ACTION_VOCAB_SIZE: usize = 640;
 
 /// Dimensions for the policy/value dual-head network.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct PolicyValueDimensions {
-    /// Input feature size (same as NNUE: 1203).
+    /// Input feature size (same as NNUE: TOTAL_FEATURES).
     pub input_size: usize,
     /// Shared trunk hidden layer size.
     pub trunk_size: usize,
     /// Policy head hidden layer size.
     pub policy_hidden_size: usize,
-    /// Policy head output size (ACTION_VOCAB_SIZE = 528).
+    /// Policy head output size (ACTION_VOCAB_SIZE = 640).
     pub policy_output_size: usize,
     /// Value head hidden layer size.
     pub value_hidden_size: usize,
@@ -1464,7 +1464,7 @@ pub struct PolicyValueDimensions {
 impl PolicyValueDimensions {
     /// Default dimensions matching the Python training architecture.
     pub const DEFAULT: PolicyValueDimensions = PolicyValueDimensions {
-        input_size: 1203,
+        input_size: TOTAL_FEATURES,
         trunk_size: 128,
         policy_hidden_size: 64,
         policy_output_size: ACTION_VOCAB_SIZE,
@@ -1746,7 +1746,7 @@ mod tests {
     #[test]
     fn test_default_dimensions() {
         let dims = NnueDimensions::DEFAULT;
-        assert_eq!(dims.input_size, 1203);
+        assert_eq!(dims.input_size, 1209);
         assert_eq!(dims.accumulator_size, 128);
         assert_eq!(dims.hidden1_size, 32);
         assert_eq!(dims.hidden2_size, 32);
@@ -1756,7 +1756,7 @@ mod tests {
     #[test]
     fn test_dimension_weight_counts() {
         let dims = NnueDimensions::DEFAULT;
-        assert_eq!(dims.feature_weight_count(), 1203 * 128);
+        assert_eq!(dims.feature_weight_count(), 1209 * 128);
         assert_eq!(dims.hidden1_weight_count(), 128 * 32);
         assert_eq!(dims.hidden2_weight_count(), 32 * 32);
         assert_eq!(dims.output_weight_count(), 32);
@@ -1765,7 +1765,7 @@ mod tests {
     #[test]
     fn test_dimension_total_parameters() {
         let dims = NnueDimensions::DEFAULT;
-        let expected = (1203 * 128) + 128 + (128 * 32) + 32 + (32 * 32) + 32 + 32 + 1;
+        let expected = (1209 * 128) + 128 + (128 * 32) + 32 + (32 * 32) + 32 + 32 + 1;
         assert_eq!(dims.total_parameters(), expected);
     }
 
@@ -2520,7 +2520,7 @@ mod tests {
     #[test]
     fn test_policy_value_dimensions() {
         let dims = PolicyValueDimensions::DEFAULT;
-        assert_eq!(dims.input_size, 1203);
+        assert_eq!(dims.input_size, 1209);
         assert_eq!(dims.trunk_size, 128);
         assert_eq!(dims.policy_output_size, ACTION_VOCAB_SIZE);
         assert_eq!(dims.value_output_size, 1);
@@ -2530,10 +2530,10 @@ mod tests {
     #[test]
     fn test_policy_value_model_bootstrap() {
         let model = PolicyValueModel::bootstrap();
-        assert_eq!(model.dims.input_size, 1203);
-        assert_eq!(model.dims.policy_output_size, 528);
-        assert_eq!(model.weights.trunk_weights.len(), 1203 * 128);
-        assert_eq!(model.weights.policy_output_weights.len(), 64 * 528);
+        assert_eq!(model.dims.input_size, 1209);
+        assert_eq!(model.dims.policy_output_size, 640);
+        assert_eq!(model.weights.trunk_weights.len(), 1209 * 128);
+        assert_eq!(model.weights.policy_output_weights.len(), 64 * 640);
         assert_eq!(model.weights.value_output_weights.len(), 64);
     }
 

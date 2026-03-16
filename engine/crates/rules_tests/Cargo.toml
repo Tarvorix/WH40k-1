@@ -1,0 +1,24 @@
+[package]
+name = "wh40k_rules_tests"
+version = "0.1.0"
+edition = "2021"
+description = "Source-linked rules tests for WH40K engine — verifies game behavior against 40k_revised.md, CP_Rules.md, and boarding_actions_complete_v3.md"
+
+# This crate has no library — it exists only for integration tests
+# in the tests/ directory. Each test file maps to a rules document section.
+
+[dev-dependencies]
+wh40k_core_types = { workspace = true }
+wh40k_dice = { workspace = true }
+wh40k_game_core = { workspace = true }
+wh40k_combat_patrol_rules = { workspace = true }
+wh40k_boarding_rules = { workspace = true }
+wh40k_boarding_content = { workspace = true }
+wh40k_geometry = { workspace = true }
+wh40k_test_harness = { workspace = true }
+wh40k_content_schema = { workspace = true }
+wh40k_command_system = { workspace = true }
+wh40k_event_system = { workspace = true }
+wh40k_faction_runtime = { workspace = true }
+wh40k_mission_runtime = { workspace = true }
+wh40k_stratagem_runtime = { workspace = true }

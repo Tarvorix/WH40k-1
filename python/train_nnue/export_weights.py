@@ -144,7 +144,7 @@ def export_weights_json(model: NnueModel, output_path: str) -> None:
         'format': 'wh40k_nnue_weights_json',
         'version': 1,
         'architecture': {
-            'input_size': 1203,
+            'input_size': 1209,
             'accumulator_size': 128,
             'hidden1_size': 32,
             'hidden2_size': 32,
