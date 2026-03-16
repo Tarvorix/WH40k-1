@@ -1,0 +1,842 @@
+{
+  "faction_name": "Astra Militarum",
+  "faction_keyword": "ASTRA MILITARUM",
+  "army_rule_name": "Direct Orders",
+  "army_rule_description": "Units from your army with the Voice of Command ability retain that ability and gain Direct Orders. Each time an OFFICER model in this unit issues an Order, that Order can be issued to any one friendly ASTRA MILITARUM unit within range, regardless of any keywords that unit is normally required to have.",
+  "detachments": [
+    {
+      "detachment_name": "Tempestus Boarding Regiment",
+      "detachment_rule_name": "Purge-Sweep Protocols",
+      "detachment_rule_description": "Each time a MILITARUM TEMPESTUS unit from your army is selected to shoot, if one or more models in that unit are within 1\" of an open Hatchway, and every model in that unit is on the same side of that Hatchway, select one enemy unit on the opposite side of that Hatchway from that unit. Until the end of the phase, ranged weapons equipped by models in that unit have [LETHAL HITS] while targeting that enemy unit.",
+      "enhancements": [
+        {
+          "name": "Covert Breach",
+          "description": "Moving with stealth and urgency, these Scions have already bypassed the enemy's outer defences before their presence is even detected. At the start of the first battle round, the bearer's unit can make a Normal move of up to 6\"."
+        },
+        {
+          "name": "Elimination Force",
+          "description": "Tasked with the destruction of a specific enemy asset, the Tempestus Scions focus their most lethal attentions against it as per their explicit orders. At the start of the first battle round, select one enemy unit. Each time a model in the bearer's unit makes an attack that targets that enemy unit, if the Strength characteristic of that attack is less than the Toughness characteristic of that enemy unit, add 1 to the Wound roll."
+        }
+      ],
+      "stratagems": [
+        {
+          "name": "Brutal Training",
+          "cp_cost": 1,
+          "timing": "Fight phase.",
+          "target": "One MILITARUM TEMPESTUS unit from your army that has not been selected to fight this phase.",
+          "effect": "Until the end of the phase, add 1 to the Attacks and Strength characteristics of melee weapons equipped by models in your unit."
+        },
+        {
+          "name": "Coordinated Strike",
+          "cp_cost": 1,
+          "timing": "Start of your Command phase.",
+          "target": "One OFFICER model from your army.",
+          "effect": "Select one Order your model can issue. Every ASTRA MILITARUM unit from your army is issued that Order, regardless of any keywords those units are normally required to have. Restrictions: Until the end of the turn, OFFICER models from your army cannot issue Orders. You can only use this Stratagem once."
+        },
+        {
+          "name": "Lockdown",
+          "cp_cost": 1,
+          "timing": "Your Movement phase.",
+          "target": "One ASTRA MILITARUM unit from your army that has not been selected to move this phase.",
+          "effect": "Until the end of the phase, after your unit ends a move, you can select one open Hatchway it moved through during that move; close that Hatchway."
+        },
+        {
+          "name": "Fire-Pattern Hurricanus",
+          "cp_cost": 1,
+          "timing": "Your Shooting phase, just after a MILITARUM TEMPESTUS unit from your army has shot.",
+          "target": "That MILITARUM TEMPESTUS unit.",
+          "effect": "Select one enemy unit hit by one or more of those attacks. Until the start of your next Shooting phase: subtract 2 from the Move characteristic of models in that enemy unit; subtract 2 from Advance rolls made for it; subtract 2 from Charge rolls made for it."
+        }
+      ],
+      "allowed_units": [
+        {
+          "datasheet_name": "Militarum Tempestus Command Squad",
+          "max_count": 1,
+          "allowed_sizes": [],
+          "conditional_limit": null
+        },
+        {
+          "datasheet_name": "Commissar",
+          "max_count": 1,
+          "allowed_sizes": [],
+          "conditional_limit": null
+        },
+        {
+          "datasheet_name": "Primaris Psyker",
+          "max_count": 1,
+          "allowed_sizes": [],
+          "conditional_limit": null
+        },
+        {
+          "datasheet_name": "Tempestus Scions",
+          "max_count": 3,
+          "allowed_sizes": [5, 10],
+          "conditional_limit": null
+        },
+        {
+          "datasheet_name": "Bullgryn Squad",
+          "max_count": 1,
+          "allowed_sizes": [3],
+          "conditional_limit": null
+        }
+      ],
+      "mustering_rules": [
+        {
+          "rule_type": "character_limit",
+          "description": "Up to 1 Militarum Tempestus Command Squad."
+        },
+        {
+          "rule_type": "character_limit",
+          "description": "Up to 1 Commissar."
+        },
+        {
+          "rule_type": "character_limit",
+          "description": "Up to 1 Primaris Psyker."
+        },
+        {
+          "rule_type": "unit_limit",
+          "description": "Up to 3 Tempestus Scions units (each unit can be 5 or 10 models)."
+        },
+        {
+          "rule_type": "unit_limit",
+          "description": "Up to 1 Bullgryn Squad (3 models)."
+        },
+        {
+          "rule_type": "adaptation",
+          "description": "Tempestus Scions units can perform the Secure Site Tactical Manoeuvre as if they had the BATTLELINE keyword."
+        },
+        {
+          "rule_type": "adaptation",
+          "description": "MILITARUM TEMPESTUS units lose the Deep Strike ability in Boarding Actions play."
+        },
+        {
+          "rule_type": "adaptation",
+          "description": "Master Vox only allows the unit's OFFICER to issue Orders to units up to 12\" away instead of 24\". When doing so, Walls and closed Hatchways are ignored."
+        },
+        {
+          "rule_type": "forming_squads",
+          "description": "You must attach a LOYAL PROTECTOR model to a COMMAND SQUAD unit as specified in its Loyal Protector rule."
+        }
+      ]
+    }
+  ],
+  "datasheets": [
+    {
+      "name": "Militarum Tempestus Command Squad",
+      "points": [
+        { "model_count": 5, "points": 85 }
+      ],
+      "is_epic_hero": false,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "6\"",
+        "toughness": 3,
+        "save": "4+",
+        "wounds": 3,
+        "leadership": "7+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Bolt pistol",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        },
+        {
+          "name": "Flamer",
+          "range": "12\"",
+          "attacks": "D6",
+          "skill": "N/A",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Ignores Cover", "Torrent"]
+        },
+        {
+          "name": "Grenade launcher - frag",
+          "range": "24\"",
+          "attacks": "D3",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Blast"]
+        },
+        {
+          "name": "Grenade launcher - krak",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 9,
+          "ap": "-2",
+          "damage": "D3",
+          "abilities": []
+        },
+        {
+          "name": "Hot-shot lasgun",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 3,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": ["Rapid Fire 1"]
+        },
+        {
+          "name": "Hot-shot laspistol",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 3,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        },
+        {
+          "name": "Hot-shot volley gun",
+          "range": "30\"",
+          "attacks": "2",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": ["Rapid Fire 2"]
+        },
+        {
+          "name": "Meltagun",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 9,
+          "ap": "-4",
+          "damage": "D6",
+          "abilities": ["Melta 2"]
+        },
+        {
+          "name": "Plasma gun - standard",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 7,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Rapid Fire 1"]
+        },
+        {
+          "name": "Plasma gun - supercharge",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-3",
+          "damage": "2",
+          "abilities": ["Hazardous", "Rapid Fire 1"]
+        },
+        {
+          "name": "Plasma pistol - standard",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 7,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        },
+        {
+          "name": "Plasma pistol - supercharge",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-3",
+          "damage": "2",
+          "abilities": ["Hazardous", "Pistol"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Close combat weapon",
+          "range": "Melee",
+          "attacks": "2",
+          "skill": "4+",
+          "strength": 3,
+          "ap": "0",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Tempestus dagger",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 3,
+          "ap": "0",
+          "damage": "1",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "This unit can be set up in Reserves and arrive via Deep Strike. NOTE: This ability is LOST in the Tempestus Boarding Regiment Boarding Actions detachment.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Voice of Command",
+          "description": "This unit's OFFICER can issue 1 Order to a REGIMENT unit.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Tempestor Prime",
+          "description": "While this unit contains a Tempestor Prime, ranged weapons equipped by models in this unit have [SUSTAINED HITS 1].",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Medi-pack",
+          "description": "At the start of your Command phase, if the bearer's unit is below its Starting Strength, you can return up to D3 destroyed Tempestus Scions models to this unit.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Regimental Standard",
+          "description": "Add 1 to the Objective Control characteristic of models in the bearer's unit.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Command Rod",
+          "description": "While the bearer is leading a unit, that unit can be affected by up to two different Orders at the same time.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Master Vox",
+          "description": "Each time the OFFICER in the bearer's unit issues an Order, it can issue it to an eligible unit up to 24\" away. Boarding Actions adaptation: in this detachment, treat this as 12\" instead, but ignore Walls and closed Hatchways when doing so.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Tempestus Scions"],
+        "leader_abilities": ["Tempestor Prime"]
+      },
+      "keywords": ["INFANTRY", "GRENADES", "IMPERIUM", "MILITARUM TEMPESTUS", "COMMAND SQUAD", "CHARACTER", "OFFICER"],
+      "faction_keywords": ["ASTRA MILITARUM"],
+      "wargear_options": [
+        { "description": "Any number of Tempestus Scions can each have their hot-shot lasgun replaced with one of the following: 1 flamer; 1 grenade launcher; 1 hot-shot volley gun; 1 meltagun; 1 plasma gun." },
+        { "description": "1 Tempestus Scion equipped with a hot-shot lasgun can be equipped with 1 regimental standard (that model's hot-shot lasgun cannot be replaced)." },
+        { "description": "1 Tempestus Scion's hot-shot lasgun can be replaced with 1 hot-shot laspistol and 1 master vox." },
+        { "description": "The Tempestor Prime's bolt pistol can be replaced with 1 plasma pistol." },
+        { "description": "The Tempestor Prime can be equipped with 1 command rod." },
+        { "description": "You cannot select the same weapon from the unit's special-weapon replacement list more than once per unit." }
+      ],
+      "unit_composition": [
+        { "model_name": "Tempestor Prime", "count": "1" },
+        { "model_name": "Tempestus Scions", "count": "4" }
+      ]
+    },
+    {
+      "name": "Commissar",
+      "points": [
+        { "model_count": 1, "points": 30 }
+      ],
+      "is_epic_hero": false,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "6\"",
+        "toughness": 3,
+        "save": "5+",
+        "wounds": 3,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Bolt pistol",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        },
+        {
+          "name": "Plasma pistol - standard",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 7,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        },
+        {
+          "name": "Plasma pistol - supercharge",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-3",
+          "damage": "2",
+          "abilities": ["Hazardous", "Pistol"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Chainsword",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 3,
+          "ap": "0",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Power weapon",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Voice of Command",
+          "description": "This OFFICER can issue 1 Order to a REGIMENT unit. This OFFICER can only issue the following Orders: Duty and Honour!; Fix Bayonets!",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save",
+          "description": "This model has a 5+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Summary Execution",
+          "description": "Once per battle round, at the start of any phase, you can select one friendly ASTRA MILITARUM INFANTRY unit that is Battle-shocked and within 12\" of this model. If you do, one model in that unit is destroyed, and that unit is then no longer Battle-shocked.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Political Overwatch",
+          "description": "While another OFFICER model is in the same unit as this model, you can re-roll Battle-shock tests taken for that unit.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Cadian Shock Troops", "Catachan Jungle Fighters", "Kasrkin", "Krieg Combat Engineers", "Tempestus Scions", "Death Korps of Krieg"],
+        "leader_abilities": ["Summary Execution", "Political Overwatch"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "IMPERIUM", "OFFICER", "COMMISSAR"],
+      "faction_keywords": ["ASTRA MILITARUM"],
+      "wargear_options": [
+        { "description": "This model's bolt pistol can be replaced with 1 plasma pistol." },
+        { "description": "This model's chainsword can be replaced with 1 power weapon." }
+      ],
+      "unit_composition": [
+        { "model_name": "Commissar", "count": "1" }
+      ]
+    },
+    {
+      "name": "Primaris Psyker",
+      "points": [
+        { "model_count": 1, "points": 60 }
+      ],
+      "is_epic_hero": false,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "6\"",
+        "toughness": 3,
+        "save": "5+",
+        "wounds": 3,
+        "leadership": "7+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Laspistol",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 3,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        },
+        {
+          "name": "Psychic Maelstrom - witchfire",
+          "range": "18\"",
+          "attacks": "D6",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Blast", "Devastating Wounds", "Psychic"]
+        },
+        {
+          "name": "Psychic Maelstrom - focused witchfire",
+          "range": "18\"",
+          "attacks": "D6+1",
+          "skill": "3+",
+          "strength": 6,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": ["Blast", "Devastating Wounds", "Hazardous", "Psychic"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Force weapon",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "4+",
+          "strength": 6,
+          "ap": "-1",
+          "damage": "D3",
+          "abilities": ["Psychic"]
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Malign Wardings",
+          "description": "While this model is leading a unit, models in that unit have the Feel No Pain 4+ ability against Psychic Attacks.",
+          "ability_type": "leader"
+        },
+        {
+          "name": "Psychic Barrier",
+          "description": "At the start of your opponent's Shooting phase, you can roll one D6: on a 1, this PSYKER's unit suffers D3 mortal wounds; on a 2+, until the end of the phase, models in this PSYKER's unit have a 4+ invulnerable save.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Cadian Shock Troops", "Catachan Jungle Fighters", "Kasrkin", "Krieg Combat Engineers", "Tempestus Scions", "Death Korps of Krieg"],
+        "leader_abilities": ["Malign Wardings", "Psychic Barrier"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "PSYKER", "IMPERIUM", "PRIMARIS PSYKER"],
+      "faction_keywords": ["ASTRA MILITARUM"],
+      "wargear_options": [],
+      "unit_composition": [
+        { "model_name": "Primaris Psyker", "count": "1" }
+      ]
+    },
+    {
+      "name": "Tempestus Scions",
+      "points": [
+        { "model_count": 5, "points": 70 },
+        { "model_count": 10, "points": 140 }
+      ],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": false,
+      "profile": {
+        "movement": "6\"",
+        "toughness": 3,
+        "save": "4+",
+        "wounds": 1,
+        "leadership": "7+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Bolt pistol",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        },
+        {
+          "name": "Flamer",
+          "range": "12\"",
+          "attacks": "D6",
+          "skill": "N/A",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Ignores Cover", "Torrent"]
+        },
+        {
+          "name": "Grenade launcher - frag",
+          "range": "24\"",
+          "attacks": "D3",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Blast"]
+        },
+        {
+          "name": "Grenade launcher - krak",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 9,
+          "ap": "-2",
+          "damage": "D3",
+          "abilities": []
+        },
+        {
+          "name": "Hot-shot lasgun",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 3,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": ["Rapid Fire 1"]
+        },
+        {
+          "name": "Hot-shot laspistol",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 3,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        },
+        {
+          "name": "Hot-shot volley gun",
+          "range": "30\"",
+          "attacks": "2",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": ["Rapid Fire 2"]
+        },
+        {
+          "name": "Meltagun",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 9,
+          "ap": "-4",
+          "damage": "D6",
+          "abilities": ["Melta 2"]
+        },
+        {
+          "name": "Plasma gun - standard",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 7,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Rapid Fire 1"]
+        },
+        {
+          "name": "Plasma gun - supercharge",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-3",
+          "damage": "2",
+          "abilities": ["Hazardous", "Rapid Fire 1"]
+        },
+        {
+          "name": "Plasma pistol - standard",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 7,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        },
+        {
+          "name": "Plasma pistol - supercharge",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-3",
+          "damage": "2",
+          "abilities": ["Hazardous", "Pistol"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Chainsword",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "4+",
+          "strength": 3,
+          "ap": "0",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Close combat weapon",
+          "range": "Melee",
+          "attacks": "2",
+          "skill": "4+",
+          "strength": 3,
+          "ap": "0",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Power fist",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "4+",
+          "strength": 6,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": []
+        },
+        {
+          "name": "Power weapon",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "4+",
+          "strength": 4,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "This unit can be set up in Reserves and arrive via Deep Strike. NOTE: This ability is LOST in the Tempestus Boarding Regiment Boarding Actions detachment.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Storm Troopers",
+          "description": "Each time a model in this unit makes an attack, re-roll a Wound roll of 1. If the target of that attack is an enemy unit within range of an objective marker, you can re-roll the Wound roll instead.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Vox-caster",
+          "description": "Each time you target the bearer's unit with a Stratagem, roll one D6, adding 1 to the result if there are one or more friendly OFFICER models within 6\": on a 5+, you gain 1CP.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["INFANTRY", "GRENADES", "IMPERIUM", "REGIMENT", "MILITARUM TEMPESTUS", "TEMPESTUS SCIONS"],
+      "faction_keywords": ["ASTRA MILITARUM"],
+      "wargear_options": [
+        { "description": "For every 5 models in this unit, up to two Tempestus Scions can each have their hot-shot lasgun replaced with one of the following: 1 flamer; 1 grenade launcher; 1 hot-shot volley gun; 1 meltagun; 1 plasma gun." },
+        { "description": "1 Tempestus Scion's hot-shot lasgun can be replaced with 1 hot-shot laspistol and 1 vox-caster." },
+        { "description": "The Tempestor's chainsword can be replaced with one of the following: 1 power fist; 1 power weapon." },
+        { "description": "You cannot select the same weapon from the unit's special-weapon replacement list more than once per unit, unless the unit contains 10 models, in which case you cannot select the same weapon more than twice per unit." }
+      ],
+      "unit_composition": [
+        { "model_name": "Tempestor", "count": "1" },
+        { "model_name": "Tempestus Scions", "count": "4-9" }
+      ]
+    },
+    {
+      "name": "Bullgryn Squad",
+      "points": [
+        { "model_count": 3, "points": 100 },
+        { "model_count": 6, "points": 200 }
+      ],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": false,
+      "profile": {
+        "movement": "6\"",
+        "toughness": 6,
+        "save": "3+",
+        "wounds": 3,
+        "leadership": "7+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Grenadier gauntlet",
+          "range": "18\"",
+          "attacks": "D6",
+          "skill": "4+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Blast"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Bullgryn maul",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 7,
+          "ap": "-1",
+          "damage": "2",
+          "abilities": []
+        },
+        {
+          "name": "Close combat weapon",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 6,
+          "ap": "0",
+          "damage": "1",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Feel No Pain 6+",
+          "description": "This unit has Feel No Pain 6+.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Wall of Muscle",
+          "description": "Each time an attack is allocated to a model in this unit, subtract 1 from the Damage characteristic of that attack.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Brute Shield",
+          "description": "The bearer has a 4+ invulnerable save.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Slabshield",
+          "description": "The bearer has a Wounds characteristic of 4.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["INFANTRY", "GRENADES", "IMPERIUM", "OGRYN", "BULLGRYN SQUAD"],
+      "faction_keywords": ["ASTRA MILITARUM"],
+      "wargear_options": [
+        { "description": "Any number of models can each have their grenadier gauntlet replaced with 1 Bullgryn maul." },
+        { "description": "Any number of models can each have their slabshield replaced with 1 brute shield." }
+      ],
+      "unit_composition": [
+        { "model_name": "Bullgryn Bone 'ead", "count": "1" },
+        { "model_name": "Bullgryns", "count": "2-5" }
+      ]
+    }
+  ]
+}

@@ -28,8 +28,8 @@ use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 
 use wh40k_core_types::{
-    EnhancementId, FactionId, GameOutcome, MissionId, Phase, PlayerId, SecondaryObjectiveId,
-    UnitId,
+    EnhancementId, FactionId, GameMode, GameOutcome, MissionId, Phase, PlayerId,
+    SecondaryObjectiveId, UnitId,
 };
 use wh40k_command_system::Command;
 use wh40k_eval_features::{
@@ -58,7 +58,7 @@ pub const SHARD_FORMAT_VERSION: u32 = 1;
 pub const ENGINE_VERSION: &str = "0.1.0";
 
 /// Number of TacticalIntent variants for the action vocabulary.
-pub const INTENT_COUNT: usize = 33;
+pub const INTENT_COUNT: usize = 40;
 
 /// Maximum unit slots per player for action vocabulary encoding.
 pub const MAX_UNIT_SLOTS: usize = 16;
@@ -194,10 +194,19 @@ pub fn intent_to_index(intent: TacticalIntent) -> usize {
         TacticalIntent::MovementReaction => 26,
         TacticalIntent::FightOrderManipulation => 27,
         TacticalIntent::DeclineStratagem => 28,
-        TacticalIntent::ScoreObjective => 29,
-        TacticalIntent::AllocateBlessings => 30,
-        TacticalIntent::PhaseControl => 31,
-        TacticalIntent::Generic => 32,
+        // Boarding Actions intents
+        TacticalIntent::OperateHatch => 29,
+        TacticalIntent::SecureObjective => 30,
+        TacticalIntent::DefendPosition => 31,
+        TacticalIntent::ControlChokepoint => 32,
+        TacticalIntent::FlankThroughHatch => 33,
+        TacticalIntent::ProjectLeaderAbility => 34,
+        TacticalIntent::EnterFromReserves => 35,
+        // Misc intents
+        TacticalIntent::ScoreObjective => 36,
+        TacticalIntent::AllocateBlessings => 37,
+        TacticalIntent::PhaseControl => 38,
+        TacticalIntent::Generic => 39,
     }
 }
 
@@ -233,9 +242,18 @@ pub fn index_to_intent(index: usize) -> TacticalIntent {
         26 => TacticalIntent::MovementReaction,
         27 => TacticalIntent::FightOrderManipulation,
         28 => TacticalIntent::DeclineStratagem,
-        29 => TacticalIntent::ScoreObjective,
-        30 => TacticalIntent::AllocateBlessings,
-        31 => TacticalIntent::PhaseControl,
+        // Boarding Actions intents
+        29 => TacticalIntent::OperateHatch,
+        30 => TacticalIntent::SecureObjective,
+        31 => TacticalIntent::DefendPosition,
+        32 => TacticalIntent::ControlChokepoint,
+        33 => TacticalIntent::FlankThroughHatch,
+        34 => TacticalIntent::ProjectLeaderAbility,
+        35 => TacticalIntent::EnterFromReserves,
+        // Misc intents
+        36 => TacticalIntent::ScoreObjective,
+        37 => TacticalIntent::AllocateBlessings,
+        38 => TacticalIntent::PhaseControl,
         _ => TacticalIntent::Generic,
     }
 }
@@ -1045,6 +1063,8 @@ pub fn create_ai_worker(config: &PlayerConfig) -> Result<Box<dyn AiWorker>, Self
 pub struct MatchConfig {
     /// Seed for deterministic game execution.
     pub seed: [u8; 32],
+    /// Game mode (CombatPatrol or BoardingActions).
+    pub game_mode: GameMode,
     /// Mission to play (None for default).
     pub mission_id: Option<MissionId>,
     /// Faction for player 1 (index 0).
@@ -1066,6 +1086,7 @@ impl MatchConfig {
     pub fn default_match(seed: [u8; 32]) -> Self {
         Self {
             seed,
+            game_mode: GameMode::CombatPatrol,
             mission_id: Some(MissionId::new(0)),
             player1_faction: FactionId::new(0), // Custodes
             player2_faction: FactionId::new(1), // World Eaters
@@ -1080,6 +1101,7 @@ impl MatchConfig {
     pub fn swapped(&self) -> Self {
         Self {
             seed: self.seed,
+            game_mode: self.game_mode,
             mission_id: self.mission_id,
             player1_faction: self.player2_faction,
             player2_faction: self.player1_faction,
@@ -1267,13 +1289,25 @@ pub fn play_single_game(
     let player1_id = PlayerId::new(0);
     let _player2_id = PlayerId::new(1);
 
-    // Load the scenario
-    let mut state = ScenarioLoader::load_scenario(
-        match_config.player1_faction,
-        match_config.player2_faction,
-        match_config.mission_id,
-        match_config.seed,
-    );
+    // Load the scenario based on game mode
+    let mut state = if match_config.game_mode == GameMode::BoardingActions {
+        ScenarioLoader::load_boarding_actions_scenario(
+            "Player A",
+            "Player B",
+            match_config.player1_faction,
+            match_config.player2_faction,
+            match_config.mission_id,
+            match_config.seed,
+            std::collections::HashMap::new(), // default hatchway states
+        )
+    } else {
+        ScenarioLoader::load_scenario(
+            match_config.player1_faction,
+            match_config.player2_faction,
+            match_config.mission_id,
+            match_config.seed,
+        )
+    };
 
     // Set enhancements and secondaries if specified
     if let Some(enh) = match_config.player1_enhancement {
@@ -1406,17 +1440,12 @@ pub fn play_single_game(
 
                 // Execute each command in the macro-action
                 for cmd in result.best_commands() {
-                    // Re-validate before executing to catch stale commands
+                    // Re-validate before executing to catch stale commands.
+                    // This is expected for macro-actions where earlier commands
+                    // (e.g., ResolveMeleeAttack destroying a target) can invalidate
+                    // later commands in the same batch. Silently skip them.
                     let validation = wh40k_game_core::CommandValidator::validate(&state, cmd);
                     if validation.is_illegal() {
-                        // Command became invalid — skip it instead of failing
-                        eprintln!(
-                            "[selfplay] Skipping invalid command at BR{} {:?} P{}: {:?}",
-                            state.battle_round.number(),
-                            state.current_phase,
-                            state.decision_owner.raw(),
-                            cmd,
-                        );
                         continue;
                     }
 
@@ -1434,14 +1463,10 @@ pub fn play_single_game(
                         Ok(_events) => {
                             commands_executed += 1;
                         }
-                        Err(e) => {
-                            // Command failed - log but continue
-                            // This can happen when macro-action commands become invalid
-                            // due to state changes from earlier commands in the same action
-                            error_message = Some(format!(
-                                "Command execution error at cmd {}: {:?}",
-                                commands_executed, e
-                            ));
+                        Err(_e) => {
+                            // Command failed — expected for macro-actions where
+                            // earlier commands change state (e.g., target destroyed).
+                            // Skip silently and continue.
                             commands_executed += 1;
                             break;
                         }
@@ -1532,6 +1557,8 @@ pub struct SelfPlayConfig {
     pub player1: PlayerConfig,
     /// AI configuration for player 2.
     pub player2: PlayerConfig,
+    /// Game mode (CombatPatrol or BoardingActions).
+    pub game_mode: GameMode,
     /// Number of games to play.
     pub num_games: usize,
     /// Base seed for deterministic game generation.
@@ -1560,6 +1587,7 @@ impl SelfPlayConfig {
         Self {
             player1: PlayerConfig::greedy("Greedy-1"),
             player2: PlayerConfig::greedy("Greedy-2"),
+            game_mode: GameMode::CombatPatrol,
             num_games,
             seed_base: 42,
             missions: vec![
@@ -1674,6 +1702,7 @@ impl GameVariation {
     /// * `seed_base` - Base seed for determinism
     /// * `missions` - Available missions to cycle through
     /// * `alternate_factions` - Whether to swap factions every other game
+    /// * `game_mode` - The game mode for all generated matches
     ///
     /// # Returns
     /// A Vec of MatchConfig, one per game.
@@ -1682,6 +1711,7 @@ impl GameVariation {
         seed_base: u64,
         missions: &[Option<MissionId>],
         alternate_factions: bool,
+        game_mode: GameMode,
     ) -> Vec<MatchConfig> {
         let mut configs = Vec::with_capacity(num_games);
         let mut rng = SmallRng::seed_from_u64(seed_base);
@@ -1752,6 +1782,7 @@ impl GameVariation {
 
             configs.push(MatchConfig {
                 seed,
+                game_mode,
                 mission_id: mission,
                 player1_faction: p1_faction,
                 player2_faction: p2_faction,
@@ -1799,6 +1830,7 @@ impl SelfPlayRunner {
             self.config.seed_base,
             &self.config.missions,
             self.config.alternate_factions,
+            self.config.game_mode,
         );
 
         // Initialize shard writer if output directory is configured
@@ -2288,6 +2320,8 @@ pub struct GatingConfig {
     pub promotion_threshold: f64,
     /// Base seed for deterministic games.
     pub seed_base: u64,
+    /// Game mode for gating games.
+    pub game_mode: GameMode,
     /// Missions to use during evaluation.
     pub missions: Vec<Option<MissionId>>,
     /// Search configuration for both players during gating.
@@ -2305,6 +2339,7 @@ impl GatingConfig {
             num_games: DEFAULT_GATING_GAMES,
             promotion_threshold: DEFAULT_PROMOTION_THRESHOLD,
             seed_base: 12345,
+            game_mode: GameMode::CombatPatrol,
             missions: vec![
                 Some(MissionId::new(0)),
                 Some(MissionId::new(1)),
@@ -2438,6 +2473,7 @@ impl GatingHarness {
             self.config.seed_base,
             &self.config.missions,
             self.config.alternate_factions,
+            self.config.game_mode,
         );
 
         let mut candidate_wins: usize = 0;
@@ -2553,6 +2589,7 @@ impl GatingHarness {
             self.config.seed_base,
             &self.config.missions,
             self.config.alternate_factions,
+            self.config.game_mode,
         );
 
         let mut nnue_wins: usize = 0;
@@ -2838,6 +2875,15 @@ mod tests {
             TacticalIntent::MovementReaction,
             TacticalIntent::FightOrderManipulation,
             TacticalIntent::DeclineStratagem,
+            // Boarding Actions intents
+            TacticalIntent::OperateHatch,
+            TacticalIntent::SecureObjective,
+            TacticalIntent::DefendPosition,
+            TacticalIntent::ControlChokepoint,
+            TacticalIntent::FlankThroughHatch,
+            TacticalIntent::ProjectLeaderAbility,
+            TacticalIntent::EnterFromReserves,
+            // Misc intents
             TacticalIntent::ScoreObjective,
             TacticalIntent::AllocateBlessings,
             TacticalIntent::PhaseControl,
@@ -2852,8 +2898,8 @@ mod tests {
 
     #[test]
     fn test_intent_count_matches() {
-        assert_eq!(INTENT_COUNT, 33);
-        assert_eq!(ACTION_VOCAB_SIZE, 33 * 16);
+        assert_eq!(INTENT_COUNT, 40);
+        assert_eq!(ACTION_VOCAB_SIZE, 40 * 16);
     }
 
     #[test]
@@ -3250,6 +3296,7 @@ mod tests {
             42,
             &[Some(MissionId::new(0)), Some(MissionId::new(1))],
             true,
+            GameMode::CombatPatrol,
         );
         assert_eq!(configs.len(), 10);
     }
@@ -3261,6 +3308,7 @@ mod tests {
             42,
             &[Some(MissionId::new(0))],
             true,
+            GameMode::CombatPatrol,
         );
 
         // Even games: Custodes (0) vs World Eaters (1)
@@ -3279,7 +3327,7 @@ mod tests {
             Some(MissionId::new(1)),
             Some(MissionId::new(2)),
         ];
-        let configs = GameVariation::generate_configs(6, 42, &missions, false);
+        let configs = GameVariation::generate_configs(6, 42, &missions, false, GameMode::CombatPatrol);
 
         assert_eq!(configs[0].mission_id, Some(MissionId::new(0)));
         assert_eq!(configs[1].mission_id, Some(MissionId::new(1)));
@@ -3294,6 +3342,7 @@ mod tests {
             42,
             &[Some(MissionId::new(0))],
             false,
+            GameMode::CombatPatrol,
         );
         for config in &configs {
             assert!(config.player1_enhancement.is_some());

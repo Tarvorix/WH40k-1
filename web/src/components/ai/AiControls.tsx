@@ -16,17 +16,7 @@ const DIFFICULTY_GROUPS: { group: string; options: { value: AiDifficulty; label:
   {
     group: 'Perturabo',
     options: [
-      { value: 'Perturabo_Shallow', label: 'Shallow', description: 'Iterative deepening (depth 4)' },
-      { value: 'Perturabo_Regular', label: 'Regular', description: 'Iterative deepening with quiescence (depth 6)' },
-      { value: 'Perturabo_Deep', label: 'Deep', description: 'Full search with extensions (depth 8)' },
-    ],
-  },
-  {
-    group: 'Alpharius',
-    options: [
-      { value: 'Alpharius_Shallow', label: 'Shallow', description: 'MCTS search (100 simulations)' },
-      { value: 'Alpharius_Regular', label: 'Regular', description: 'MCTS search (800 simulations)' },
-      { value: 'Alpharius_Deep', label: 'Deep', description: 'Competition MCTS (1600 simulations)' },
+      { value: 'Perturabo', label: 'Perturabo', description: 'Stockfish-style iterative deepening search' },
     ],
   },
 ];

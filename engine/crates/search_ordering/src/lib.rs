@@ -154,7 +154,7 @@ const KILLER_BONUS_SECONDARY: i32 = 8000;
 #[derive(Debug, Clone)]
 pub struct HistoryTable {
     /// Score accumulated for each TacticalIntent variant.
-    /// Indexed by intent as usize (there are 32 variants).
+    /// Indexed by intent as usize (there are 40 variants including BA intents).
     scores: Vec<i64>,
     /// Maximum score to prevent overflow. Scores are halved when any exceeds this.
     max_score: i64,
@@ -253,10 +253,19 @@ fn intent_index(intent: TacticalIntent) -> usize {
         TacticalIntent::MovementReaction => 26,
         TacticalIntent::FightOrderManipulation => 27,
         TacticalIntent::DeclineStratagem => 28,
-        TacticalIntent::ScoreObjective => 29,
-        TacticalIntent::AllocateBlessings => 30,
-        TacticalIntent::PhaseControl => 31,
-        TacticalIntent::Generic => 32,
+        // Boarding Actions intents
+        TacticalIntent::OperateHatch => 29,
+        TacticalIntent::SecureObjective => 30,
+        TacticalIntent::DefendPosition => 31,
+        TacticalIntent::ControlChokepoint => 32,
+        TacticalIntent::FlankThroughHatch => 33,
+        TacticalIntent::ProjectLeaderAbility => 34,
+        TacticalIntent::EnterFromReserves => 35,
+        // Misc intents
+        TacticalIntent::ScoreObjective => 36,
+        TacticalIntent::AllocateBlessings => 37,
+        TacticalIntent::PhaseControl => 38,
+        TacticalIntent::Generic => 39,
     }
 }
 

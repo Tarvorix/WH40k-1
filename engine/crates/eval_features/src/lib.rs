@@ -1502,6 +1502,139 @@ fn compute_melee_threat_matchup(unit: &UnitFeatures) -> i16 {
 }
 
 // ============================================================================
+// Boarding Actions Features
+// ============================================================================
+
+/// Boarding Actions specific features for NNUE evaluation.
+/// These features capture the BA-unique game mechanics that don't exist in Combat Patrol.
+///
+/// All counts are stored as u8 since BA games have limited numbers of each element
+/// (typically 3-5 objectives, 4-8 hatchways, 4-8 units per side).
+///
+/// Source: boarding_actions_complete_v3.md Sections 3.2, 3.4, 3.7
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct BoardingFeatures {
+    /// Number of objectives secured by the perspective player.
+    pub secured_objectives: u8,
+    /// Number of objectives secured by the opponent.
+    pub opponent_secured: u8,
+    /// Number of hatchways currently open (allowing passage/LOS).
+    pub open_hatchways: u8,
+    /// Number of hatchways currently closed (blocking passage/LOS).
+    pub closed_hatchways: u8,
+    /// Number of hatchways that can still be toggled (not locked/one-way).
+    pub toggleable_hatchways: u8,
+    /// Number of own units with an active tactical manoeuvre this turn.
+    pub own_active_manoeuvres: u8,
+    /// Number of enemy units with an active tactical manoeuvre this turn.
+    pub enemy_active_manoeuvres: u8,
+    /// Number of active Battlefield Command links for perspective player.
+    pub own_battlefield_commands: u8,
+    /// Number of active Battlefield Command links for opponent.
+    pub enemy_battlefield_commands: u8,
+    /// Number of own deep strike arrivals used this round.
+    pub own_arrivals_this_round: u8,
+    /// Number of enemy deep strike arrivals used this round.
+    pub enemy_arrivals_this_round: u8,
+}
+
+/// Extract Boarding Actions specific features from the game state.
+/// Returns a `BoardingFeatures` with all BA-specific counts.
+/// If the game is not in Boarding Actions mode, returns a default (all zeros).
+///
+/// This is used by the NNUE evaluator alongside the standard feature set
+/// to provide BA-specific input signals.
+pub fn extract_boarding_features(state: &GameState, perspective: PlayerId) -> BoardingFeatures {
+    let mut features = BoardingFeatures::default();
+
+    let ba_state = match state.boarding_state() {
+        Some(ba) => ba,
+        None => return features,
+    };
+
+    let opponent = state.opponent_id(perspective);
+
+    // Secured objectives
+    features.secured_objectives = ba_state
+        .secured_objectives
+        .values()
+        .filter(|&&p| p == perspective)
+        .count() as u8;
+    features.opponent_secured = ba_state
+        .secured_objectives
+        .values()
+        .filter(|&&p| p == opponent)
+        .count() as u8;
+
+    // Hatchway states
+    features.open_hatchways = ba_state
+        .hatchway_states
+        .values()
+        .filter(|s| s.allows_passage())
+        .count() as u8;
+    features.closed_hatchways = ba_state
+        .hatchway_states
+        .values()
+        .filter(|s| !s.allows_passage())
+        .count() as u8;
+    features.toggleable_hatchways = ba_state
+        .hatchway_states
+        .values()
+        .filter(|s| s.can_operate())
+        .count() as u8;
+
+    // Tactical manoeuvres by player
+    features.own_active_manoeuvres = ba_state
+        .tactical_manoeuvres
+        .iter()
+        .filter(|(uid, _)| {
+            state.unit(**uid).map_or(false, |u| u.owner == perspective)
+        })
+        .count() as u8;
+    features.enemy_active_manoeuvres = ba_state
+        .tactical_manoeuvres
+        .iter()
+        .filter(|(uid, _)| {
+            state.unit(**uid).map_or(false, |u| u.owner == opponent)
+        })
+        .count() as u8;
+
+    // Battlefield Command links by player
+    features.own_battlefield_commands = ba_state
+        .battlefield_command_links
+        .iter()
+        .filter(|link| {
+            state
+                .unit(link.leader_unit)
+                .map_or(false, |u| u.owner == perspective)
+        })
+        .count() as u8;
+    features.enemy_battlefield_commands = ba_state
+        .battlefield_command_links
+        .iter()
+        .filter(|link| {
+            state
+                .unit(link.leader_unit)
+                .map_or(false, |u| u.owner == opponent)
+        })
+        .count() as u8;
+
+    // Deep strike arrivals this round
+    features.own_arrivals_this_round = ba_state
+        .deep_strike_arrivals_this_round
+        .get(&perspective)
+        .copied()
+        .unwrap_or(0);
+    features.enemy_arrivals_this_round = ba_state
+        .deep_strike_arrivals_this_round
+        .get(&opponent)
+        .copied()
+        .unwrap_or(0);
+
+    features
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 

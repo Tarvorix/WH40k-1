@@ -66,7 +66,7 @@ interface GameState {
 export const useGameStore = create<GameState>()(
   immer((set, get) => ({
     // Initial state
-    screen: 'setup',
+    screen: 'menu',
     engineReady: false,
     gameState: null,
     decisionSurface: null,

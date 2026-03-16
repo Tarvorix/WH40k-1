@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
-use wh40k_core_types::MissionId;
+use wh40k_core_types::{GameMode, MissionId};
 use wh40k_selfplay::{
     PlayerConfig, AiType, GameVariation,
     ShardWriter,
@@ -18,6 +18,8 @@ pub struct SelfPlayCmdConfig {
     pub ai_level: String,
     pub shard_size: usize,
     pub verbose: bool,
+    /// Game mode: "combat_patrol" or "boarding_actions". Defaults to "combat_patrol".
+    pub mode: String,
 }
 
 /// Result of self-play generation.
@@ -46,7 +48,19 @@ fn make_player_config(ai_type: &AiType, name: &str) -> PlayerConfig {
 
 /// Run self-play data generation.
 pub fn run_selfplay(config: SelfPlayCmdConfig) -> SelfPlayCmdResult {
+    // Parse game mode from config string
+    let game_mode = match config.mode.to_lowercase().as_str() {
+        "boarding_actions" | "boardingactions" | "ba" => GameMode::BoardingActions,
+        _ => GameMode::CombatPatrol,
+    };
+
+    let mode_label = match game_mode {
+        GameMode::CombatPatrol => "Combat Patrol",
+        GameMode::BoardingActions => "Boarding Actions",
+    };
+
     println!("=== WH40K Self-Play Data Generation ===");
+    println!("Mode: {}", mode_label);
     println!("Games: {}", config.games);
     println!("AI Level: {}", config.ai_level);
     println!("Output: {}", config.output_dir);
@@ -115,10 +129,11 @@ pub fn run_selfplay(config: SelfPlayCmdConfig) -> SelfPlayCmdResult {
         42, // seed_base for determinism
         &missions,
         true, // alternate factions
+        game_mode,
     );
 
     // Progress tracking
-    let progress_interval = if config.games <= 20 { 1 } else if config.games <= 100 { 5 } else { 10 };
+    let progress_interval = 1; // Show every game
     let mut last_progress_time = overall_start;
 
     for (i, match_config) in variations.iter().enumerate() {

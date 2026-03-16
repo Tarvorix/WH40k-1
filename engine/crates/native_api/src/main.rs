@@ -117,6 +117,10 @@ enum Commands {
         /// Print per-game results
         #[arg(long, short)]
         verbose: bool,
+
+        /// Game mode: combat_patrol or boarding_actions
+        #[arg(long, default_value = "combat_patrol")]
+        mode: String,
     },
 }
 
@@ -221,6 +225,7 @@ fn main() {
             ai,
             shard_size,
             verbose,
+            mode,
         } => {
             let config = selfplay_cmd::SelfPlayCmdConfig {
                 games,
@@ -228,6 +233,7 @@ fn main() {
                 ai_level: ai,
                 shard_size,
                 verbose,
+                mode,
             };
 
             selfplay_cmd::run_selfplay(config);

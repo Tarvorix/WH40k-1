@@ -385,7 +385,7 @@ fn hash_dice_roller(hasher: &mut ahash::AHasher, dice_roller: &wh40k_dice::DiceR
 mod tests {
     use super::*;
     use crate::state::{GameState, PlayerState, TurnFlags};
-    use wh40k_core_types::{BattleRound, GameOutcome, Phase, PlayerId, SubPhase, UnitId};
+    use wh40k_core_types::{BattleRound, GameMode, GameOutcome, Phase, PlayerId, SubPhase, UnitId};
     use wh40k_dice::{DiceContext, DiceRoller, StreamKind};
 
     fn make_test_game_state() -> GameState {
@@ -416,6 +416,8 @@ mod tests {
             turn_flags: TurnFlags::new(),
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         }
     }
 

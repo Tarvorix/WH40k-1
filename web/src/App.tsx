@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { useGameStore } from '@/store/gameStore';
+import { MainMenu } from '@/components/menu/MainMenu';
 import { SetupScreen } from '@/components/setup/SetupScreen';
+import { BoardingSetupScreen } from '@/components/boarding-setup/BoardingSetupScreen';
 import { GameScreen } from '@/components/play/GameScreen';
 import { ReplayScreen } from '@/components/replay/ReplayScreen';
 import { GameEndScreen } from '@/components/game-end/GameEndScreen';
@@ -47,7 +49,9 @@ export default function App() {
           </div>
         </div>
       )}
+      {screen === 'menu' && <MainMenu />}
       {screen === 'setup' && <SetupScreen />}
+      {screen === 'boarding_setup' && <BoardingSetupScreen />}
       {screen === 'play' && <GameScreen />}
       {screen === 'replay' && <ReplayScreen />}
       {screen === 'game_end' && <GameEndScreen />}

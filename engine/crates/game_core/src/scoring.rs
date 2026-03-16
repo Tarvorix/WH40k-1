@@ -1703,7 +1703,7 @@ fn find_edge_objectives(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wh40k_core_types::BattleRound;
+    use wh40k_core_types::{BattleRound, GameMode};
 
     #[test]
     fn test_enhancement_ids_unique() {
@@ -1887,6 +1887,8 @@ mod tests {
             game_outcome: wh40k_core_types::GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         };
 
         // Without Consecrated Ground selected, should return None
@@ -1936,6 +1938,8 @@ mod tests {
             game_outcome: wh40k_core_types::GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         };
 
         state.players[0].secondary_choice = Some(secondary_ids::CONSECRATED_GROUND);
@@ -1979,6 +1983,8 @@ mod tests {
             game_outcome: wh40k_core_types::GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         };
 
         // Draw at 0-0
@@ -2047,6 +2053,8 @@ mod tests {
             game_outcome: wh40k_core_types::GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         };
 
         // Set up objectives:

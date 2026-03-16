@@ -1,0 +1,1032 @@
+{
+  "artifact": "boarding_actions_mission_tags_complete_v3",
+  "version": "2.0.0",
+  "source_basis": {
+    "primary_docs": [
+      "boarding_actions_missions_complete_v3.md",
+      "boarding_actions_maps_complete_v3.json",
+      "boarding_actions_objectives_complete_v3.json",
+      "boarding_patrol_complete_v3.md"
+    ],
+    "notes": [
+      "Mission-specific trigger/action/tag layer refreshed against the Wahapedia Boarding Action Rules page.",
+      "Map-driven labels and regions are aligned to the companion v3 maps file."
+    ]
+  },
+  "schema_notes": {
+    "purpose": "Mission-specific tags and trigger/action bindings for a Boarding Actions digital rules engine.",
+    "status_values": [
+      "confirmed",
+      "confirmed",
+      "map_defined",
+      "placeholder"
+    ],
+    "design_split": {
+      "maps": "board geometry, entry zones, objective coordinates, hatchways, region placement",
+      "objectives": "scoring logic and VP timing",
+      "mission_tags": "labels, state machines, actions, trigger bindings, role rules"
+    }
+  },
+  "global_region_tags": [
+    {
+      "tag": "entry_zone.main",
+      "description": "Primary deployment/reserve entry zone defined by mission map."
+    },
+    {
+      "tag": "entry_zone.underdog",
+      "description": "Extra deployment zone enabled only for the underdog where specified."
+    },
+    {
+      "tag": "entry_zone.patrol",
+      "description": "Patrol Entry Zone with deployment-only or role-based restrictions."
+    },
+    {
+      "tag": "entry_zone.guard",
+      "description": "Guard Entry Zone used by Defender deployment / prison security logic."
+    },
+    {
+      "tag": "entry_zone.backup",
+      "description": "Backup Entry Zone with delayed reserve-only enablement."
+    },
+    {
+      "tag": "region.lighting_area",
+      "description": "Zone whose light state can toggle off and affect ranged attacks and charges."
+    },
+    {
+      "tag": "region.compartment",
+      "description": "Compartment that can be vented to the void and seal hatchways."
+    },
+    {
+      "tag": "region.furnace",
+      "description": "Furnace area affected by burner activation."
+    },
+    {
+      "tag": "region.furnace_control_zone",
+      "description": "Zone from which Turn on the Burners can be attempted."
+    },
+    {
+      "tag": "region.sector",
+      "description": "Radiation sector used by Rad Leak exposure progression."
+    },
+    {
+      "tag": "region.access_zone",
+      "description": "Cross-board transfer zone for multi-level movement."
+    },
+    {
+      "tag": "region.strongroom",
+      "description": "Secure vault area used in Strongrooms defender predeployment."
+    },
+    {
+      "tag": "region.prison_cells",
+      "description": "Prison area holding the imprisoned unit in Jailbreak."
+    },
+    {
+      "tag": "region.airlock",
+      "description": "Airlock hatchway / zone used by Void the Ship."
+    },
+    {
+      "tag": "region.inaccessible_area",
+      "description": "Area that cannot be occupied / traversed as defined by mission map."
+    },
+    {
+      "tag": "objective.control_node",
+      "description": "Special secureable objective in Pull Their Teeth."
+    },
+    {
+      "tag": "objective.loader",
+      "description": "Loader objective in Pull Their Teeth."
+    },
+    {
+      "tag": "objective.label_a",
+      "description": "Special labeled objective A in Control Centre."
+    },
+    {
+      "tag": "objective.label_b",
+      "description": "Special labeled objective B in Control Centre."
+    },
+    {
+      "tag": "objective.downloadable",
+      "description": "Objective that can be downloaded for one-shot VP."
+    },
+    {
+      "tag": "objective.corruptible",
+      "description": "Objective that can be corrupted and removed from play."
+    }
+  ],
+  "global_action_tags": [
+    {
+      "id": "mission.unlock_all_hatchways",
+      "timing": "command_phase",
+      "description": "Open every hatchway on battlefield when mission-specific conditions are met."
+    },
+    {
+      "id": "mission.turn_on_burners",
+      "timing": "turn_end",
+      "description": "Tactical Manoeuvre performed from Furnace Control Zone; affects units in Furnace."
+    },
+    {
+      "id": "mission.download_data",
+      "timing": "mission_action",
+      "description": "One-shot data retrieval interaction on tagged objective markers."
+    },
+    {
+      "id": "mission.corrupt_objective",
+      "timing": "end_of_attacker_command_phase",
+      "description": "Attempt to corrupt controlled objective; remove on success."
+    },
+    {
+      "id": "mission.change_level",
+      "timing": "end_of_movement_phase",
+      "description": "Transfer a unit between paired Access Zones on different boards."
+    },
+    {
+      "id": "mission.prison_break_hatch_attempt",
+      "timing": "hatch_operation_override",
+      "description": "Imprisoned unit uses custom Toughness test to open Prison Cells hatch."
+    },
+    {
+      "id": "mission.open_airlock",
+      "timing": "mission_action",
+      "description": "Only attacker may open tagged Airlocks; once opened they cannot be closed."
+    },
+    {
+      "id": "mission.vent_compartment",
+      "timing": "start_of_battle_round",
+      "description": "Vented Compartment closes hatchways, inflicts mortal wounds, and slows movement."
+    },
+    {
+      "id": "mission.set_lighting_state",
+      "timing": "end_of_movement_phase",
+      "description": "Roll per Lighting Area to determine lights-off state until end of turn."
+    },
+    {
+      "id": "mission.apply_rad_exposure",
+      "timing": "start_of_battle_round",
+      "description": "Apply sector-based radiation penalties by round."
+    },
+    {
+      "id": "mission.silent_infiltration_chain",
+      "timing": "start_of_battle_round_1",
+      "description": "Attacker can chain pregame 6 inch moves with worsening success rolls."
+    }
+  ],
+  "missions": [
+    {
+      "mission_id": "BA-11",
+      "mission_number": 11,
+      "mission_name": "Access Junction Primus",
+      "mission_type": "symmetric",
+      "turn_order_override": null,
+      "role_rules": [],
+      "region_tags": [],
+      "objective_tags": [],
+      "hatchway_tags": [],
+      "action_bindings": [],
+      "trigger_bindings": [
+        {
+          "id": "trigger.underdog_bonus_cp",
+          "timing": "pre_battle",
+          "effect": "+1 CP to underdog"
+        }
+      ],
+      "mission_tags": [
+        "junction_control",
+        "destroyed_points_thresholds",
+        "underdog_bonus.cp_plus_1"
+      ],
+      "notes": [
+        "Uses standard objective-control progressive scoring plus a destroyed-points threshold end-game objective."
+      ]
+    },
+    {
+      "mission_id": "BA-12",
+      "mission_number": 12,
+      "mission_name": "Deck Sweepers",
+      "mission_type": "symmetric",
+      "turn_order_override": null,
+      "role_rules": [],
+      "region_tags": [
+        {
+          "tag": "entry_zone.underdog",
+          "status": "confirmed",
+          "binding": "under_dog_deploy_only_then_disabled_for_reserves_after_round_1_begins"
+        }
+      ],
+      "objective_tags": [],
+      "hatchway_tags": [],
+      "action_bindings": [],
+      "trigger_bindings": [
+        {
+          "id": "trigger.enable_underdog_entry_zone",
+          "timing": "deploy_armies",
+          "condition": "player_receives_underdog_bonus",
+          "effect": "may use Underdog Entry Zone"
+        },
+        {
+          "id": "trigger.disable_underdog_entry_zone_for_reserves",
+          "timing": "battle_round_1_start",
+          "effect": "special zone cannot be used for Strategic Reserve entry"
+        }
+      ],
+      "mission_tags": [
+        "objective_control",
+        "underdog_entry_zone",
+        "end_game.per_marker"
+      ],
+      "notes": []
+    },
+    {
+      "mission_id": "BA-13",
+      "mission_number": 13,
+      "mission_name": "The Pipeline",
+      "mission_type": "symmetric",
+      "turn_order_override": null,
+      "role_rules": [],
+      "region_tags": [],
+      "objective_tags": [
+        {
+          "tag": "objective.linked_by_power_lines",
+          "status": "confirmed",
+          "binding": "scoring checks direct linkage graph"
+        }
+      ],
+      "hatchway_tags": [],
+      "action_bindings": [],
+      "trigger_bindings": [
+        {
+          "id": "trigger.underdog_bonus_cp",
+          "timing": "pre_battle",
+          "effect": "+1 CP to underdog"
+        }
+      ],
+      "mission_tags": [
+        "power_lines",
+        "linked_objectives",
+        "objective_graph",
+        "underdog_bonus.cp_plus_1"
+      ],
+      "notes": [
+        "Requires explicit objective adjacency graph in map layer."
+      ]
+    },
+    {
+      "mission_id": "BA-21",
+      "mission_number": 21,
+      "mission_name": "Power Struggle",
+      "mission_type": "symmetric",
+      "turn_order_override": null,
+      "role_rules": [],
+      "region_tags": [],
+      "objective_tags": [
+        {
+          "tag": "objective.power_network_node",
+          "status": "confirmed"
+        }
+      ],
+      "hatchway_tags": [],
+      "action_bindings": [],
+      "trigger_bindings": [
+        {
+          "id": "trigger.underdog_bonus_cp",
+          "timing": "pre_battle",
+          "effect": "+1 CP to underdog"
+        }
+      ],
+      "mission_tags": [
+        "power_network",
+        "linked_or_sequential_nodes",
+        "warlord_kill",
+        "underdog_bonus.cp_plus_1"
+      ],
+      "notes": [
+        "Progressive bullet list still confirmed; preserve network/node tags for future completion."
+      ]
+    },
+    {
+      "mission_id": "BA-22",
+      "mission_number": 22,
+      "mission_name": "Death in the Dark",
+      "mission_type": "symmetric",
+      "turn_order_override": null,
+      "role_rules": [],
+      "region_tags": [
+        {
+          "tag": "region.lighting_area",
+          "label": "Lighting Area 1",
+          "status": "confirmed"
+        },
+        {
+          "tag": "region.lighting_area",
+          "label": "Lighting Area 2",
+          "status": "confirmed"
+        }
+      ],
+      "objective_tags": [
+        {
+          "tag": "objective.in_lighting_area",
+          "label": "Lighting Area 1 objectives",
+          "count": 2,
+          "status": "confirmed"
+        },
+        {
+          "tag": "objective.in_lighting_area",
+          "label": "Lighting Area 2 objectives",
+          "count": 2,
+          "status": "confirmed"
+        }
+      ],
+      "hatchway_tags": [],
+      "action_bindings": [
+        {
+          "id": "mission.set_lighting_state",
+          "targets": "each lighting area",
+          "status": "confirmed"
+        }
+      ],
+      "trigger_bindings": [
+        {
+          "id": "trigger.roll_lights",
+          "timing": "end_of_each_players_movement_phase",
+          "effect": "roll D6 per Lighting Area; 1-3 = lights off until end of turn"
+        },
+        {
+          "id": "trigger.lights_off_ranged_restriction",
+          "timing": "on_ranged_attack_declaration",
+          "condition": "attacker_or_target_wholly_within_dark_lighting_area",
+          "effects": [
+            "cannot attack beyond 9 inches",
+            "within 9 inches subtract 1 from Hit roll"
+          ]
+        },
+        {
+          "id": "trigger.lights_off_charge_restriction",
+          "timing": "on_charge_target_selection",
+          "condition": "charging_unit_or_target_wholly_within_dark_lighting_area",
+          "effects": [
+            "cannot target beyond 9 inches",
+            "within 9 inches subtract 1 from charge roll"
+          ]
+        }
+      ],
+      "mission_tags": [
+        "lighting_state",
+        "visibility_limit",
+        "charge_limit",
+        "underdog_bonus.cp_plus_1"
+      ],
+      "notes": []
+    },
+    {
+      "mission_id": "BA-23",
+      "mission_number": 23,
+      "mission_name": "Hull Breach",
+      "mission_type": "symmetric",
+      "turn_order_override": null,
+      "role_rules": [],
+      "region_tags": [
+        {
+          "tag": "region.compartment",
+          "label": "Compartment",
+          "status": "confirmed",
+          "count": "map_defined"
+        }
+      ],
+      "objective_tags": [
+        {
+          "tag": "objective.downloadable",
+          "label": "data_objectives",
+          "status": "confirmed"
+        }
+      ],
+      "hatchway_tags": [
+        {
+          "tag": "hatchway.in_compartment",
+          "status": "confirmed",
+          "binding": "close all open hatchways within vented compartment"
+        }
+      ],
+      "action_bindings": [
+        {
+          "id": "mission.vent_compartment",
+          "status": "confirmed"
+        },
+        {
+          "id": "mission.download_data",
+          "status": "confirmed"
+        }
+      ],
+      "trigger_bindings": [
+        {
+          "id": "trigger.roll_for_venting",
+          "timing": "start_of_battle_round_from_round_2",
+          "actor": "Attacker",
+          "effect": "on 3+ one Compartment is vented until end of battle round"
+        },
+        {
+          "id": "trigger.select_vented_compartment",
+          "timing": "on_successful_vent_roll",
+          "actor": "Defender",
+          "effect": "determine which Compartment is vented"
+        },
+        {
+          "id": "trigger.apply_venting_effects",
+          "timing": "on_compartment_vented",
+          "effects": [
+            "close all open hatchways within Compartment",
+            "each unit within it suffers D3 mortal wounds",
+            "selected units making Normal or Advance move suffer -1 inch Move until end of turn"
+          ]
+        }
+      ],
+      "mission_tags": [
+        "compartment_venting",
+        "downloadable_objectives",
+        "mortal_wounds",
+        "move_penalty"
+      ],
+      "notes": []
+    },
+    {
+      "mission_id": "BA-31",
+      "mission_number": 31,
+      "mission_name": "Control Centre",
+      "mission_type": "symmetric",
+      "turn_order_override": null,
+      "role_rules": [],
+      "region_tags": [],
+      "objective_tags": [
+        {
+          "tag": "objective.label_a",
+          "label": "Objective A",
+          "status": "confirmed"
+        },
+        {
+          "tag": "objective.label_b",
+          "label": "Objective B",
+          "status": "confirmed"
+        }
+      ],
+      "hatchway_tags": [
+        {
+          "tag": "hatchway.all",
+          "status": "confirmed",
+          "binding": "opened globally by Unlock Overrides"
+        }
+      ],
+      "action_bindings": [
+        {
+          "id": "mission.unlock_all_hatchways",
+          "status": "confirmed"
+        }
+      ],
+      "trigger_bindings": [
+        {
+          "id": "trigger.unlock_overrides",
+          "timing": "each_players_command_phase",
+          "condition": "player controls objective B with non-Battle-shocked unit in range and at least one such unit not within Engagement Range",
+          "effect": "open every Hatchway on battlefield"
+        },
+        {
+          "id": "trigger.underdog_bonus_cp",
+          "timing": "pre_battle",
+          "effect": "+1 CP to underdog"
+        }
+      ],
+      "mission_tags": [
+        "global_hatch_override",
+        "objective_A",
+        "objective_B",
+        "warlord_kill",
+        "underdog_bonus.cp_plus_1"
+      ],
+      "notes": []
+    },
+    {
+      "mission_id": "BA-32",
+      "mission_number": 32,
+      "mission_name": "The Furnace",
+      "mission_type": "symmetric",
+      "turn_order_override": null,
+      "role_rules": [],
+      "region_tags": [
+        {
+          "tag": "region.furnace",
+          "label": "Furnace",
+          "status": "confirmed"
+        },
+        {
+          "tag": "region.furnace_control_zone",
+          "label": "Furnace Control Zone",
+          "status": "confirmed",
+          "count": "map_defined"
+        }
+      ],
+      "objective_tags": [
+        {
+          "tag": "objective.in_furnace",
+          "status": "confirmed",
+          "binding": "control one or more objective markers within the Furnace"
+        },
+        {
+          "tag": "objective.secure_site_override",
+          "status": "confirmed",
+          "binding": "any unit can Secure Site on objective within Furnace"
+        }
+      ],
+      "hatchway_tags": [],
+      "action_bindings": [
+        {
+          "id": "mission.turn_on_burners",
+          "status": "confirmed"
+        }
+      ],
+      "trigger_bindings": [
+        {
+          "id": "trigger.turn_on_burners",
+          "timing": "once_in_each_players_turn",
+          "condition": "one unit within Furnace Control Zone performs Tactical Manoeuvre",
+          "effect": "at end of turn, roll one D6 for each model in each unit within Furnace"
+        },
+        {
+          "id": "trigger.worth_dying_for",
+          "timing": "mission_rule",
+          "status": "confirmed",
+          "effect": "mission-specific rule exists in digest"
+        },
+        {
+          "id": "trigger.desperate_measures",
+          "timing": "mission_rule",
+          "status": "confirmed",
+          "effect": "mission-specific rule exists in digest"
+        },
+        {
+          "id": "trigger.underdog_bonus",
+          "timing": "pre_battle_or_mission_setup",
+          "status": "confirmed",
+          "effect": "special underdog handling referenced in digest"
+        }
+      ],
+      "mission_tags": [
+        "furnace",
+        "furnace_control_zone",
+        "burners",
+        "secure_site_override",
+        "cp_generation",
+        "underdog_bonus.special"
+      ],
+      "notes": [
+        "Digest captured section titles Worth Dying For / Desperate Measures but not full rules text."
+      ]
+    },
+    {
+      "mission_id": "BA-33",
+      "mission_number": 33,
+      "mission_name": "Rad Leak",
+      "mission_type": "symmetric",
+      "turn_order_override": null,
+      "role_rules": [],
+      "region_tags": [
+        {
+          "tag": "region.sector",
+          "label": "Sector A",
+          "status": "confirmed"
+        },
+        {
+          "tag": "region.sector",
+          "label": "Sector B",
+          "status": "confirmed"
+        },
+        {
+          "tag": "region.sector",
+          "label": "Sector C",
+          "status": "confirmed"
+        },
+        {
+          "tag": "region.sector",
+          "label": "Sector D",
+          "status": "confirmed"
+        }
+      ],
+      "objective_tags": [],
+      "hatchway_tags": [],
+      "action_bindings": [
+        {
+          "id": "mission.apply_rad_exposure",
+          "status": "confirmed"
+        }
+      ],
+      "trigger_bindings": [
+        {
+          "id": "trigger.rad_progression",
+          "timing": "start_of_each_battle_round",
+          "effect": "radiation spreads/intensifies by sector beginning with Sector A in round 1"
+        },
+        {
+          "id": "trigger.apply_mild_rad",
+          "timing": "while_unit_in_exposed_sector",
+          "effect": "Leadership worsens by 1"
+        },
+        {
+          "id": "trigger.apply_high_rad",
+          "timing": "while_unit_in_exposed_sector",
+          "effect": "subtract 1 inch Move and also suffer Mild Rad"
+        },
+        {
+          "id": "trigger.apply_extreme_rad",
+          "timing": "while_unit_in_exposed_sector",
+          "effect": "subtract 1 Toughness and also suffer High Rad and Mild Rad"
+        },
+        {
+          "id": "trigger.multi_sector_resolution",
+          "timing": "start_of_battle_round",
+          "condition": "unit in multiple sectors",
+          "effect": "suffer most extreme applicable level"
+        },
+        {
+          "id": "trigger.underdog_bonus_cp",
+          "timing": "pre_battle",
+          "effect": "+1 CP to underdog"
+        }
+      ],
+      "mission_tags": [
+        "radiation",
+        "sector_progression",
+        "leadership_penalty",
+        "move_penalty",
+        "toughness_penalty",
+        "underdog_bonus.cp_plus_1"
+      ],
+      "notes": []
+    },
+    {
+      "mission_id": "BA-01",
+      "mission_number": 1,
+      "mission_name": "Void the Ship",
+      "mission_type": "asymmetric",
+      "turn_order_override": "defender_first",
+      "role_rules": [
+        {
+          "role": "Defender",
+          "rule": "has first turn"
+        }
+      ],
+      "region_tags": [
+        {
+          "tag": "entry_zone.patrol",
+          "status": "confirmed",
+          "binding": "Defender deployment only; cannot be used for Strategic Reserves after battle round 1 begins"
+        },
+        {
+          "tag": "region.inaccessible_area",
+          "status": "confirmed"
+        }
+      ],
+      "objective_tags": [],
+      "hatchway_tags": [
+        {
+          "tag": "region.airlock",
+          "status": "confirmed",
+          "binding": "only Attacker can open; once opened cannot be closed"
+        }
+      ],
+      "action_bindings": [
+        {
+          "id": "mission.open_airlock",
+          "status": "confirmed"
+        }
+      ],
+      "trigger_bindings": [
+        {
+          "id": "trigger.patrol_entry_zone_restriction",
+          "timing": "deploy_armies",
+          "effect": "Patrol Entry Zone can only be used by Defender"
+        },
+        {
+          "id": "trigger.patrol_entry_zone_disable",
+          "timing": "battle_round_1_start",
+          "effect": "Defender cannot use Patrol Entry Zone for Strategic Reserve entry"
+        },
+        {
+          "id": "trigger.airlock_open_rule",
+          "timing": "on_airlock_operation",
+          "condition": "actor is Attacker",
+          "effect": "Airlock opens and can never be closed"
+        }
+      ],
+      "mission_tags": [
+        "airlocks",
+        "inaccessible_area",
+        "patrol_entry_zone",
+        "defender_first",
+        "warlord_kill"
+      ],
+      "notes": []
+    },
+    {
+      "mission_id": "BA-02",
+      "mission_number": 2,
+      "mission_name": "Pull Their Teeth",
+      "mission_type": "asymmetric",
+      "turn_order_override": "attacker_first",
+      "role_rules": [
+        {
+          "role": "Attacker",
+          "rule": "has first turn"
+        }
+      ],
+      "region_tags": [],
+      "objective_tags": [
+        {
+          "tag": "objective.control_node",
+          "status": "confirmed",
+          "binding": "only objective that can be secured by either army; any unit may Secure Site here"
+        },
+        {
+          "tag": "objective.loader",
+          "status": "confirmed",
+          "count": "map_defined"
+        }
+      ],
+      "hatchway_tags": [],
+      "action_bindings": [],
+      "trigger_bindings": [
+        {
+          "id": "trigger.control_node_secure_site_override",
+          "timing": "mission_rule",
+          "effect": "any unit may Secure Site on Control Node even without BATTLELINE"
+        },
+        {
+          "id": "trigger.attacker_vp_initial_state",
+          "timing": "battle_start",
+          "effect": "Attacker starts at 60 VP"
+        },
+        {
+          "id": "trigger.defender_loader_scoring",
+          "timing": "start_of_defender_command_phase",
+          "effect": "per Loader, transfer or subtract VP depending on Control Node state"
+        },
+        {
+          "id": "trigger.attacker_control_node_scoring",
+          "timing": "start_of_attacker_command_phase",
+          "effect": "if Attacker controls Control Node, score 5 VP"
+        }
+      ],
+      "mission_tags": [
+        "control_node",
+        "loader_markers",
+        "vp_transfer",
+        "secure_site_override",
+        "attacker_first"
+      ],
+      "notes": []
+    },
+    {
+      "mission_id": "BA-03",
+      "mission_number": 3,
+      "mission_name": "Strongrooms",
+      "mission_type": "asymmetric",
+      "turn_order_override": "attacker_first",
+      "role_rules": [
+        {
+          "role": "Attacker",
+          "rule": "has first turn"
+        },
+        {
+          "role": "Defender",
+          "rule": "for each Strongroom, select one unit and deploy it wholly within that Strongroom at start of Deploy Armies"
+        }
+      ],
+      "region_tags": [
+        {
+          "tag": "region.strongroom",
+          "label": "Strongroom",
+          "status": "confirmed",
+          "count": "map_defined"
+        }
+      ],
+      "objective_tags": [],
+      "hatchway_tags": [],
+      "action_bindings": [],
+      "trigger_bindings": [
+        {
+          "id": "trigger.underdog_bonus_cp",
+          "timing": "pre_battle",
+          "effect": "+1 CP to underdog"
+        }
+      ],
+      "mission_tags": [
+        "strongrooms",
+        "defender_predeployment",
+        "high_swing_endgame",
+        "attacker_first",
+        "underdog_bonus.cp_plus_1"
+      ],
+      "notes": []
+    },
+    {
+      "mission_id": "BA-04",
+      "mission_number": 4,
+      "mission_name": "Jailbreak",
+      "mission_type": "asymmetric",
+      "turn_order_override": "attacker_first",
+      "role_rules": [
+        {
+          "role": "Attacker",
+          "rule": "has first turn"
+        }
+      ],
+      "region_tags": [
+        {
+          "tag": "region.prison_cells",
+          "status": "confirmed"
+        },
+        {
+          "tag": "entry_zone.guard",
+          "status": "confirmed"
+        },
+        {
+          "tag": "entry_zone.patrol",
+          "status": "confirmed"
+        },
+        {
+          "tag": "entry_zone.backup",
+          "status": "confirmed"
+        }
+      ],
+      "objective_tags": [],
+      "hatchway_tags": [
+        {
+          "tag": "hatchway.prison_cells",
+          "status": "confirmed",
+          "binding": "once opened cannot be closed; Defender cannot attempt to operate"
+        }
+      ],
+      "action_bindings": [
+        {
+          "id": "mission.prison_break_hatch_attempt",
+          "status": "confirmed"
+        },
+        {
+          "id": "mission.silent_infiltration_chain",
+          "status": "confirmed"
+        }
+      ],
+      "trigger_bindings": [
+        {
+          "id": "trigger.select_imprisoned_unit",
+          "timing": "start_of_deploy_armies",
+          "actor": "Attacker",
+          "condition": "unit minimum cost 60 points",
+          "effect": "set up within Prison Cells"
+        },
+        {
+          "id": "trigger_prison_break_attempt",
+          "timing": "while_prison_cells_hatchway_closed",
+          "condition": "no Defender units wholly within Guard Entry Zone",
+          "effect": "imprisoned unit can attempt custom hatch operation using Toughness test"
+        },
+        {
+          "id": "trigger.prison_cells_restrictions",
+          "timing": "mission_rule",
+          "effects": [
+            "no other unit may be set up inside Prison Cells by abilities",
+            "once opened Prison Cells hatchway cannot be closed",
+            "Defender cannot operate Prison Cells hatchway"
+          ]
+        },
+        {
+          "id": "trigger.prison_guards_setup",
+          "timing": "deploy_armies",
+          "effects": [
+            "Defender can only set up within Guard Entry Zone and Patrol Entry Zones",
+            "Defender cannot use Backup Entry Zones during initial deployment",
+            "one Defender unit must be set up within Guard Entry Zone",
+            "after battle round 1 begins Backup Entry Zones can be used for Strategic Reserve entry"
+          ]
+        },
+        {
+          "id": "trigger.silent_infiltration",
+          "timing": "start_of_battle_round_1",
+          "actor": "Attacker",
+          "effect": "select one unit and roll D6; on 2+ it makes Normal Move up to 6 inches, then repeat with another unselected unit subtracting 1 from each subsequent roll"
+        }
+      ],
+      "mission_tags": [
+        "prison_cells",
+        "guard_entry_zone",
+        "backup_entry_zone",
+        "patrol_entry_zone",
+        "silent_infiltration",
+        "attacker_first",
+        "state_table_scoring"
+      ],
+      "notes": []
+    },
+    {
+      "mission_id": "BA-05",
+      "mission_number": 5,
+      "mission_name": "Power the Generators",
+      "mission_type": "asymmetric",
+      "turn_order_override": "defender_first",
+      "role_rules": [
+        {
+          "role": "Defender",
+          "rule": "has first turn"
+        }
+      ],
+      "region_tags": [
+        {
+          "tag": "region.access_zone",
+          "status": "confirmed",
+          "binding": "paired zones link the two boards"
+        }
+      ],
+      "objective_tags": [],
+      "hatchway_tags": [],
+      "action_bindings": [
+        {
+          "id": "mission.change_level",
+          "status": "confirmed"
+        }
+      ],
+      "trigger_bindings": [
+        {
+          "id": "trigger.multi_level_setup",
+          "timing": "battlefield_setup",
+          "effects": [
+            "each game board represents a different level",
+            "units cannot move from one board to the other except via Change Level",
+            "units on one board are not visible to units on the other"
+          ]
+        },
+        {
+          "id": "trigger.change_level",
+          "timing": "end_of_each_players_movement_phase",
+          "condition": "every model in a unit is within an Access Zone",
+          "effect": "remove and set up within corresponding Access Zone on the other game board"
+        }
+      ],
+      "mission_tags": [
+        "multi_level",
+        "change_level",
+        "access_zones",
+        "defender_first",
+        "two_board_LOS_split"
+      ],
+      "notes": [
+        "Objective text remains missing in current extraction; tags focus on mission mechanics."
+      ]
+    },
+    {
+      "mission_id": "BA-06",
+      "mission_number": 6,
+      "mission_name": "Corrupt the Machine Spirit",
+      "mission_type": "asymmetric",
+      "turn_order_override": "defender_first",
+      "role_rules": [
+        {
+          "role": "Defender",
+          "rule": "has first turn"
+        }
+      ],
+      "region_tags": [],
+      "objective_tags": [
+        {
+          "tag": "objective.corruptible",
+          "status": "confirmed"
+        }
+      ],
+      "hatchway_tags": [],
+      "action_bindings": [
+        {
+          "id": "mission.corrupt_objective",
+          "status": "confirmed"
+        }
+      ],
+      "trigger_bindings": [
+        {
+          "id": "trigger.corrupt_objective_attempts",
+          "timing": "end_of_attackers_command_phase",
+          "condition": "for each objective marker the Attacker controls",
+          "effect": "roll one D6; on 2+ objective is corrupted and removed from battlefield"
+        },
+        {
+          "id": "trigger.unique_consequence_selection",
+          "timing": "each_time_objective_corrupted",
+          "actor": "Attacker",
+          "effect": "select one consequence from mission list not already selected",
+          "status": "confirmed"
+        }
+      ],
+      "mission_tags": [
+        "corruptible_objectives",
+        "objective_removal",
+        "unique_consequence_picks",
+        "defender_first"
+      ],
+      "notes": [
+        "Attacker-side complementary scoring and exact corruption consequence list remain confirmed."
+      ]
+    }
+  ]
+}

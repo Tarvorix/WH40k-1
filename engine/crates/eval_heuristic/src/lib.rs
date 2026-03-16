@@ -118,6 +118,18 @@ pub struct HeuristicWeights {
     /// Weight for wound count advantage ratio.
     pub wound_advantage: Score,
 
+    // === Boarding Actions weights ===
+    /// Weight per secured objective in Boarding Actions.
+    pub ba_secured_objective: Score,
+    /// Weight per open hatchway favorable to our movement.
+    pub ba_hatchway_control: Score,
+    /// Weight per active tactical manoeuvre.
+    pub ba_tactical_manoeuvre: Score,
+    /// Weight per active Battlefield Command link.
+    pub ba_battlefield_command: Score,
+    /// Weight for chokepoint control (units positioned near hatchways).
+    pub ba_chokepoint_control: Score,
+
     // === Scaling factors ===
     /// How much to scale the early-game weights (rounds 1-2).
     pub early_game_scale: i32,
@@ -167,6 +179,13 @@ impl Default for HeuristicWeights {
             // Attrition
             model_advantage: 50,        // Model count advantage matters
             wound_advantage: 30,        // Raw wound advantage
+
+            // Boarding Actions (only active in BA mode, zero effect in CP)
+            ba_secured_objective: 150,     // Secured objectives persist — very valuable
+            ba_hatchway_control: 20,       // Open hatches enable movement, closed block enemy
+            ba_tactical_manoeuvre: 50,      // Set to Defend / Set Overwatch are situationally strong
+            ba_battlefield_command: 80,     // Leader projection is powerful in BA
+            ba_chokepoint_control: 30,      // Controlling chokepoints is key in corridors
 
             // Game phase scaling (in thousandths, 1000 = 1.0x)
             early_game_scale: 1000,
@@ -791,6 +810,152 @@ impl HeuristicEvaluator {
         score
     }
 
+    /// Compute Boarding Actions specific heuristic bonuses.
+    /// Only called when game_mode == BoardingActions.
+    ///
+    /// Evaluates BA-specific positional features:
+    /// 1. Secured objectives — persistent control worth significant VP
+    /// 2. Hatchway control — open hatches enable our movement, closed block enemy
+    /// 3. Tactical manoeuvres — Set to Defend/Overwatch provide combat bonuses
+    /// 4. Battlefield Command — leader projection multiplies unit effectiveness
+    /// 5. Chokepoint positioning — units near hatchways control traffic flow
+    ///
+    /// Source: boarding_actions_complete_v3.md Sections 3.2, 3.4, 3.7
+    fn eval_boarding_actions(
+        &self,
+        state: &GameState,
+        perspective: PlayerId,
+    ) -> Score {
+        let mut score: Score = 0;
+
+        let ba_state = match state.boarding_state() {
+            Some(ba) => ba,
+            None => return 0,
+        };
+
+        let opponent = state.opponent_id(perspective);
+
+        // 1. Secured objectives bonus: persistent control is extremely valuable in BA.
+        // Securing an objective means you hold it even if you move away (until opponent flips).
+        let own_secured = ba_state
+            .secured_objectives
+            .values()
+            .filter(|&&p| p == perspective)
+            .count() as Score;
+        let enemy_secured = ba_state
+            .secured_objectives
+            .values()
+            .filter(|&&p| p == opponent)
+            .count() as Score;
+        score += (own_secured - enemy_secured) * self.weights.ba_secured_objective;
+
+        // 2. Hatchway control: evaluate the hatchway states relative to unit positioning.
+        // Open hatchways near our units = good (enables movement and shooting).
+        // Closed hatchways between us and enemy = good (blocks enemy advance).
+        // This is a simplified approximation since we don't have full position data here.
+        let total_hatches = ba_state.hatchway_states.len() as Score;
+        let open_hatches = ba_state
+            .hatchway_states
+            .values()
+            .filter(|s| s.allows_passage())
+            .count() as Score;
+        let _closed_hatches = total_hatches - open_hatches;
+
+        // In BA, having some open and some closed hatches is typically advantageous
+        // depending on positioning. We give a mild bonus for open hatches (enables movement)
+        // and reward the ability to control hatchways (more toggleable hatches = more options).
+        let toggleable_hatches = ba_state
+            .hatchway_states
+            .values()
+            .filter(|s| s.can_operate())
+            .count() as Score;
+        score += open_hatches * self.weights.ba_hatchway_control / 2;
+        score += toggleable_hatches * self.weights.ba_hatchway_control / 4;
+
+        // 3. Tactical manoeuvres: reward own units with active manoeuvres.
+        // Set to Defend gives +1 to Hit in melee (strong defensive bonus).
+        // Set Overwatch gives free Overwatch fire (strong deterrent).
+        // Secure Site has already been counted in the secured objectives above.
+        let own_manoeuvres = ba_state
+            .tactical_manoeuvres
+            .iter()
+            .filter(|(uid, _)| {
+                state.unit(**uid).map_or(false, |u| u.owner == perspective)
+            })
+            .count() as Score;
+        let enemy_manoeuvres = ba_state
+            .tactical_manoeuvres
+            .iter()
+            .filter(|(uid, _)| {
+                state.unit(**uid).map_or(false, |u| u.owner == opponent)
+            })
+            .count() as Score;
+        score += (own_manoeuvres - enemy_manoeuvres) * self.weights.ba_tactical_manoeuvre;
+
+        // 4. Battlefield Command links: active leader projection multiplies effectiveness.
+        // Each active link means a non-attached unit is benefiting from a leader ability.
+        let own_commands = ba_state
+            .battlefield_command_links
+            .iter()
+            .filter(|link| {
+                state
+                    .unit(link.leader_unit)
+                    .map_or(false, |u| u.owner == perspective)
+            })
+            .count() as Score;
+        let enemy_commands = ba_state
+            .battlefield_command_links
+            .iter()
+            .filter(|link| {
+                state
+                    .unit(link.leader_unit)
+                    .map_or(false, |u| u.owner == opponent)
+            })
+            .count() as Score;
+        score += (own_commands - enemy_commands) * self.weights.ba_battlefield_command;
+
+        // 5. Chokepoint control: reward units positioned near hatchway areas.
+        // In BA, the corridors and hatchways create natural chokepoints.
+        // Units near these chokepoints can control the flow of the game.
+        // Since we don't have hatchway positions in this context, we approximate
+        // by counting units that are in central board positions (corridor intersections).
+        let board_center_x = state.board.dimensions.width.mils() / 2;
+        let board_center_y = state.board.dimensions.height.mils() / 2;
+        let center_threshold = 8000; // 8" from center = in the central corridor area
+
+        let own_center_units = state
+            .units
+            .iter()
+            .filter(|u| {
+                u.owner == perspective
+                    && u.is_on_battlefield()
+                    && !u.is_destroyed()
+                    && u.reference_position().map_or(false, |p| {
+                        let dx = (p.x.mils() - board_center_x).abs();
+                        let dy = (p.y.mils() - board_center_y).abs();
+                        dx <= center_threshold && dy <= center_threshold
+                    })
+            })
+            .count() as Score;
+        let enemy_center_units = state
+            .units
+            .iter()
+            .filter(|u| {
+                u.owner == opponent
+                    && u.is_on_battlefield()
+                    && !u.is_destroyed()
+                    && u.reference_position().map_or(false, |p| {
+                        let dx = (p.x.mils() - board_center_x).abs();
+                        let dy = (p.y.mils() - board_center_y).abs();
+                        dx <= center_threshold && dy <= center_threshold
+                    })
+            })
+            .count() as Score;
+        score += (own_center_units - enemy_center_units) * self.weights.ba_chokepoint_control;
+
+        score
+    }
+
     /// Evaluate a terminal game state.
     /// Returns SCORE_WIN, SCORE_LOSS, or SCORE_DRAW for completed games.
     fn eval_terminal(&self, state: &GameState, perspective: PlayerId) -> Option<Score> {
@@ -844,6 +1009,13 @@ impl Evaluator for HeuristicEvaluator {
         let term_cp = self.eval_cp_utility(&features.global);
         let term_attrition = self.eval_attrition(&features.global);
 
+        // Boarding Actions specific term (zero in CP mode)
+        let term_boarding = if state.is_boarding_actions() {
+            self.eval_boarding_actions(state, perspective)
+        } else {
+            0
+        };
+
         // Sum all terms
         let raw_score = term_vp
             + term_projected
@@ -857,7 +1029,8 @@ impl Evaluator for HeuristicEvaluator {
             + term_retaliation
             + term_mission
             + term_cp
-            + term_attrition;
+            + term_attrition
+            + term_boarding;
 
         // Apply game-phase scaling
         let phase_scale = self.weights.phase_scale(features.global.battle_round);
@@ -906,6 +1079,8 @@ pub struct EvalBreakdown {
     pub cp_utility: Score,
     /// Attrition term.
     pub attrition: Score,
+    /// Boarding Actions specific term (0 in CP mode).
+    pub boarding_actions: Score,
     /// Final score after scaling and clamping.
     pub total: Score,
 }
@@ -936,6 +1111,11 @@ impl EvalBreakdown {
             evaluator.eval_mission_leverage(&features.global, &features.objectives);
         let cp_utility = evaluator.eval_cp_utility(&features.global);
         let attrition = evaluator.eval_attrition(&features.global);
+        let boarding_actions = if state.is_boarding_actions() {
+            evaluator.eval_boarding_actions(state, perspective)
+        } else {
+            0
+        };
 
         let raw_total = vp_differential
             + projected_scoring
@@ -949,7 +1129,8 @@ impl EvalBreakdown {
             + retaliation_risk
             + mission_leverage
             + cp_utility
-            + attrition;
+            + attrition
+            + boarding_actions;
 
         let phase_scale = evaluator.weights.phase_scale(features.global.battle_round);
         let total = (raw_total * phase_scale / 1000).clamp(SCORE_LOSS + 100, SCORE_WIN - 100);
@@ -968,6 +1149,7 @@ impl EvalBreakdown {
             mission_leverage,
             cp_utility,
             attrition,
+            boarding_actions,
             total,
         }
     }
@@ -989,6 +1171,9 @@ impl std::fmt::Display for EvalBreakdown {
         writeln!(f, "  Mission Leverage:    {:+6}", self.mission_leverage)?;
         writeln!(f, "  CP Utility:          {:+6}", self.cp_utility)?;
         writeln!(f, "  Attrition:           {:+6}", self.attrition)?;
+        if self.boarding_actions != 0 {
+            writeln!(f, "  Boarding Actions:    {:+6}", self.boarding_actions)?;
+        }
         writeln!(f, "  ───────────────────────────")?;
         writeln!(f, "  TOTAL:               {:+6}", self.total)
     }
@@ -1116,6 +1301,7 @@ mod tests {
             mission_leverage: 60,
             cp_utility: 30,
             attrition: 25,
+            boarding_actions: 0,
             total: 745,
         };
 

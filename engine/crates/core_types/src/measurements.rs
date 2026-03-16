@@ -117,6 +117,23 @@ impl Inches {
     pub const DEEP_STRIKE_MIN_DISTANCE: Inches = Inches::from_inches(9);
     /// Heroic Intervention range (6 inches)
     pub const HEROIC_INTERVENTION: Inches = Inches::from_inches(6);
+
+    // Boarding Actions specific constants
+    /// Maximum movement in Boarding Actions (9 inches).
+    /// Source: boarding_actions_complete_v3.md Section 3.2 - FLY suppressed, Move > 9" reduced to 9"
+    pub const BA_MOVE_CAP: Inches = Inches::from_inches(9);
+    /// Engagement range through open hatchways in Boarding Actions (2 inches horizontal).
+    /// Source: boarding_actions_complete_v3.md Section 3.2
+    pub const BA_HATCHWAY_ENGAGEMENT_RANGE: Inches = Inches::from_inches(2);
+    /// Objective control range in Boarding Actions (1 inch horizontal).
+    /// Source: boarding_actions_complete_v3.md Section 3.2
+    pub const BA_OBJECTIVE_RANGE: Inches = Inches::from_inches(1);
+    /// Hatchway operation range (1 inch from the hatchway).
+    /// Source: boarding_actions_complete_v3.md Section 3.2
+    pub const BA_HATCHWAY_OPERATE_RANGE: Inches = Inches::from_inches(1);
+    /// Battlefield Command projection range (6 inches from leader to bodyguard unit).
+    /// Source: boarding_actions_complete_v3.md Section 3.7
+    pub const BA_BATTLEFIELD_COMMAND_RANGE: Inches = Inches::from_inches(6);
 }
 
 impl Add for Inches {
@@ -310,6 +327,14 @@ impl BoardDimensions {
     pub const COMBAT_PATROL: BoardDimensions = BoardDimensions {
         width: Inches::from_inches(44),
         height: Inches::from_inches(30),
+    };
+
+    /// Boarding Actions battlefield: two boards side by side (~42" x 22").
+    /// Source: boarding_actions_complete_v3.md Section 2 - "TWO Boarding Actions boards placed side by side"
+    /// Each board is approximately 21" x 22". Exact geometry is defined per mission in the maps JSON.
+    pub const BOARDING_ACTIONS: BoardDimensions = BoardDimensions {
+        width: Inches::from_inches(42),
+        height: Inches::from_inches(22),
     };
 
     pub fn contains(&self, pos: Position) -> bool {

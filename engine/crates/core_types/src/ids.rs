@@ -136,6 +136,30 @@ define_id!(
     CustomRuleHandlerId
 );
 
+// ---------------------------------------------------------------------------
+// Boarding Actions IDs
+// ---------------------------------------------------------------------------
+
+define_id!(
+    /// Identifies a hatchway on a Boarding Actions map.
+    HatchwayId
+);
+
+define_id!(
+    /// Identifies a compartment/zone on a Boarding Actions map.
+    CompartmentId
+);
+
+define_id!(
+    /// Identifies a special region on a Boarding Actions map (lighting area, furnace, sector, etc.).
+    RegionId
+);
+
+define_id!(
+    /// Identifies a Boarding Actions detachment.
+    DetachmentId
+);
+
 /// Counter for generating sequential IDs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdGenerator {

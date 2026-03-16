@@ -22,7 +22,8 @@
 use serde::{Deserialize, Serialize};
 
 use wh40k_core_types::{
-    EngagementStatus, Inches, Phase, PlayerId, Position, UnitId,
+    EngagementStatus, HatchwayId, Inches, Phase, PlayerId,
+    Position, TacticalManoeuvre, UnitId,
 };
 use wh40k_command_system::Command;
 use wh40k_game_core::state::GameState;
@@ -119,6 +120,22 @@ pub enum TacticalIntent {
     /// Decline to use a stratagem.
     DeclineStratagem,
 
+    // === Boarding Actions intents ===
+    /// Open or close a hatchway for tactical advantage.
+    OperateHatch,
+    /// Perform Secure Site tactical manoeuvre on an objective.
+    SecureObjective,
+    /// Set to Defend in anticipation of enemy charge.
+    DefendPosition,
+    /// Position to control a hatchway or corridor chokepoint.
+    ControlChokepoint,
+    /// Move through a side hatchway to flank the enemy.
+    FlankThroughHatch,
+    /// Use Battlefield Command to project leader ability.
+    ProjectLeaderAbility,
+    /// Arrive from entry zone reserves.
+    EnterFromReserves,
+
     // === Misc intents ===
     /// Score/raze an objective.
     ScoreObjective,
@@ -164,6 +181,14 @@ impl TacticalIntent {
             TacticalIntent::MovementReaction => 55,
             TacticalIntent::FightOrderManipulation => 60,
             TacticalIntent::DenyReserveZone => 20,
+            // Boarding Actions priorities
+            TacticalIntent::SecureObjective => 88,
+            TacticalIntent::OperateHatch => 52,
+            TacticalIntent::DefendPosition => 48,
+            TacticalIntent::ControlChokepoint => 42,
+            TacticalIntent::FlankThroughHatch => 38,
+            TacticalIntent::ProjectLeaderAbility => 62,
+            TacticalIntent::EnterFromReserves => 35,
             TacticalIntent::ScoreObjective => 90,
             TacticalIntent::AllocateBlessings => 80,
             TacticalIntent::PhaseControl => 10,
@@ -559,6 +584,11 @@ impl ActionGenerator {
             Phase::GameEnd => {
                 // No decisions at game end
             }
+        }
+
+        // Generate Boarding Actions specific candidates (only in BA mode)
+        if state.is_boarding_actions() {
+            Self::generate_boarding_actions_candidates(state, player, &mut candidates);
         }
 
         // Always allow phase control actions
@@ -1508,6 +1538,326 @@ impl ActionGenerator {
         }
     }
 
+    /// Generate Boarding Actions specific candidates.
+    ///
+    /// Adds hatchway operations, tactical manoeuvres (Secure Site, Set to Defend,
+    /// Set Overwatch), entry zone reserve arrivals, and Battlefield Command candidates.
+    ///
+    /// Only called when `state.is_boarding_actions()` is true.
+    /// Source: boarding_actions_complete_v3.md Sections 3.2, 3.4, 3.7, 7.5
+    fn generate_boarding_actions_candidates(
+        state: &GameState,
+        player: PlayerId,
+        candidates: &mut CandidateSet,
+    ) {
+        let ba_state = match state.boarding_state() {
+            Some(ba) => ba,
+            None => return,
+        };
+
+        // ----------------------------------------------------------------
+        // 1. Hatchway operation candidates (Movement phase)
+        //    Any unit adjacent to a toggleable hatchway can operate it.
+        //    Candidates are generated for all (unit, hatchway) pairs where the
+        //    hatchway is toggleable. The pre_validate step will filter out
+        //    illegal combinations (unit not within operating range, etc.).
+        //    Source: boarding_actions_complete_v3.md Section 3.2
+        // ----------------------------------------------------------------
+        if state.current_phase == Phase::Movement {
+            // Collect operable hatchway IDs
+            let operable_hatches: Vec<HatchwayId> = ba_state
+                .hatchway_states
+                .iter()
+                .filter(|(_, hs)| hs.can_operate())
+                .map(|(id, _)| *id)
+                .collect();
+
+            if !operable_hatches.is_empty() {
+                for unit in state.units.iter().filter(|u| {
+                    u.owner == player
+                        && u.is_on_battlefield()
+                        && !u.is_destroyed()
+                        && !state.turn_flags.units_moved.contains(&u.id)
+                }) {
+                    for hatch_id in &operable_hatches {
+                        let hatch_state = ba_state.hatchway_states.get(hatch_id).unwrap();
+                        let action_label = if hatch_state.allows_passage() {
+                            format!("{} closes hatchway {}", unit.name, hatch_id)
+                        } else {
+                            format!("{} opens hatchway {}", unit.name, hatch_id)
+                        };
+                        candidates.add(
+                            Command::OperateHatchway {
+                                player,
+                                unit_id: unit.id,
+                                hatchway_id: *hatch_id,
+                            },
+                            TacticalIntent::OperateHatch,
+                            action_label,
+                        );
+                    }
+                }
+            }
+
+            // Entry zone reserve arrivals (Movement phase, round 2+)
+            // In Boarding Actions, units in reserves can arrive from entry zones.
+            // Max 1 deep strike arrival per player per round in BA.
+            // Source: boarding_actions_complete_v3.md Section 7.5
+            if state.battle_round.number() >= 2 {
+                let arrivals_this_round = ba_state
+                    .deep_strike_arrivals_this_round
+                    .get(&player)
+                    .copied()
+                    .unwrap_or(0);
+                if arrivals_this_round < 1 {
+                    let reserve_units: Vec<&UnitState> = state
+                        .units
+                        .iter()
+                        .filter(|u| u.owner == player && u.is_in_reserves())
+                        .collect();
+
+                    for unit in &reserve_units {
+                        // Generate arrival positions from entry zones
+                        let entry_positions =
+                            Self::generate_entry_zone_positions(state, player);
+                        for dest in entry_positions {
+                            candidates.add(
+                                Command::ArriveFromEntryZone {
+                                    player,
+                                    unit_id: unit.id,
+                                    position: dest,
+                                    entry_zone_id: 0,
+                                },
+                                TacticalIntent::EnterFromReserves,
+                                format!("{} arrives from entry zone", unit.name),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // ----------------------------------------------------------------
+        // 2. Tactical Manoeuvre candidates (Shooting phase, start-of-phase)
+        //    Source: boarding_actions_complete_v3.md Section 3.4
+        //    - Secure Site: BATTLELINE unit on an objective, makes it secured
+        //    - Set to Defend: +1 to Hit for melee until next Command Phase
+        //    - Set Overwatch: fire Overwatch until end of opponent's next turn
+        // ----------------------------------------------------------------
+        if state.current_phase == Phase::Shooting {
+            for unit in state.units.iter().filter(|u| {
+                u.owner == player
+                    && u.is_on_battlefield()
+                    && !u.is_destroyed()
+                    // Units that already performed a manoeuvre this turn skip
+                    && !ba_state.tactical_manoeuvres.contains_key(&u.id)
+            }) {
+                let unit_pos = match unit.reference_position() {
+                    Some(p) => p,
+                    None => continue,
+                };
+
+                // Secure Site — BATTLELINE units on objectives
+                if unit.is_battleline() {
+                    for obj in &state.board.objectives {
+                        let dist = distance(unit_pos, obj.position).mils();
+                        if dist <= 3000 {
+                            // Within 3" of objective (objective control range)
+                            // Check if not already secured by this player
+                            let already_secured = ba_state
+                                .secured_objectives
+                                .get(&obj.id)
+                                .map_or(false, |&p| p == player);
+                            if !already_secured {
+                                candidates.add(
+                                    Command::PerformTacticalManoeuvre {
+                                        player,
+                                        unit_id: unit.id,
+                                        manoeuvre: TacticalManoeuvre::SecureSite,
+                                        target_objective: Some(obj.id),
+                                    },
+                                    TacticalIntent::SecureObjective,
+                                    format!("{} secures objective {}", unit.name, obj.id),
+                                );
+                            }
+                        }
+                    }
+                }
+
+                // Set to Defend — any unit, useful before enemy charge phase
+                candidates.add(
+                    Command::PerformTacticalManoeuvre {
+                        player,
+                        unit_id: unit.id,
+                        manoeuvre: TacticalManoeuvre::SetToDefend,
+                        target_objective: None,
+                    },
+                    TacticalIntent::DefendPosition,
+                    format!("{} sets to defend", unit.name),
+                );
+
+                // Set Overwatch — any unit with ranged weapons
+                let has_ranged = unit
+                    .models
+                    .iter()
+                    .any(|m| m.alive && !m.ranged_weapons.is_empty());
+                if has_ranged {
+                    candidates.add(
+                        Command::PerformTacticalManoeuvre {
+                            player,
+                            unit_id: unit.id,
+                            manoeuvre: TacticalManoeuvre::SetOverwatch,
+                            target_objective: None,
+                        },
+                        TacticalIntent::DefendPosition,
+                        format!("{} sets overwatch", unit.name),
+                    );
+                }
+            }
+        }
+
+        // ----------------------------------------------------------------
+        // 3. Battlefield Command candidates (Command phase)
+        //    Leaders can project one of their abilities to a nearby bodyguard unit.
+        //    Source: boarding_actions_complete_v3.md Section 3.7, Section 4.2
+        // ----------------------------------------------------------------
+        if state.current_phase == Phase::Command {
+            // Find leader units owned by this player
+            let leader_units: Vec<&UnitState> = state
+                .units
+                .iter()
+                .filter(|u| {
+                    u.owner == player
+                        && u.is_on_battlefield()
+                        && !u.is_destroyed()
+                        && u.is_character()
+                })
+                .collect();
+
+            // Find potential bodyguard/target units
+            let target_units: Vec<&UnitState> = state
+                .units
+                .iter()
+                .filter(|u| {
+                    u.owner == player
+                        && u.is_on_battlefield()
+                        && !u.is_destroyed()
+                        && !u.is_character()
+                })
+                .collect();
+
+            for leader in &leader_units {
+                // Check if this leader already has an active command link
+                let already_linked = ba_state
+                    .battlefield_command_links
+                    .iter()
+                    .any(|link| link.leader_unit == leader.id);
+                if already_linked {
+                    continue;
+                }
+
+                let leader_pos = match leader.reference_position() {
+                    Some(p) => p,
+                    None => continue,
+                };
+
+                for target in &target_units {
+                    let target_pos = match target.reference_position() {
+                        Some(p) => p,
+                        None => continue,
+                    };
+                    // Battlefield Command range: 6" from leader to target
+                    let dist = distance(leader_pos, target_pos).mils();
+                    if dist <= 6000 {
+                        candidates.add(
+                            Command::UseBattlefieldCommand {
+                                player,
+                                leader_unit_id: leader.id,
+                                target_unit_id: target.id,
+                                ability_name: String::new(),
+                            },
+                            TacticalIntent::ProjectLeaderAbility,
+                            format!(
+                                "{} projects ability to {}",
+                                leader.name, target.name
+                            ),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Generate entry zone arrival positions for Boarding Actions reserves.
+    /// In BA, units arrive from entry zones along the board edges rather than
+    /// deep striking >9" from enemies.
+    /// Source: boarding_actions_complete_v3.md Section 7.5
+    fn generate_entry_zone_positions(
+        state: &GameState,
+        player: PlayerId,
+    ) -> Vec<Position> {
+        let mut positions = Vec::new();
+        let board_w = state.board.dimensions.width.mils();
+        let board_h = state.board.dimensions.height.mils();
+
+        // Entry zones are typically along the player's board edge.
+        // Sample positions along the entry edge with 3" spacing.
+        let entry_y = if state.player(player).first_turn {
+            1000 // Player 1 enters from bottom edge
+        } else {
+            board_h - 1000 // Player 2 enters from top edge
+        };
+
+        let step = 3000; // 3" spacing
+        let mut x = 2000; // Start 2" from left edge
+        while x <= board_w - 2000 {
+            let pos = Position {
+                x: Inches::from_mils(x),
+                y: Inches::from_mils(entry_y),
+            };
+            // Check position is on the board and not occupied
+            if state.board.contains(pos) {
+                // Check >1" from other deployed units
+                let too_close = state.units.iter().any(|u| {
+                    u.is_on_battlefield()
+                        && u.reference_position()
+                            .map(|upos| distance(pos, upos).mils() < 1000)
+                            .unwrap_or(false)
+                });
+                if !too_close {
+                    positions.push(pos);
+                }
+            }
+            x += step;
+        }
+
+        // Also try positions near objectives that are along the entry edge
+        for obj in &state.board.objectives {
+            let dist_to_entry = (obj.position.y.mils() - entry_y).abs();
+            if dist_to_entry <= 6000 {
+                let pos = Position {
+                    x: obj.position.x,
+                    y: Inches::from_mils(entry_y),
+                };
+                if state.board.contains(pos) {
+                    positions.push(pos);
+                }
+            }
+        }
+
+        // Limit to a reasonable number
+        if positions.len() > 10 {
+            let step_size = positions.len() / 8;
+            positions = positions
+                .into_iter()
+                .step_by(step_size.max(1))
+                .take(8)
+                .collect();
+        }
+
+        positions
+    }
+
     /// Generate setup/pre-battle candidates.
     ///
     /// During deployment, generate PlaceUnit commands for each undeployed unit
@@ -2197,6 +2547,29 @@ impl ActionGenerator {
             }
             Command::RazeObjective { .. } => {
                 (TacticalIntent::ScoreObjective, "Raze objective".to_string())
+            }
+            // Boarding Actions commands
+            Command::OperateHatchway { unit_id, hatchway_id, .. } => {
+                let name = unit_name(state, *unit_id);
+                (TacticalIntent::OperateHatch, format!("{} operates hatchway {}", name, hatchway_id))
+            }
+            Command::PerformTacticalManoeuvre { unit_id, manoeuvre, .. } => {
+                let name = unit_name(state, *unit_id);
+                let intent = match manoeuvre {
+                    TacticalManoeuvre::SecureSite => TacticalIntent::SecureObjective,
+                    TacticalManoeuvre::SetToDefend => TacticalIntent::DefendPosition,
+                    TacticalManoeuvre::SetOverwatch => TacticalIntent::DefendPosition,
+                };
+                (intent, format!("{} performs {:?}", name, manoeuvre))
+            }
+            Command::UseBattlefieldCommand { leader_unit_id, target_unit_id, .. } => {
+                let leader_name = unit_name(state, *leader_unit_id);
+                let target_name = unit_name(state, *target_unit_id);
+                (TacticalIntent::ProjectLeaderAbility, format!("{} projects to {}", leader_name, target_name))
+            }
+            Command::ArriveFromEntryZone { unit_id, .. } => {
+                let name = unit_name(state, *unit_id);
+                (TacticalIntent::EnterFromReserves, format!("{} arrives from entry zone", name))
             }
             _ => {
                 (TacticalIntent::Generic, format!("{}", cmd))

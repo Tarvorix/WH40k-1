@@ -20,8 +20,8 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 use wh40k_core_types::{
-    BattleRound, CommandId, EnhancementId, FactionId, ModelId, ObjectiveId, Phase, PlayerId,
-    Position, SecondaryObjectiveId, StratagemId, UnitId, WeaponId,
+    BattleRound, CommandId, EnhancementId, FactionId, HatchwayId, ModelId, ObjectiveId, Phase,
+    PlayerId, Position, SecondaryObjectiveId, StratagemId, TacticalManoeuvre, UnitId, WeaponId,
 };
 
 // Re-export key types at crate root
@@ -292,6 +292,52 @@ pub mod command {
         Concede {
             player: PlayerId,
         },
+
+        // ===== Boarding Actions commands =====
+        /// Operate a hatchway (open or close). Boarding Actions only.
+        /// Source: boarding_actions_complete_v3.md Section 3.2
+        OperateHatchway {
+            player: PlayerId,
+            unit_id: UnitId,
+            hatchway_id: HatchwayId,
+        },
+
+        /// Perform a Tactical Manoeuvre at the start of the Shooting Phase.
+        /// Source: boarding_actions_complete_v3.md Section 3.4
+        PerformTacticalManoeuvre {
+            player: PlayerId,
+            unit_id: UnitId,
+            manoeuvre: TacticalManoeuvre,
+            /// Target objective for SecureSite, None for other manoeuvres
+            target_objective: Option<ObjectiveId>,
+        },
+
+        /// Use the Battlefield Command stratagem to project a leader ability.
+        /// Source: boarding_actions_complete_v3.md Section 3.7, Section 4.2
+        UseBattlefieldCommand {
+            player: PlayerId,
+            leader_unit_id: UnitId,
+            target_unit_id: UnitId,
+            ability_name: String,
+        },
+
+        /// Arrive from an entry zone (Boarding Actions reserves).
+        /// Source: boarding_actions_complete_v3.md Section 7.5
+        ArriveFromEntryZone {
+            player: PlayerId,
+            unit_id: UnitId,
+            entry_zone_id: u32,
+            position: Position,
+        },
+
+        /// Perform a mission-specific action (e.g., download data, corrupt objective, change level).
+        /// Source: boarding_actions_mission_tags_complete_v3.json
+        BoardingMissionAction {
+            player: PlayerId,
+            action_type: String,
+            /// Optional target (objective ID, hatchway ID, region, etc.)
+            target: Option<String>,
+        },
     }
 
     impl Command {
@@ -312,6 +358,11 @@ pub mod command {
                 Command::RazeObjective { player, .. } => Some(*player),
                 Command::AllocateBlessings { player, .. } => Some(*player),
                 Command::Concede { player } => Some(*player),
+                Command::OperateHatchway { player, .. } => Some(*player),
+                Command::PerformTacticalManoeuvre { player, .. } => Some(*player),
+                Command::UseBattlefieldCommand { player, .. } => Some(*player),
+                Command::ArriveFromEntryZone { player, .. } => Some(*player),
+                Command::BoardingMissionAction { player, .. } => Some(*player),
                 _ => None,
             }
         }
@@ -372,6 +423,14 @@ pub mod command {
                 Command::Consolidate { unit_id, .. } => vec![*unit_id],
                 Command::HeroicInterventionMove { unit_id, .. } => vec![*unit_id],
                 Command::AssignOverwatchTarget { unit_id } => vec![*unit_id],
+                Command::OperateHatchway { unit_id, .. } => vec![*unit_id],
+                Command::PerformTacticalManoeuvre { unit_id, .. } => vec![*unit_id],
+                Command::UseBattlefieldCommand {
+                    leader_unit_id,
+                    target_unit_id,
+                    ..
+                } => vec![*leader_unit_id, *target_unit_id],
+                Command::ArriveFromEntryZone { unit_id, .. } => vec![*unit_id],
                 _ => vec![],
             }
         }
@@ -426,6 +485,12 @@ pub mod command {
                 | Command::AssignOverwatchTarget { .. }
                 | Command::PassAction
                 | Command::Concede { .. } => "Misc",
+
+                Command::OperateHatchway { .. }
+                | Command::PerformTacticalManoeuvre { .. }
+                | Command::UseBattlefieldCommand { .. }
+                | Command::ArriveFromEntryZone { .. }
+                | Command::BoardingMissionAction { .. } => "BoardingActions",
             }
         }
 
@@ -707,6 +772,80 @@ pub mod command {
                 }
                 Command::PassAction => write!(f, "Pass"),
                 Command::Concede { player } => write!(f, "Player {} concedes", player),
+                Command::OperateHatchway {
+                    player,
+                    unit_id,
+                    hatchway_id,
+                } => {
+                    write!(
+                        f,
+                        "Player {} unit {} operates hatchway {}",
+                        player, unit_id, hatchway_id
+                    )
+                }
+                Command::PerformTacticalManoeuvre {
+                    player,
+                    unit_id,
+                    manoeuvre,
+                    target_objective,
+                } => {
+                    if let Some(obj) = target_objective {
+                        write!(
+                            f,
+                            "Player {} unit {} performs {:?} on objective {}",
+                            player, unit_id, manoeuvre, obj
+                        )
+                    } else {
+                        write!(
+                            f,
+                            "Player {} unit {} performs {:?}",
+                            player, unit_id, manoeuvre
+                        )
+                    }
+                }
+                Command::UseBattlefieldCommand {
+                    player,
+                    leader_unit_id,
+                    target_unit_id,
+                    ability_name,
+                } => {
+                    write!(
+                        f,
+                        "Player {} Battlefield Command: leader {} projects '{}' to unit {}",
+                        player, leader_unit_id, ability_name, target_unit_id
+                    )
+                }
+                Command::ArriveFromEntryZone {
+                    player,
+                    unit_id,
+                    entry_zone_id,
+                    position,
+                } => {
+                    write!(
+                        f,
+                        "Player {} unit {} arrives from entry zone {} at {}",
+                        player, unit_id, entry_zone_id, position
+                    )
+                }
+                Command::BoardingMissionAction {
+                    player,
+                    action_type,
+                    target,
+                } => {
+                    if let Some(t) = target {
+                        write!(
+                            f,
+                            "Player {} boarding mission action '{}' on {}",
+                            player, action_type, t
+                        )
+                    } else {
+                        write!(
+                            f,
+                            "Player {} boarding mission action '{}'",
+                            player, action_type
+                        )
+                    }
+                }
             }
         }
     }
@@ -1217,6 +1356,12 @@ pub mod decision {
         ScoringAction,
         /// Generic choice that doesn't fit other categories.
         GenericChoice,
+        /// Boarding Actions: Tactical Manoeuvre selection.
+        BoardingTacticalManoeuvre,
+        /// Boarding Actions: Hatchway operation decision.
+        BoardingHatchwayOperation,
+        /// Boarding Actions: Mission-specific action decision.
+        BoardingMissionAction,
     }
 
     impl DecisionType {
@@ -1237,6 +1382,9 @@ pub mod decision {
                 DecisionType::WeaponProfileSelection => "Weapon Profile Selection",
                 DecisionType::ScoringAction => "Scoring Action",
                 DecisionType::GenericChoice => "Generic Choice",
+                DecisionType::BoardingTacticalManoeuvre => "Boarding Tactical Manoeuvre",
+                DecisionType::BoardingHatchwayOperation => "Boarding Hatchway Operation",
+                DecisionType::BoardingMissionAction => "Boarding Mission Action",
             }
         }
 

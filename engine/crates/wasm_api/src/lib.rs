@@ -12,7 +12,7 @@ mod error;
 use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
 
-use wh40k_core_types::{FactionId, Inches, MissionId, PlayerId, Position, UnitId};
+use wh40k_core_types::{FactionId, GameMode, Inches, MissionId, PlayerId, Position, UnitId};
 use wh40k_command_system::Command;
 use wh40k_dice::SeedBundle;
 use wh40k_game_core::{CommandExecutor, CommandValidator, GameState, ScenarioLoader};
@@ -376,9 +376,8 @@ pub fn apply_action(index: u32) -> Result<String, JsValue> {
 ///
 /// # Arguments
 /// * `difficulty` - AI difficulty tier:
-///   - Basic (heuristic evaluator): "Basic_Recruit", "Basic_Battle_Ready", "Basic_Veteran", "Basic_Elite"
-///   - Perturabo (iterative deepening + NNUE when trained): "Perturabo_Shallow", "Perturabo_Regular", "Perturabo_Deep"
-///   - Alpharius (MCTS + policy/value net when trained): "Alpharius_Operative", "Alpharius_Headhunter", "Alpharius_Primarch"
+///   - Basic: "Basic_Recruit", "Basic_Battle_Ready", "Basic_Veteran", "Basic_Elite"
+///   - Perturabo: "Perturabo" (ID6 search, 30K node budget)
 ///
 /// # Returns
 /// JSON-encoded `AiResultView`.
@@ -392,14 +391,8 @@ pub fn run_ai_decision(difficulty: &str) -> Result<String, JsValue> {
             "Basic_Battle_Ready" => wh40k_search_core::one_ply_choose(state, perspective),
             "Basic_Veteran" => wh40k_search_core::negamax_choose(state, perspective, 2),
             "Basic_Elite" => wh40k_search_core::negamax_choose(state, perspective, 3),
-            // Perturabo tier: iterative deepening search (NNUE eval when trained, heuristic for now)
-            "Perturabo_Shallow" => wh40k_search_core::id_search_choose(state, perspective, 4),
-            "Perturabo_Regular" => wh40k_search_core::id_search_choose(state, perspective, 6),
-            "Perturabo_Deep" => wh40k_search_core::id_search_choose(state, perspective, 8),
-            // Alpharius tier: MCTS search (policy/value net when trained, heuristic prior for now)
-            "Alpharius_Shallow" => wh40k_search_core::mcts_choose_fast(state, perspective),
-            "Alpharius_Regular" => wh40k_search_core::mcts_choose(state, perspective),
-            "Alpharius_Deep" => wh40k_search_core::mcts_choose_competition(state, perspective),
+            // Perturabo: iterative deepening with 30K node budget
+            "Perturabo" => wh40k_search_core::id_search_choose(state, perspective, 6),
             _ => None,
         }
     })
@@ -741,4 +734,198 @@ pub fn replay_get_info() -> Result<String, JsValue> {
             to_json(&view).map_err(JsValue::from)
         })
     }).map_err(|e: JsValue| e)
+}
+
+// ===========================================================================
+// 15. get_boarding_factions (Boarding Actions)
+// ===========================================================================
+
+/// Return all available Boarding Actions factions with their detachments.
+///
+/// Embeds the 6 faction JSON files at compile time using `include_str!`.
+///
+/// # Returns
+/// JSON-encoded array of `BoardingFactionDef`.
+#[wasm_bindgen]
+pub fn get_boarding_factions() -> Result<String, JsValue> {
+    let faction_jsons: &[&str] = &[
+        include_str!("../../../../content/boarding_actions/factions/space_marines_terminator_assault.json"),
+        include_str!("../../../../content/boarding_actions/factions/world_eaters_boarding_butchers.json"),
+        include_str!("../../../../content/boarding_actions/factions/world_eaters_skullsworn.json"),
+        include_str!("../../../../content/boarding_actions/factions/csm_champions_of_chaos.json"),
+        include_str!("../../../../content/boarding_actions/factions/csm_underdeck_uprising.json"),
+        include_str!("../../../../content/boarding_actions/factions/astra_militarum_tempestus.json"),
+    ];
+
+    let factions: Vec<wh40k_boarding_content::faction_data::BoardingFactionDef> = faction_jsons
+        .iter()
+        .map(|json| serde_json::from_str(json).expect("Failed to parse faction JSON"))
+        .collect();
+
+    serde_json::to_string(&factions).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+// ===========================================================================
+// 16. get_boarding_missions (Boarding Actions)
+// ===========================================================================
+
+/// Return all available Boarding Actions missions as unified packages.
+///
+/// Loads the 3 mission asset files (maps, objectives, tags) with `include_str!`
+/// and uses the mission_loader to build complete `BoardingMissionPackage` structs.
+///
+/// # Returns
+/// JSON-encoded array of `BoardingMissionPackage`.
+#[wasm_bindgen]
+pub fn get_boarding_missions() -> Result<String, JsValue> {
+    let maps_json = include_str!("../../../../boarding_actions_maps_complete_v3.json");
+    let objectives_json = include_str!("../../../../boarding_actions_objectives_complete_v3.json");
+    let tags_json = include_str!("../../../../boarding_actions_mission_tags_complete_v3.json");
+
+    let maps = wh40k_boarding_content::loader::load_maps_asset(maps_json)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let objectives = wh40k_boarding_content::loader::load_objectives_asset(objectives_json)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let tags = wh40k_boarding_content::loader::load_mission_tags_asset(tags_json)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    let missions = wh40k_boarding_rules::mission_loader::load_all_missions(&maps, &objectives, &tags)
+        .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+
+    serde_json::to_string(&missions).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+// ===========================================================================
+// 17. validate_boarding_roster (Boarding Actions)
+// ===========================================================================
+
+/// Validate a proposed Boarding Patrol army roster against faction data.
+///
+/// # Arguments
+/// * `roster_json` - JSON-encoded `BoardingPatrol` roster.
+/// * `faction_json` - JSON-encoded `BoardingFactionDef` faction definition.
+///
+/// # Returns
+/// JSON-encoded `RosterValidationResult`.
+#[wasm_bindgen]
+pub fn validate_boarding_roster(roster_json: &str, faction_json: &str) -> Result<String, JsValue> {
+    let roster: wh40k_boarding_rules::roster::BoardingPatrol =
+        serde_json::from_str(roster_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let faction: wh40k_boarding_content::faction_data::BoardingFactionDef =
+        serde_json::from_str(faction_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    let validator = wh40k_boarding_rules::validator::BoardingRosterValidator::new(&roster, &faction);
+    let result = validator.validate();
+
+    serde_json::to_string(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+// ===========================================================================
+// 18. create_boarding_match (Boarding Actions)
+// ===========================================================================
+
+/// Create a new Boarding Actions game match.
+///
+/// Follows the same pattern as `create_match` — stores state in thread-local
+/// `GAME_STATE`, creates a replay recorder, and returns a `GameView`.
+///
+/// # Arguments
+/// * `config_json` - JSON with fields:
+///   - `player_a_name: String`
+///   - `player_b_name: String`
+///   - `player_a_faction_id: u32`
+///   - `player_b_faction_id: u32`
+///   - `mission_id: Option<u32>` (null for random)
+///   - `seed: [u8]` or `seed_u64: u64`
+///
+/// # Returns
+/// JSON-encoded `GameView`.
+#[wasm_bindgen]
+pub fn create_boarding_match(config_json: &str) -> Result<String, JsValue> {
+    #[derive(serde::Deserialize)]
+    struct BoardingMatchConfig {
+        player_a_name: String,
+        player_b_name: String,
+        player_a_faction_id: u32,
+        player_b_faction_id: u32,
+        mission_id: Option<u32>,
+        /// Raw 32-byte seed (takes priority if present).
+        seed: Option<Vec<u8>>,
+        /// Convenience: a u64 that gets expanded to 32 bytes.
+        seed_u64: Option<u64>,
+    }
+
+    let config: BoardingMatchConfig =
+        serde_json::from_str(config_json).map_err(|e| WasmError::new(format!("Invalid config JSON: {}", e)))?;
+
+    // Parse seed using the same logic as create_match
+    let seed = if let Some(raw) = config.seed {
+        if raw.len() != 32 {
+            return Err(WasmError::new(format!(
+                "seed array must be exactly 32 bytes, got {}",
+                raw.len()
+            )).into());
+        }
+        let mut arr = [0u8; 32];
+        arr.copy_from_slice(&raw);
+        arr
+    } else if let Some(u) = config.seed_u64 {
+        let bundle = SeedBundle::from_u64(u, "boarding_match".to_string());
+        bundle.root_seed
+    } else {
+        return Err(WasmError::new(
+            "config JSON must contain either \"seed\" (array of 32 bytes) or \"seed_u64\" (number)",
+        ).into());
+    };
+
+    let mission_id = config.mission_id.map(MissionId::new);
+
+    let state = ScenarioLoader::load_boarding_actions_scenario(
+        &config.player_a_name,
+        &config.player_b_name,
+        FactionId::new(config.player_a_faction_id),
+        FactionId::new(config.player_b_faction_id),
+        mission_id,
+        seed,
+        std::collections::HashMap::new(),
+    );
+
+    // Create a replay recorder from the initial state.
+    let recorder = ReplayRecorder::new(&state);
+
+    // Generate the initial decision surface and cache it.
+    let candidates = ActionGenerator::generate(&state, state.decision_owner);
+    let cached_actions: Vec<MacroAction> = candidates.candidates.into_iter().collect();
+
+    // Build the view before storing state.
+    let view = game_state_to_view(&state);
+
+    // Store everything (same pattern as create_match).
+    GAME_STATE.with(|cell| cell.replace(Some(state)));
+    REPLAY_RECORDER.with(|cell| cell.replace(Some(recorder)));
+    DECISION_CACHE.with(|cell| cell.replace(cached_actions));
+    AI_RESULT.with(|cell| cell.replace(None));
+
+    to_json(&view).map_err(JsValue::from)
+}
+
+// ===========================================================================
+// 19. get_game_mode
+// ===========================================================================
+
+/// Return the current game mode as a JSON string.
+///
+/// # Returns
+/// JSON string: `"CombatPatrol"` or `"BoardingActions"`.
+/// Returns an error if no game state is loaded.
+#[wasm_bindgen]
+pub fn get_game_mode() -> Result<String, JsValue> {
+    let mode_str = with_state(|state| {
+        match state.game_mode {
+            GameMode::CombatPatrol => "CombatPatrol".to_string(),
+            GameMode::BoardingActions => "BoardingActions".to_string(),
+        }
+    }).map_err(JsValue::from)?;
+
+    to_json(&mode_str).map_err(JsValue::from)
 }

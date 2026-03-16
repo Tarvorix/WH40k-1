@@ -1,0 +1,782 @@
+{
+  "faction_name": "Chaos Space Marines",
+  "faction_keyword": "HERETIC ASTARTES",
+  "army_rule_name": "The Forsaken",
+  "army_rule_description": "Only the strong may retain the favour of the Dark Gods. The weak are cast aside, condemned to an existence of paltry mortality. Units from your army with the Dark Pacts ability retain that ability and gain this one: Each time this unit takes a Leadership test for the Dark Pacts ability, if that test is failed, this unit is Forsaken and, until the end of the battle, this unit loses the Dark Pacts ability.",
+  "detachments": [
+    {
+      "detachment_name": "Champions of Chaos",
+      "detachment_rule_name": "Dark Purpose",
+      "detachment_rule_description": "Once they have set themselves to the task of conquest, warriors such as these neither hesitate nor turn aside. Each time a HERETIC ASTARTES unit from your army Consolidates, if it is not within Engagement Range of one or more enemy units, then until the end of the phase, each time a model in that unit makes a Consolidation move, it can move towards the closest objective marker, but only if, after all models have done so, that unit is within range of that objective marker and in Unit Coherency.",
+      "enhancements": [
+        {
+          "name": "Manifest Vengeance",
+          "description": "A chosen warrior does not die easily, and rarely without striking a last spiteful blow at those who ended their path to glory. When the bearer is destroyed, if it has not shot or fought this phase, roll one D6, adding 1 to the result if it was destroyed by a melee attack; on a 4+, do not remove it from play. The bearer can shoot or fight after the attacking unit has finished making its attacks, and is then removed from play."
+        },
+        {
+          "name": "Dark Majesty",
+          "description": "The unholy power of this warrior radiates from them in a dark and malevolent nimbus that disorientates and dismays the foe. Each time the bearer ends a Charge move, select one enemy unit within Engagement Range of it. Until the start of your next Charge phase, that enemy unit is stunned. While a unit is stunned, each time a model in that unit makes an attack, subtract 1 from the Hit roll."
+        }
+      ],
+      "stratagems": [
+        {
+          "name": "Imperious Advance",
+          "cp_cost": 1,
+          "timing": "Fight phase.",
+          "target": "One HERETIC ASTARTES TERMINATOR unit from your army that has not been selected to fight this phase.",
+          "effect": "Select any number of models in your unit. Until the end of the phase: add 1 to the Attacks characteristic of melee weapons equipped by the selected models; and each time you select targets for attacks made by those models, they must target an enemy unit that is wholly on the opposite side of a Hatchway from them."
+        },
+        {
+          "name": "Malign Will",
+          "cp_cost": 1,
+          "timing": "Your Shooting phase or the Fight phase.",
+          "target": "One HERETIC ASTARTES unit from your army that has not been selected to shoot or fight this phase.",
+          "effect": "Until the end of the phase: each time your unit takes a Leadership test for the Dark Pacts ability, subtract 1 from the result; and if passed, select one objective marker within 6\" of your unit. If there are no enemy units within range of that objective marker (excluding Battle-shocked units), that objective marker is Secured by your army."
+        },
+        {
+          "name": "Infernal Patrons",
+          "cp_cost": 1,
+          "timing": "Any phase, just after your opponent targets a unit from their army with a Stratagem.",
+          "target": "One HERETIC ASTARTES unit from your army within 3\" of and visible to that enemy unit.",
+          "effect": "That enemy unit must take a Leadership test; if failed, that usage of that Stratagem has no effect (your opponent cannot use that Stratagem again this phase)."
+        },
+        {
+          "name": "Aggressive Strike",
+          "cp_cost": 1,
+          "timing": "End of your Movement phase.",
+          "target": "One HERETIC ASTARTES unit from your army that arrived using the Deep Strike ability this turn.",
+          "effect": "Your unit can make a Normal move of up to 6\". Restrictions: Until the end of the turn, your unit is not eligible to declare a charge."
+        }
+      ],
+      "allowed_units": [
+        {
+          "datasheet_name": "Abaddon the Despoiler",
+          "max_count": 1,
+          "allowed_sizes": [],
+          "conditional_limit": "Up to two characters total, duplicates not allowed"
+        },
+        {
+          "datasheet_name": "Chaos Lord in Terminator Armour",
+          "max_count": 1,
+          "allowed_sizes": [],
+          "conditional_limit": "Up to two characters total, duplicates not allowed"
+        },
+        {
+          "datasheet_name": "Sorcerer in Terminator Armour",
+          "max_count": 1,
+          "allowed_sizes": [],
+          "conditional_limit": "Up to two characters total, duplicates not allowed"
+        },
+        {
+          "datasheet_name": "Chaos Terminator Squad",
+          "max_count": 2,
+          "allowed_sizes": [5, 10],
+          "conditional_limit": null
+        },
+        {
+          "datasheet_name": "Chosen",
+          "max_count": 2,
+          "allowed_sizes": [5],
+          "conditional_limit": null
+        },
+        {
+          "datasheet_name": "Chaos Spawn",
+          "max_count": 1,
+          "allowed_sizes": [2],
+          "conditional_limit": null
+        }
+      ],
+      "mustering_rules": [
+        {
+          "rule_type": "character_limit",
+          "description": "Up to two of Abaddon the Despoiler, Chaos Lord in Terminator Armour, or Sorcerer in Terminator Armour (duplicates are not allowed)."
+        },
+        {
+          "rule_type": "unit_limit",
+          "description": "Up to two of each: Chaos Terminator Squad (5 or 10 models), Chosen (5 models)."
+        },
+        {
+          "rule_type": "unit_limit",
+          "description": "Up to one: Chaos Spawn (2 models)."
+        },
+        {
+          "rule_type": "adaptation",
+          "description": "Chaos Terminator Squad units can perform the Secure Site Tactical Manoeuvre as if they had the BATTLELINE keyword."
+        }
+      ]
+    }
+  ],
+  "datasheets": [
+    {
+      "name": "Abaddon the Despoiler",
+      "points": [
+        { "model_count": 1, "points": 270 }
+      ],
+      "is_epic_hero": true,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 9,
+        "leadership": "5+",
+        "oc": 4
+      },
+      "ranged_weapons": [
+        {
+          "name": "Talon of Horus",
+          "range": "24\"",
+          "attacks": "4",
+          "skill": "2+",
+          "strength": 5,
+          "ap": "-1",
+          "damage": "2",
+          "abilities": ["Sustained Hits 1"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Drach'nyen",
+          "range": "Melee",
+          "attacks": "8",
+          "skill": "2+",
+          "strength": 14,
+          "ap": "-4",
+          "damage": "3",
+          "abilities": ["Devastating Wounds"]
+        },
+        {
+          "name": "Talon of Horus",
+          "range": "Melee",
+          "attacks": "14",
+          "skill": "2+",
+          "strength": 7,
+          "ap": "-3",
+          "damage": "1",
+          "abilities": ["Devastating Wounds"]
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "This unit can be set up in Reserves and arrive via Deep Strike.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Dark Pacts",
+          "description": "Faction ability for Heretic Astartes.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Warmaster",
+          "description": "In your Command phase, select one Warmaster ability. Until the start of your next Command phase, this model has that ability: Paragon of Hatred (Aura): While a friendly HERETIC ASTARTES unit is within 6\" of this model (excluding DAMNED units), each time a model in that unit makes an attack, you can re-roll the Hit roll. Mark of Chaos Ascendant (Aura): While a friendly HERETIC ASTARTES INFANTRY or HERETIC ASTARTES MOUNTED unit is within 6\" of this model (excluding DAMNED units), models in that unit have a 4+ invulnerable save. Lord of the Traitor Legions (Aura): While a friendly HERETIC ASTARTES unit is within 6\" of this model (excluding DAMNED units), you can re-roll Leadership and Battle-shock tests taken for that unit.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Dark Destiny",
+          "description": "Each time this model's unit makes a Dark Pact and does not fail the resulting Leadership test, if the result of that test was 7+, you gain 1CP.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Supreme Commander",
+          "description": "If this model is in your army, it must be your Warlord.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Chaos Terminator Squad", "Chosen"],
+        "leader_abilities": ["Warmaster", "Dark Destiny"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "EPIC HERO", "TERMINATOR", "CHAOS UNDIVIDED", "CHAOS", "ABADDON THE DESPOILER"],
+      "faction_keywords": ["HERETIC ASTARTES"],
+      "wargear_options": [],
+      "unit_composition": [
+        { "model_name": "Abaddon the Despoiler", "count": "1" }
+      ]
+    },
+    {
+      "name": "Chaos Lord in Terminator Armour",
+      "points": [
+        { "model_count": 1, "points": 85 }
+      ],
+      "is_epic_hero": false,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 6,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Combi-bolter",
+          "range": "24\"",
+          "attacks": "2",
+          "skill": "2+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Rapid Fire 2"]
+        },
+        {
+          "name": "Combi-weapon",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Anti-Infantry 4+", "Devastating Wounds", "Rapid Fire 1"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Chainfist",
+          "range": "Melee",
+          "attacks": "5",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": ["Anti-Vehicle 3+"]
+        },
+        {
+          "name": "Exalted weapon",
+          "range": "Melee",
+          "attacks": "6",
+          "skill": "2+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": []
+        },
+        {
+          "name": "Paired accursed weapons",
+          "range": "Melee",
+          "attacks": "7",
+          "skill": "2+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Twin-linked"]
+        },
+        {
+          "name": "Power fist",
+          "range": "Melee",
+          "attacks": "5",
+          "skill": "2+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "This unit can be set up in Reserves and arrive via Deep Strike.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Dark Pacts",
+          "description": "Faction ability for Heretic Astartes.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Lord of Chaos",
+          "description": "Once per battle round, one unit from your army with this ability can use it when its unit is targeted with a Stratagem. If it does, reduce the CP cost of that use of that Stratagem by 1CP.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Formidably Resilient",
+          "description": "Each time an attack is allocated to this model, halve the Damage characteristic of that attack.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Chaos Terminator Squad"],
+        "leader_abilities": ["Lord of Chaos", "Formidably Resilient"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "CHAOS", "CHAOS LORD", "TERMINATOR", "CHAOS LORD IN TERMINATOR ARMOUR"],
+      "faction_keywords": ["HERETIC ASTARTES"],
+      "wargear_options": [
+        { "description": "This model's combi-bolter can be replaced with 1 combi-weapon." },
+        { "description": "This model's exalted weapon can be replaced with one of the following: 1 chainfist; 1 power fist." },
+        { "description": "This model's combi-bolter and exalted weapon can be replaced with 1 paired accursed weapons." }
+      ],
+      "unit_composition": [
+        { "model_name": "Chaos Lord in Terminator Armour", "count": "1" }
+      ]
+    },
+    {
+      "name": "Sorcerer in Terminator Armour",
+      "points": [
+        { "model_count": 1, "points": 80 }
+      ],
+      "is_epic_hero": false,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 5,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Combi-bolter",
+          "range": "24\"",
+          "attacks": "2",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Rapid Fire 2"]
+        },
+        {
+          "name": "Combi-weapon",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "4+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Anti-Infantry 4+", "Devastating Wounds", "Rapid Fire 1"]
+        },
+        {
+          "name": "Infernal Gaze - witchfire",
+          "range": "24\"",
+          "attacks": "D6",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-1",
+          "damage": "D3",
+          "abilities": ["Psychic", "Witchfire"]
+        },
+        {
+          "name": "Infernal Gaze - focused witchfire",
+          "range": "24\"",
+          "attacks": "D6",
+          "skill": "3+",
+          "strength": 6,
+          "ap": "-2",
+          "damage": "D3",
+          "abilities": ["Devastating Wounds", "Hazardous", "Psychic", "Witchfire"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Force weapon",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 6,
+          "ap": "-1",
+          "damage": "D3",
+          "abilities": ["Psychic"]
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "This unit can be set up in Reserves and arrive via Deep Strike.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Dark Pacts",
+          "description": "Faction ability for Heretic Astartes.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Warptime",
+          "description": "While this model is leading a unit, you can re-roll Advance and Charge rolls made for that unit.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Death Hex",
+          "description": "At the start of your Shooting phase, one PSYKER with this ability can use it. If it does, select one enemy unit within 12\" of and visible to that PSYKER and roll one D6: on a 1, that PSYKER's unit suffers D3 mortal wounds; on a 2+, until the start of your next Movement phase, each time an attack targets that enemy unit, improve the Armour Penetration characteristic of that attack by 1.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Chaos Familiar",
+          "description": "Once per battle, when an attack is allocated to the bearer, you can change the Damage characteristic to 0.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Chaos Terminator Squad"],
+        "leader_abilities": ["Warptime", "Death Hex"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "PSYKER", "CHAOS", "TERMINATOR", "SORCERER IN TERMINATOR ARMOUR"],
+      "faction_keywords": ["HERETIC ASTARTES"],
+      "wargear_options": [
+        { "description": "This model's combi-bolter can be replaced with 1 combi-weapon." },
+        { "description": "This model can be equipped with 1 Chaos familiar." }
+      ],
+      "unit_composition": [
+        { "model_name": "Sorcerer in Terminator Armour", "count": "1" }
+      ]
+    },
+    {
+      "name": "Chaos Terminator Squad",
+      "points": [
+        { "model_count": 5, "points": 180 },
+        { "model_count": 10, "points": 360 }
+      ],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 3,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Combi-bolter",
+          "range": "24\"",
+          "attacks": "2",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Rapid Fire 2"]
+        },
+        {
+          "name": "Combi-weapon",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "4+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Anti-Infantry 4+", "Devastating Wounds", "Rapid Fire 1"]
+        },
+        {
+          "name": "Heavy flamer",
+          "range": "12\"",
+          "attacks": "D6",
+          "skill": "N/A",
+          "strength": 5,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": ["Ignores Cover", "Torrent"]
+        },
+        {
+          "name": "Reaper autocannon",
+          "range": "36\"",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 7,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": ["Devastating Wounds", "Sustained Hits 1"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Accursed weapon",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Chainfist",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "4+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": ["Anti-Vehicle 3+"]
+        },
+        {
+          "name": "Paired accursed weapons",
+          "range": "Melee",
+          "attacks": "5",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Twin-linked"]
+        },
+        {
+          "name": "Power fist",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "This unit can be set up in Reserves and arrive via Deep Strike.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Dark Pacts",
+          "description": "Faction ability for Heretic Astartes.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save",
+          "description": "This unit has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Despoilers",
+          "description": "Each time this unit makes a Dark Pact, until the end of the phase, each time a model in this unit makes an attack, you can re-roll the Hit roll.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["INFANTRY", "CHAOS", "TERMINATOR", "CHAOS TERMINATOR SQUAD"],
+      "faction_keywords": ["HERETIC ASTARTES"],
+      "wargear_options": [
+        { "description": "For every 5 models in this unit, 1 Terminator's combi-bolter can be replaced with one of the following: 1 heavy flamer; 1 reaper autocannon." },
+        { "description": "Any number of models can each have their combi-bolter replaced with 1 combi-weapon." },
+        { "description": "For every 5 models in this unit, 1 model's combi-bolter and accursed weapon can be replaced with 1 paired accursed weapons." },
+        { "description": "For every 5 models in this unit, up to 3 models can each have their accursed weapon replaced with 1 power fist." },
+        { "description": "For every 5 models in this unit, 1 model's accursed weapon can be replaced with 1 chainfist." }
+      ],
+      "unit_composition": [
+        { "model_name": "Terminator Champion", "count": "1" },
+        { "model_name": "Chaos Terminators", "count": "4-9" }
+      ]
+    },
+    {
+      "name": "Chosen",
+      "points": [
+        { "model_count": 5, "points": 125 },
+        { "model_count": 10, "points": 250 }
+      ],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": false,
+      "profile": {
+        "movement": "6\"",
+        "toughness": 4,
+        "save": "3+",
+        "wounds": 3,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Bolt pistol",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        },
+        {
+          "name": "Boltgun",
+          "range": "24\"",
+          "attacks": "2",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Combi-weapon",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "4+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Anti-Infantry 4+", "Devastating Wounds", "Rapid Fire 1"]
+        },
+        {
+          "name": "Plasma pistol - standard",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 7,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        },
+        {
+          "name": "Plasma pistol - supercharge",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-3",
+          "damage": "2",
+          "abilities": ["Hazardous", "Pistol"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Accursed weapon",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Paired accursed weapons",
+          "range": "Melee",
+          "attacks": "5",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Twin-linked"]
+        },
+        {
+          "name": "Power fist",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Dark Pacts",
+          "description": "Faction ability for Heretic Astartes.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Chosen Marauders",
+          "description": "This unit is eligible to shoot and declare a charge in a turn in which it Advanced or Fell Back.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Chaos Icon",
+          "description": "Each time the bearer's unit takes a Leadership test for the Dark Pacts ability, you can re-roll that test.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["INFANTRY", "GRENADES", "CHAOS", "CHOSEN"],
+      "faction_keywords": ["HERETIC ASTARTES"],
+      "wargear_options": [
+        { "description": "For every 5 models in this unit, up to 2 models can each have their bolt pistol replaced with 1 plasma pistol." },
+        { "description": "For every 5 models in this unit, up to 2 models can each have their boltgun replaced with 1 combi-weapon." },
+        { "description": "For every 5 models in this unit, 1 model's boltgun and accursed weapon can be replaced with 1 paired accursed weapons." },
+        { "description": "For every 5 models in this unit, 1 model equipped with a boltgun can have its accursed weapon replaced with 1 power fist. That model's boltgun cannot be replaced." },
+        { "description": "1 model can be equipped with 1 Chaos icon." }
+      ],
+      "unit_composition": [
+        { "model_name": "Chosen Champion", "count": "1" },
+        { "model_name": "Chosen", "count": "4-9" }
+      ]
+    },
+    {
+      "name": "Chaos Spawn",
+      "points": [
+        { "model_count": 2, "points": 70 }
+      ],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": false,
+      "profile": {
+        "movement": "8\"",
+        "toughness": 5,
+        "save": "4+",
+        "wounds": 4,
+        "leadership": "7+",
+        "oc": 0
+      },
+      "ranged_weapons": [],
+      "melee_weapons": [
+        {
+          "name": "Hideous mutations",
+          "range": "Melee",
+          "attacks": "D6+2",
+          "skill": "4+",
+          "strength": 5,
+          "ap": "-1",
+          "damage": "2",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Feel No Pain 5+",
+          "description": "This unit has Feel No Pain 5+.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Dark Pacts",
+          "description": "Faction ability for Heretic Astartes.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Mind-breaking Mutations",
+          "description": "While an enemy unit (excluding VEHICLE units) is within 3\" of this unit, subtract 1 from the Objective Control characteristic of models in that enemy unit.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["BEAST", "CHAOS", "CHAOS SPAWN"],
+      "faction_keywords": ["HERETIC ASTARTES"],
+      "wargear_options": [],
+      "unit_composition": [
+        { "model_name": "Chaos Spawn", "count": "2" }
+      ]
+    }
+  ]
+}

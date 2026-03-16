@@ -38,6 +38,36 @@ pub struct GameView {
     pub content_version: String,
     /// Scenario / mission id if set.
     pub scenario_id: Option<u32>,
+    /// Game mode: "CombatPatrol" or "BoardingActions".
+    pub game_mode: String,
+    /// Boarding Actions hatchway states (only present in BA mode).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hatchway_states: Option<Vec<HatchwayStateView>>,
+    /// Boarding Actions secured objectives (only present in BA mode).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secured_objectives: Option<Vec<SecuredObjectiveView>>,
+}
+
+// ---------------------------------------------------------------------------
+// Boarding Actions views
+// ---------------------------------------------------------------------------
+
+/// View of a single hatchway's state for the UI.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HatchwayStateView {
+    /// Hatchway ID.
+    pub id: u32,
+    /// Current state: "Open", "Closed", or "Locked".
+    pub state: String,
+}
+
+/// View of a secured objective for the UI.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecuredObjectiveView {
+    /// Objective ID.
+    pub objective_id: u32,
+    /// Player who secured this objective (0 or 1).
+    pub player: u32,
 }
 
 // ---------------------------------------------------------------------------

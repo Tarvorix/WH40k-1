@@ -726,7 +726,7 @@ mod tests {
     use super::*;
     use crate::state::{GameState, PlayerState, TurnFlags};
     use wh40k_core_types::{
-        ArmorSave, BaseSize, DatasheetId, KeywordSet, Leadership, MoveCharacteristic,
+        ArmorSave, BaseSize, DatasheetId, GameMode, KeywordSet, Leadership, MoveCharacteristic,
         ObjectiveControl, PlayerId, Toughness, UnitStatus, VictoryPoints, Wounds,
     };
     use wh40k_dice::{DiceContext, DiceRoller, StreamKind};
@@ -763,6 +763,8 @@ mod tests {
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         };
 
         // Player 0 goes first

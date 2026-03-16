@@ -10,6 +10,7 @@
 //! Source: 40k_revised.md - Engagement Range, Coherency, Objectives, Movement
 //! Source: CP_Rules.md - 44"x30" board, Combat Patrol deployment maps
 
+pub mod boarding;
 pub mod formation;
 
 use serde::{Deserialize, Serialize};

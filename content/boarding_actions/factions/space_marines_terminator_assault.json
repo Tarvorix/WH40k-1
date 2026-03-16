@@ -1,0 +1,1822 @@
+{
+  "faction_name": "Adeptus Astartes",
+  "faction_keyword": "ADEPTUS ASTARTES",
+  "army_rule_name": "Oath of Moment",
+  "army_rule_description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+  "detachments": [
+    {
+      "detachment_name": "Terminator Assault",
+      "detachment_rule_name": "Sacred Oath",
+      "detachment_rule_description": "Once per battle, at the start of your Command phase, when you select a target for Oath of Moment, you can use this Detachment rule. If you do, until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets your Oath of Moment target, you can re-roll the Wound roll.",
+      "enhancements": [
+        {
+          "name": "Seal of Indomitability",
+          "description": "Once per battle, when the bearer's unit is selected as the target of one or more attacks, it can use this Enhancement. If it does, until the end of the phase, the bearer has a 3+ invulnerable save."
+        },
+        {
+          "name": "Resolute",
+          "description": "The bearer is eligible to declare a charge in a turn in which it Fell Back. Desperate Escape tests taken for the bearer are automatically passed. Each time the bearer makes a Fall Back move, it can move through enemy models as if they were not there."
+        }
+      ],
+      "stratagems": [
+        {
+          "name": "Tower of Strength",
+          "cp_cost": 1,
+          "timing": "Start or end of any phase.",
+          "target": "One ADEPTUS ASTARTES TERMINATOR unit from your army.",
+          "effect": "Until the end of your next Command phase, add 1 to the Objective Control characteristic of models in your unit. Each time you use this Stratagem, you cannot use it again until after your next Command phase."
+        },
+        {
+          "name": "Focusing Shrine",
+          "cp_cost": 1,
+          "timing": "Your Movement phase, at the start of the Reinforcements step.",
+          "target": "One ADEPTUS ASTARTES TERMINATOR unit from your army that is in Reserves.",
+          "effect": "Until the end of the phase, when setting up your unit using its Deep Strike ability, you can set it up anywhere on the battlefield that is more than 6\" horizontally away from all enemy models, measuring as normal for Deep Strike but ignoring Walls and closed Hatchways. Until the end of the turn, your unit is not eligible to declare a charge."
+        },
+        {
+          "name": "Carve a Path",
+          "cp_cost": 1,
+          "timing": "Your Movement or Charge phase.",
+          "target": "One Terminator Assault Squad unit from your army that has not been selected to move this phase and has not declared a charge this phase.",
+          "effect": "Until the end of the phase, when making a Normal, Advance or Charge move, your unit can move through a single closed Hatchway as if it was open. When doing so, that Hatchway is opened and cannot be closed for the rest of the battle. This can allow that unit to declare a charge against enemy units that are not visible to it, but to do so those enemy units must be within 1\" of that Hatchway and wholly on the opposite side of it from your unit. You cannot use this Stratagem more than once per turn."
+        },
+        {
+          "name": "Cleansing Sweep",
+          "cp_cost": 1,
+          "timing": "Your opponent's Movement or Charge phase.",
+          "target": "One Terminator Squad unit from your army that has not fired Overwatch this phase.",
+          "effect": "Until the end of the phase, each time a model in your unit makes an attack while firing Overwatch, an unmodified Hit roll of 5+ is required to score a hit, instead of an unmodified 6."
+        }
+      ],
+      "allowed_units": [
+        {
+          "datasheet_name": "Arjac Rockfist",
+          "max_count": 1,
+          "allowed_sizes": [1],
+          "conditional_limit": "Shared pool: up to 2 total characters, no duplicates"
+        },
+        {
+          "datasheet_name": "Belial",
+          "max_count": 1,
+          "allowed_sizes": [1],
+          "conditional_limit": "Shared pool: up to 2 total characters, no duplicates"
+        },
+        {
+          "datasheet_name": "Darnath Lysander",
+          "max_count": 1,
+          "allowed_sizes": [1],
+          "conditional_limit": "Shared pool: up to 2 total characters, no duplicates"
+        },
+        {
+          "datasheet_name": "Logan Grimnar",
+          "max_count": 1,
+          "allowed_sizes": [1],
+          "conditional_limit": "Shared pool: up to 2 total characters, no duplicates"
+        },
+        {
+          "datasheet_name": "Njal Stormcaller",
+          "max_count": 1,
+          "allowed_sizes": [1],
+          "conditional_limit": "Shared pool: up to 2 total characters, no duplicates"
+        },
+        {
+          "datasheet_name": "Ancient in Terminator Armour",
+          "max_count": 1,
+          "allowed_sizes": [1],
+          "conditional_limit": "Shared pool: up to 2 total characters, no duplicates"
+        },
+        {
+          "datasheet_name": "Captain in Terminator Armour",
+          "max_count": 1,
+          "allowed_sizes": [1],
+          "conditional_limit": "Shared pool: up to 2 total characters, no duplicates"
+        },
+        {
+          "datasheet_name": "Chaplain in Terminator Armour",
+          "max_count": 1,
+          "allowed_sizes": [1],
+          "conditional_limit": "Shared pool: up to 2 total characters, no duplicates"
+        },
+        {
+          "datasheet_name": "Librarian in Terminator Armour",
+          "max_count": 1,
+          "allowed_sizes": [1],
+          "conditional_limit": "Shared pool: up to 2 total characters, no duplicates"
+        },
+        {
+          "datasheet_name": "Wolf Guard Battle Leader in Terminator Armour",
+          "max_count": 1,
+          "allowed_sizes": [1],
+          "conditional_limit": "Shared pool: up to 2 total characters, no duplicates"
+        },
+        {
+          "datasheet_name": "Wolf Guard Pack Leader in Terminator Armour",
+          "max_count": 1,
+          "allowed_sizes": [1],
+          "conditional_limit": "Shared pool: up to 2 total characters, no duplicates"
+        },
+        {
+          "datasheet_name": "Deathwing Knights",
+          "max_count": 2,
+          "allowed_sizes": [5],
+          "conditional_limit": null
+        },
+        {
+          "datasheet_name": "Deathwing Terminator Squad",
+          "max_count": 2,
+          "allowed_sizes": [5, 10],
+          "conditional_limit": null
+        },
+        {
+          "datasheet_name": "Deathwatch Terminator Squad",
+          "max_count": 2,
+          "allowed_sizes": [5, 10],
+          "conditional_limit": null
+        },
+        {
+          "datasheet_name": "Terminator Assault Squad",
+          "max_count": 2,
+          "allowed_sizes": [5, 10],
+          "conditional_limit": null
+        },
+        {
+          "datasheet_name": "Terminator Squad",
+          "max_count": 2,
+          "allowed_sizes": [5, 10],
+          "conditional_limit": null
+        }
+      ],
+      "mustering_rules": [
+        {
+          "rule_type": "chapter_restriction",
+          "description": "All ADEPTUS ASTARTES models in your Boarding Patrol must be drawn from the same Chapter."
+        },
+        {
+          "rule_type": "character_pool",
+          "description": "You can include up to two of the listed character units (duplicates are not allowed)."
+        },
+        {
+          "rule_type": "unit_limit",
+          "description": "You can include up to two of each listed Terminator unit."
+        },
+        {
+          "rule_type": "battleline_interaction",
+          "description": "Terminator Assault Squad and Terminator Squad units can perform the Secure Site Tactical Manoeuvre as if they had the BATTLELINE keyword."
+        },
+        {
+          "rule_type": "ability_loss",
+          "description": "All units with the Teleport Homer ability lose it."
+        },
+        {
+          "rule_type": "ability_loss",
+          "description": "Arjac Rockfist loses Champion of the Kingsguard."
+        },
+        {
+          "rule_type": "ability_loss",
+          "description": "Belial loses Strikes of Retribution."
+        },
+        {
+          "rule_type": "ability_loss",
+          "description": "Deathwing Knights lose Inner Circle."
+        },
+        {
+          "rule_type": "ability_loss",
+          "description": "Logan Grimnar loses The Great Wolf."
+        },
+        {
+          "rule_type": "ability_loss",
+          "description": "Wolf Guard unit loses Chosen Companions."
+        },
+        {
+          "rule_type": "ability_loss",
+          "description": "Wolf Guard Pack Leader in Terminator Armour loses Pack Leader."
+        }
+      ]
+    }
+  ],
+  "datasheets": [
+    {
+      "name": "Arjac Rockfist",
+      "points": [{"model_count": 1, "points": 105}],
+      "is_epic_hero": true,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "6\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 6,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Foehammer",
+          "range": "6\"",
+          "attacks": "1",
+          "skill": "2+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "3",
+          "abilities": ["Assault", "Anti-Monster 3+", "Anti-Vehicle 3+"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Foehammer",
+          "range": "Melee",
+          "attacks": "5",
+          "skill": "2+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "3",
+          "abilities": ["Precision", "Anti-Monster 3+", "Anti-Vehicle 3+"]
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "During the Declare Battle Formations step, if every model in a unit has this ability, you can set it up in Reserves instead of setting it up on the battlefield. If you do, in the Reinforcements step of one of your Movement phases you can set up this unit anywhere on the battlefield that is more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a Bodyguard unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Oath of Moment",
+          "description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Anvil of Endurance",
+          "description": "While this model is leading a unit, each time a model in that unit is destroyed by a melee attack and has not fought this phase, roll one D6; on a 4+, do not remove it from play, it can fight after the attacking unit finishes its attacks, then is removed.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Champion of the Kingsguard",
+          "description": "Re-roll Hit and Wound rolls against CHARACTER units. Lost in Terminator Assault Boarding Actions.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Wolf Guard Terminators"],
+        "leader_abilities": ["Anvil of Endurance"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "EPIC HERO", "TERMINATOR", "CHAOS", "IMPERIUM", "TACTICUS", "ARJAC ROCKFIST"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [],
+      "unit_composition": [
+        {"model_name": "Arjac Rockfist", "count": "1"}
+      ]
+    },
+    {
+      "name": "Belial",
+      "points": [{"model_count": 1, "points": 85}],
+      "is_epic_hero": true,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 6,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Master-crafted storm bolter",
+          "range": "24\"",
+          "attacks": "2",
+          "skill": "2+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "2",
+          "abilities": ["Precision", "Rapid Fire 2"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "The Sword of Silence",
+          "range": "Melee",
+          "attacks": "6",
+          "skill": "2+",
+          "strength": 6,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": ["Precision"]
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "During the Declare Battle Formations step, if every model in a unit has this ability, you can set it up in Reserves instead of setting it up on the battlefield. If you do, in the Reinforcements step of one of your Movement phases you can set up this unit anywhere on the battlefield that is more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a Bodyguard unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Oath of Moment",
+          "description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Grand Master of the Deathwing",
+          "description": "While this model is leading a unit, each time a model in that unit makes an attack, if a Critical Hit is scored, that attack has Precision.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Strikes of Retribution",
+          "description": "Reflected mortal wounds after melee attacks are allocated to this model. Lost in Terminator Assault Boarding Actions.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Terminator Assault Squad", "Terminator Squad", "Deathwing Knights"],
+        "leader_abilities": ["Grand Master of the Deathwing"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "EPIC HERO", "TERMINATOR", "IMPERIUM", "BELIAL"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [],
+      "unit_composition": [
+        {"model_name": "Belial", "count": "1"}
+      ]
+    },
+    {
+      "name": "Darnath Lysander",
+      "points": [{"model_count": 1, "points": 100}],
+      "is_epic_hero": true,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 7,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [],
+      "melee_weapons": [
+        {
+          "name": "Fist of Dorn",
+          "range": "Melee",
+          "attacks": "5",
+          "skill": "2+",
+          "strength": 10,
+          "ap": "-3",
+          "damage": "3",
+          "abilities": ["Devastating Wounds"]
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "During the Declare Battle Formations step, if every model in a unit has this ability, you can set it up in Reserves instead of setting it up on the battlefield. If you do, in the Reinforcements step of one of your Movement phases you can set up this unit anywhere on the battlefield that is more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a Bodyguard unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Oath of Moment",
+          "description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Inspiring Commander",
+          "description": "If included in your army, non-CHARACTER models in Terminator Assault Squad and Terminator Squad units from your army have OC 2 while not Battle-shocked.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Icon of Obstinacy",
+          "description": "While leading a unit, each time an attack targets that unit, if the attack's Strength is greater than or equal to the unit's Toughness, subtract 1 from the Wound roll.",
+          "ability_type": "leader"
+        },
+        {
+          "name": "Rampart",
+          "description": "Once per battle, at the start of any phase, this model can gain a 2+ invulnerable save until the end of the phase.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Terminator Assault Squad", "Terminator Squad"],
+        "leader_abilities": ["Icon of Obstinacy"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "EPIC HERO", "TERMINATOR", "IMPERIUM", "DARNATH LYSANDER"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [],
+      "unit_composition": [
+        {"model_name": "Darnath Lysander", "count": "1"}
+      ]
+    },
+    {
+      "name": "Logan Grimnar",
+      "points": [{"model_count": 1, "points": 110}],
+      "is_epic_hero": true,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "6\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 8,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Storm bolter",
+          "range": "24\"",
+          "attacks": "2",
+          "skill": "2+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Rapid Fire 2"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Axe Morkai - strike",
+          "range": "Melee",
+          "attacks": "6",
+          "skill": "2+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "3",
+          "abilities": []
+        },
+        {
+          "name": "Axe Morkai - sweep",
+          "range": "Melee",
+          "attacks": "10",
+          "skill": "2+",
+          "strength": 6,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Tyrnak and Fenrir",
+          "range": "Melee",
+          "attacks": "6",
+          "skill": "2+",
+          "strength": 5,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": ["Extra Attacks"]
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "During the Declare Battle Formations step, if every model in a unit has this ability, you can set it up in Reserves instead of setting it up on the battlefield. If you do, in the Reinforcements step of one of your Movement phases you can set up this unit anywhere on the battlefield that is more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a Bodyguard unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Oath of Moment",
+          "description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Embarking within Transports",
+          "description": "Can embark within friendly transports that can transport TERMINATOR models, taking the space of 4 INFANTRY models.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "High King of Fenris",
+          "description": "Once per battle round, in your Movement phase, select one friendly SPACE WOLVES unit in Reserves; until the end of the phase, treat the current battle round number as one higher for setting it up.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Guile of the Wolf",
+          "description": "Aura: each time your opponent targets a unit within 12\" of this model with a Stratagem, increase that Stratagem's cost by 1CP.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "The Great Wolf",
+          "description": "Lost in Terminator Assault Boarding Actions.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Wolf Guard Terminators"],
+        "leader_abilities": ["High King of Fenris", "Guile of the Wolf"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "EPIC HERO", "TERMINATOR", "IMPERIUM", "LOGAN GRIMNAR"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [],
+      "unit_composition": [
+        {"model_name": "Logan Grimnar", "count": "1"}
+      ]
+    },
+    {
+      "name": "Njal Stormcaller",
+      "points": [{"model_count": 1, "points": 85}],
+      "is_epic_hero": true,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "7\"",
+        "toughness": 4,
+        "save": "3+",
+        "wounds": 4,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Bolt pistol",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        },
+        {
+          "name": "Living Lightning - witchfire",
+          "range": "24\"",
+          "attacks": "D6",
+          "skill": "3+",
+          "strength": 7,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": ["Psychic", "Sustained Hits 2"]
+        },
+        {
+          "name": "Living Lightning - focused witchfire",
+          "range": "24\"",
+          "attacks": "2D6",
+          "skill": "3+",
+          "strength": 7,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": ["Hazardous", "Psychic", "Sustained Hits 2"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Staff of the Stormcaller",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 7,
+          "ap": "-1",
+          "damage": "D3",
+          "abilities": ["Psychic", "Sustained Hits 2"]
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a Bodyguard unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Oath of Moment",
+          "description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Wind Walker",
+          "description": "Psychic: While leading a unit, ranged weapons equipped by models in that unit have Assault, and when that unit Advances, do not make an Advance roll; instead add 6\" to its Move characteristic until end of phase.",
+          "ability_type": "leader"
+        },
+        {
+          "name": "Tempest's Wrath",
+          "description": "Psychic: After this model's unit has shot, select one non-MONSTER, non-VEHICLE enemy unit hit by this model's Living Lightning; until the start of your next turn it is stormwracked, subtracting 6\" from the Range of its ranged weapons, to a minimum of 12\".",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Wolf Guard Terminators"],
+        "leader_abilities": ["Wind Walker"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "EPIC HERO", "PSYKER", "IMPERIUM", "NJAL STORMCALLER"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [],
+      "unit_composition": [
+        {"model_name": "Njal Stormcaller", "count": "1"}
+      ]
+    },
+    {
+      "name": "Ancient in Terminator Armour",
+      "points": [{"model_count": 1, "points": 80}],
+      "is_epic_hero": false,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 5,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Storm bolter",
+          "range": "24\"",
+          "attacks": "2",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Rapid Fire 2"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Power fist",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": []
+        },
+        {
+          "name": "Chainfist",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "4+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": ["Anti-Vehicle 3+"]
+        },
+        {
+          "name": "Close combat weapon",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Power weapon",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Thunder hammer",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "4+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": ["Devastating Wounds"]
+        },
+        {
+          "name": "Twin lightning claws",
+          "range": "Melee",
+          "attacks": "5",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Twin-linked"]
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "During the Declare Battle Formations step, if every model in a unit has this ability, you can set it up in Reserves instead of setting it up on the battlefield. If you do, in the Reinforcements step of one of your Movement phases you can set up this unit anywhere on the battlefield that is more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a Bodyguard unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Oath of Moment",
+          "description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Astartes Banner",
+          "description": "While this model is leading a unit, add 1 to the Objective Control characteristic of models in that unit.",
+          "ability_type": "leader"
+        },
+        {
+          "name": "Keep the Banner High",
+          "description": "While this model is leading a unit, each time a model in that unit makes an attack, add 1 to the Hit roll if that unit is below Starting Strength, and add 1 to the Wound roll as well if that unit is Below Half-strength.",
+          "ability_type": "leader"
+        },
+        {
+          "name": "Terminator Storm Shield",
+          "description": "Bearer has Wounds 6.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Terminator Squad", "Terminator Assault Squad"],
+        "leader_abilities": ["Astartes Banner", "Keep the Banner High"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "TERMINATOR", "IMPERIUM", "ANCIENT IN TERMINATOR ARMOUR"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [
+        {"description": "This model's storm bolter can be replaced with other ranged options."},
+        {"description": "This model's power fist can be replaced with one of: chainfist, close combat weapon, power weapon, thunder hammer, or twin lightning claws."},
+        {"description": "This model can be equipped with a Terminator storm shield (bearer has Wounds 6)."}
+      ],
+      "unit_composition": [
+        {"model_name": "Ancient in Terminator Armour", "count": "1"}
+      ]
+    },
+    {
+      "name": "Captain in Terminator Armour",
+      "points": [{"model_count": 1, "points": 95}],
+      "is_epic_hero": false,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 6,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Storm bolter",
+          "range": "24\"",
+          "attacks": "2",
+          "skill": "2+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Rapid Fire 2"]
+        },
+        {
+          "name": "Combi-weapon",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Anti-Infantry 4+", "Devastating Wounds", "Rapid Fire 1"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Relic weapon",
+          "range": "Melee",
+          "attacks": "5",
+          "skill": "2+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": []
+        },
+        {
+          "name": "Relic fist",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "2+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "During the Declare Battle Formations step, if every model in a unit has this ability, you can set it up in Reserves instead of setting it up on the battlefield. If you do, in the Reinforcements step of one of your Movement phases you can set up this unit anywhere on the battlefield that is more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a Bodyguard unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Oath of Moment",
+          "description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Rites of Battle",
+          "description": "Once per battle round, one unit from your army with this ability can reduce the CP cost of a Stratagem targeting its unit by 1CP.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "The Imperium's Sword",
+          "description": "You can re-roll Charge rolls made for this model's unit.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Terminator Squad", "Terminator Assault Squad"],
+        "leader_abilities": ["Rites of Battle", "The Imperium's Sword"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "TERMINATOR", "IMPERIUM", "CAPTAIN"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [
+        {"description": "This model's storm bolter can be replaced with 1 combi-weapon."},
+        {"description": "This model's relic weapon can be replaced with 1 relic fist."}
+      ],
+      "unit_composition": [
+        {"model_name": "Captain in Terminator Armour", "count": "1"}
+      ]
+    },
+    {
+      "name": "Chaplain in Terminator Armour",
+      "points": [{"model_count": 1, "points": 75}],
+      "is_epic_hero": false,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 5,
+        "leadership": "5+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Storm bolter",
+          "range": "24\"",
+          "attacks": "2",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Rapid Fire 2"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Crozius arcanum",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "2+",
+          "strength": 6,
+          "ap": "-1",
+          "damage": "2",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "During the Declare Battle Formations step, if every model in a unit has this ability, you can set it up in Reserves instead of setting it up on the battlefield. If you do, in the Reinforcements step of one of your Movement phases you can set up this unit anywhere on the battlefield that is more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a Bodyguard unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Oath of Moment",
+          "description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Litany of Hate",
+          "description": "While leading a unit, each time a model in that unit makes a melee attack, add 1 to the Wound roll.",
+          "ability_type": "leader"
+        },
+        {
+          "name": "Recitation of Faith",
+          "description": "While leading a unit, models in that unit have Feel No Pain 4+ against mortal wounds.",
+          "ability_type": "leader"
+        },
+        {
+          "name": "Relic Shield",
+          "description": "Bearer has Wounds 6.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Terminator Squad", "Terminator Assault Squad"],
+        "leader_abilities": ["Litany of Hate", "Recitation of Faith"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "TERMINATOR", "IMPERIUM", "CHAPLAIN"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [
+        {"description": "This model's storm bolter can be replaced with 1 relic shield (bearer has Wounds 6)."}
+      ],
+      "unit_composition": [
+        {"model_name": "Chaplain in Terminator Armour", "count": "1"}
+      ]
+    },
+    {
+      "name": "Librarian in Terminator Armour",
+      "points": [{"model_count": 1, "points": 75}],
+      "is_epic_hero": false,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 5,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Storm bolter",
+          "range": "24\"",
+          "attacks": "2",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Rapid Fire 2"]
+        },
+        {
+          "name": "Combi-weapon",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "4+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Anti-Infantry 4+", "Devastating Wounds", "Rapid Fire 1"]
+        },
+        {
+          "name": "Smite - witchfire",
+          "range": "24\"",
+          "attacks": "D6",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-1",
+          "damage": "D3",
+          "abilities": ["Psychic"]
+        },
+        {
+          "name": "Smite - focused witchfire",
+          "range": "24\"",
+          "attacks": "D6",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "D3",
+          "abilities": ["Devastating Wounds", "Hazardous", "Psychic"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Force weapon",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 6,
+          "ap": "-1",
+          "damage": "D3",
+          "abilities": ["Psychic"]
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "During the Declare Battle Formations step, if every model in a unit has this ability, you can set it up in Reserves instead of setting it up on the battlefield. If you do, in the Reinforcements step of one of your Movement phases you can set up this unit anywhere on the battlefield that is more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a Bodyguard unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Oath of Moment",
+          "description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Psychic Hood",
+          "description": "While this model is leading a unit, models in that unit have the Feel No Pain 4+ ability against Psychic Attacks.",
+          "ability_type": "leader"
+        },
+        {
+          "name": "Mental Fortress",
+          "description": "While this model is leading a unit, models in that unit have a 4+ invulnerable save against Psychic Attacks.",
+          "ability_type": "leader"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Terminator Squad", "Terminator Assault Squad"],
+        "leader_abilities": ["Psychic Hood", "Mental Fortress"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "PSYKER", "TERMINATOR", "IMPERIUM", "LIBRARIAN"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [
+        {"description": "This model can be equipped with one of: combi-weapon or storm bolter."}
+      ],
+      "unit_composition": [
+        {"model_name": "Librarian in Terminator Armour", "count": "1"}
+      ]
+    },
+    {
+      "name": "Wolf Guard Battle Leader in Terminator Armour",
+      "points": [{"model_count": 1, "points": 80}],
+      "is_epic_hero": false,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 5,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Storm bolter",
+          "range": "24\"",
+          "attacks": "2",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Rapid Fire 2"]
+        },
+        {
+          "name": "Combi-weapon",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "4+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Anti-Infantry 4+", "Devastating Wounds", "Rapid Fire 1"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Chainfist",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "4+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": ["Anti-Vehicle 3+"]
+        },
+        {
+          "name": "Close combat weapon",
+          "range": "Melee",
+          "attacks": "5",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Power weapon",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a Bodyguard unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Oath of Moment",
+          "description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Wolf Guard Terminators"],
+        "leader_abilities": []
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "TERMINATOR", "IMPERIUM", "WOLF GUARD BATTLE LEADER"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [
+        {"description": "This model can be equipped with a combi-weapon or storm bolter."},
+        {"description": "This model can be equipped with a chainfist, close combat weapon, or power weapon."}
+      ],
+      "unit_composition": [
+        {"model_name": "Wolf Guard Battle Leader in Terminator Armour", "count": "1"}
+      ]
+    },
+    {
+      "name": "Wolf Guard Pack Leader in Terminator Armour",
+      "points": [{"model_count": 1, "points": 80}],
+      "is_epic_hero": false,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 3,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Assault cannon",
+          "range": "24\"",
+          "attacks": "6",
+          "skill": "3+",
+          "strength": 6,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Devastating Wounds"]
+        },
+        {
+          "name": "Combi-weapon",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "4+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Anti-Infantry 4+", "Devastating Wounds", "Rapid Fire 1"]
+        },
+        {
+          "name": "Cyclone missile launcher - frag",
+          "range": "36\"",
+          "attacks": "2D6",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Blast"]
+        },
+        {
+          "name": "Cyclone missile launcher - krak",
+          "range": "36\"",
+          "attacks": "2",
+          "skill": "3+",
+          "strength": 9,
+          "ap": "-2",
+          "damage": "D6",
+          "abilities": []
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Close combat weapon",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Oath of Moment",
+          "description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Pack Leader",
+          "description": "Lost in Terminator Assault Boarding Actions.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["INFANTRY", "CHARACTER", "TERMINATOR", "IMPERIUM", "WOLF GUARD PACK LEADER"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [
+        {"description": "This model can be equipped with an assault cannon, combi-weapon, or cyclone missile launcher."}
+      ],
+      "unit_composition": [
+        {"model_name": "Wolf Guard Pack Leader in Terminator Armour", "count": "1"}
+      ]
+    },
+    {
+      "name": "Deathwing Knights",
+      "points": [{"model_count": 5, "points": 235}],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 4,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [],
+      "melee_weapons": [
+        {
+          "name": "Great weapon of the Unforgiven",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 7,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": ["Anti-Character 3+"]
+        },
+        {
+          "name": "Mace of absolution",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "2+",
+          "strength": 6,
+          "ap": "-1",
+          "damage": "2",
+          "abilities": []
+        },
+        {
+          "name": "Power weapon",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Relic weapon",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "During the Declare Battle Formations step, if every model in a unit has this ability, you can set it up in Reserves instead of setting it up on the battlefield. If you do, in the Reinforcements step of one of your Movement phases you can set up this unit anywhere on the battlefield that is more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Oath of Moment",
+          "description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Inner Circle",
+          "description": "Lost in Terminator Assault Boarding Actions.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["INFANTRY", "TERMINATOR", "IMPERIUM", "DEATHWING KNIGHTS"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [],
+      "unit_composition": [
+        {"model_name": "Deathwing Knight", "count": "4"},
+        {"model_name": "Knight Master", "count": "1"}
+      ]
+    },
+    {
+      "name": "Deathwing Terminator Squad",
+      "points": [{"model_count": 5, "points": 205}, {"model_count": 10, "points": 410}],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 3,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Storm bolter",
+          "range": "24\"",
+          "attacks": "2",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Rapid Fire 2"]
+        },
+        {
+          "name": "Assault cannon",
+          "range": "24\"",
+          "attacks": "6",
+          "skill": "3+",
+          "strength": 6,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Devastating Wounds"]
+        },
+        {
+          "name": "Cyclone missile launcher - frag",
+          "range": "36\"",
+          "attacks": "2D6",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Blast"]
+        },
+        {
+          "name": "Cyclone missile launcher - krak",
+          "range": "36\"",
+          "attacks": "2",
+          "skill": "3+",
+          "strength": 9,
+          "ap": "-2",
+          "damage": "D6",
+          "abilities": []
+        },
+        {
+          "name": "Heavy flamer",
+          "range": "12\"",
+          "attacks": "D6",
+          "skill": "N/A",
+          "strength": 5,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": ["Ignores Cover", "Torrent"]
+        },
+        {
+          "name": "Plasma cannon - standard",
+          "range": "36\"",
+          "attacks": "D3",
+          "skill": "3+",
+          "strength": 7,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Blast"]
+        },
+        {
+          "name": "Plasma cannon - supercharge",
+          "range": "36\"",
+          "attacks": "D3",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-3",
+          "damage": "2",
+          "abilities": ["Blast", "Hazardous"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Power fist",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": []
+        },
+        {
+          "name": "Chainfist",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "4+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": ["Anti-Vehicle 3+"]
+        },
+        {
+          "name": "Power weapon",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Thunder hammer",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "4+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": ["Devastating Wounds"]
+        },
+        {
+          "name": "Twin lightning claws",
+          "range": "Melee",
+          "attacks": "5",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Twin-linked"]
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "During the Declare Battle Formations step, if every model in a unit has this ability, you can set it up in Reserves instead of setting it up on the battlefield. If you do, in the Reinforcements step of one of your Movement phases you can set up this unit anywhere on the battlefield that is more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Oath of Moment",
+          "description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["INFANTRY", "TERMINATOR", "IMPERIUM", "DEATHWING TERMINATOR SQUAD"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [],
+      "unit_composition": [
+        {"model_name": "Deathwing Terminator Sergeant", "count": "1"},
+        {"model_name": "Deathwing Terminator", "count": "4-9"}
+      ]
+    },
+    {
+      "name": "Deathwatch Terminator Squad",
+      "points": [{"model_count": 5, "points": 210}, {"model_count": 10, "points": 420}],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 3,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Storm bolter",
+          "range": "24\"",
+          "attacks": "2",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Rapid Fire 2"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Power fist",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "During the Declare Battle Formations step, if every model in a unit has this ability, you can set it up in Reserves instead of setting it up on the battlefield. If you do, in the Reinforcements step of one of your Movement phases you can set up this unit anywhere on the battlefield that is more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Assigned Agents",
+          "description": "This unit can be included in any IMPERIUM army.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Terminatus Assault",
+          "description": "Each time this unit ends a Charge move, each enemy unit within Engagement Range must take a Battle-shock test.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Teleport Homer",
+          "description": "Present on the full datasheet, but lost in Terminator Assault Boarding Actions.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Storm Shield",
+          "description": "Bearer has Wounds 4.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["INFANTRY", "TERMINATOR", "IMPERIUM", "DEATHWATCH TERMINATOR SQUAD"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [],
+      "unit_composition": [
+        {"model_name": "Deathwatch Terminator Sergeant", "count": "1"},
+        {"model_name": "Deathwatch Terminator", "count": "4-9"}
+      ]
+    },
+    {
+      "name": "Terminator Assault Squad",
+      "points": [{"model_count": 5, "points": 200}, {"model_count": 10, "points": 400}],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 3,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [],
+      "melee_weapons": [
+        {
+          "name": "Thunder hammer and storm shield",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "4+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": ["Devastating Wounds"]
+        },
+        {
+          "name": "Twin lightning claws",
+          "range": "Melee",
+          "attacks": "5",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Twin-linked"]
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "During the Declare Battle Formations step, if every model in a unit has this ability, you can set it up in Reserves instead of setting it up on the battlefield. If you do, in the Reinforcements step of one of your Movement phases you can set up this unit anywhere on the battlefield that is more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Oath of Moment",
+          "description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Teleport Homer",
+          "description": "Present on the full datasheet, but lost in Terminator Assault Boarding Actions.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Secure Site (Boarding Actions)",
+          "description": "In this Boarding Actions detachment, this unit can perform the Secure Site Tactical Manoeuvre as if it had the BATTLELINE keyword.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["INFANTRY", "TERMINATOR", "IMPERIUM", "TERMINATOR ASSAULT SQUAD"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [
+        {"description": "Any number of models can replace thunder hammer and storm shield with twin lightning claws."}
+      ],
+      "unit_composition": [
+        {"model_name": "Terminator Assault Sergeant", "count": "1"},
+        {"model_name": "Terminator Assault Marine", "count": "4-9"}
+      ]
+    },
+    {
+      "name": "Terminator Squad",
+      "points": [{"model_count": 5, "points": 195}, {"model_count": 10, "points": 390}],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": false,
+      "profile": {
+        "movement": "5\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 3,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Storm bolter",
+          "range": "24\"",
+          "attacks": "2",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Rapid Fire 2"]
+        },
+        {
+          "name": "Assault cannon",
+          "range": "24\"",
+          "attacks": "6",
+          "skill": "3+",
+          "strength": 6,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Devastating Wounds"]
+        },
+        {
+          "name": "Cyclone missile launcher - frag",
+          "range": "36\"",
+          "attacks": "2D6",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Blast"]
+        },
+        {
+          "name": "Cyclone missile launcher - krak",
+          "range": "36\"",
+          "attacks": "2",
+          "skill": "3+",
+          "strength": 9,
+          "ap": "-2",
+          "damage": "D6",
+          "abilities": []
+        },
+        {
+          "name": "Heavy flamer",
+          "range": "12\"",
+          "attacks": "D6",
+          "skill": "N/A",
+          "strength": 5,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": ["Ignores Cover", "Torrent"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Power fist",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": []
+        },
+        {
+          "name": "Chainfist",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "4+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": ["Anti-Vehicle 3+"]
+        },
+        {
+          "name": "Power weapon",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "During the Declare Battle Formations step, if every model in a unit has this ability, you can set it up in Reserves instead of setting it up on the battlefield. If you do, in the Reinforcements step of one of your Movement phases you can set up this unit anywhere on the battlefield that is more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Oath of Moment",
+          "description": "At the start of your Command phase, select one enemy unit. Until the start of your next Command phase, each time an ADEPTUS ASTARTES model from your army makes an attack that targets that enemy unit, you can re-roll the Hit roll.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Teleport Homer",
+          "description": "Present on the full datasheet, but lost in Terminator Assault Boarding Actions.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Secure Site (Boarding Actions)",
+          "description": "In this Boarding Actions detachment, this unit can perform the Secure Site Tactical Manoeuvre as if it had the BATTLELINE keyword.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["INFANTRY", "TERMINATOR", "IMPERIUM", "TERMINATOR SQUAD"],
+      "faction_keywords": ["ADEPTUS ASTARTES"],
+      "wargear_options": [],
+      "unit_composition": [
+        {"model_name": "Terminator Sergeant", "count": "1"},
+        {"model_name": "Terminator", "count": "4-9"}
+      ]
+    }
+  ]
+}

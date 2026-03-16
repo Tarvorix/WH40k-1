@@ -154,7 +154,14 @@ impl CommandValidator {
             Command::DeclareShootingTargets { unit_id, targets } => {
                 Self::validate_declare_shooting_targets(state, *unit_id, targets)
             }
-            Command::ResolveShootingAttack { attacker_id, target_id: _, weapon_id } => {
+            Command::ResolveShootingAttack { attacker_id, target_id, weapon_id } => {
+                // Target may be destroyed by earlier attacks in the same macro-action.
+                // Allow it here — executor returns Ok(empty) for destroyed targets.
+                if let Some(target) = state.unit(*target_id) {
+                    if target.is_destroyed() || target.models_alive() == 0 {
+                        return CommandValidationResult::Legal;
+                    }
+                }
                 Self::validate_resolve_shooting_attack(state, *attacker_id, *weapon_id)
             }
 
@@ -249,12 +256,12 @@ impl CommandValidator {
                 if attacker.is_destroyed() || !attacker.is_on_battlefield() {
                     return CommandValidationResult::illegal("Attacker is destroyed or not on battlefield");
                 }
-                let target = match state.unit(*target_id) {
-                    Some(u) => u,
-                    None => return CommandValidationResult::illegal("Target not found"),
-                };
-                if target.is_destroyed() || !target.is_on_battlefield() {
-                    return CommandValidationResult::illegal("Target is destroyed or not on battlefield");
+                // Target may be destroyed by earlier attacks in the same macro-action.
+                // Allow it here — executor returns Ok(empty) for destroyed targets.
+                if let Some(target) = state.unit(*target_id) {
+                    if !target.is_on_battlefield() && !target.is_destroyed() {
+                        return CommandValidationResult::illegal("Target not on battlefield");
+                    }
                 }
                 CommandValidationResult::Legal
             }
@@ -340,6 +347,66 @@ impl CommandValidator {
             Command::Concede { player: _ } => {
                 // Can always concede
                 CommandValidationResult::Legal
+            }
+
+            // ===== Boarding Actions commands =====
+            // Basic validation: player must be the active player or decision owner.
+            // Detailed Boarding Actions validation will live in the boarding_rules crate.
+            Command::OperateHatchway { player, unit_id, .. } => {
+                if *player != state.active_player && *player != state.decision_owner {
+                    return CommandValidationResult::illegal("Not this player's turn");
+                }
+                match state.unit(*unit_id) {
+                    Some(u) if u.is_on_battlefield() && !u.is_destroyed() => {
+                        CommandValidationResult::Legal
+                    }
+                    _ => CommandValidationResult::illegal("Unit not found or not on battlefield"),
+                }
+            }
+            Command::PerformTacticalManoeuvre { player, unit_id, .. } => {
+                if *player != state.active_player && *player != state.decision_owner {
+                    return CommandValidationResult::illegal("Not this player's turn");
+                }
+                match state.unit(*unit_id) {
+                    Some(u) if u.is_on_battlefield() && !u.is_destroyed() => {
+                        CommandValidationResult::Legal
+                    }
+                    _ => CommandValidationResult::illegal("Unit not found or not on battlefield"),
+                }
+            }
+            Command::UseBattlefieldCommand { player, leader_unit_id, target_unit_id, .. } => {
+                if *player != state.active_player && *player != state.decision_owner {
+                    return CommandValidationResult::illegal("Not this player's turn");
+                }
+                let leader_ok = state.unit(*leader_unit_id)
+                    .map(|u| u.is_on_battlefield() && !u.is_destroyed())
+                    .unwrap_or(false);
+                let target_ok = state.unit(*target_unit_id)
+                    .map(|u| u.is_on_battlefield() && !u.is_destroyed())
+                    .unwrap_or(false);
+                if !leader_ok {
+                    CommandValidationResult::illegal("Leader unit not found or not on battlefield")
+                } else if !target_ok {
+                    CommandValidationResult::illegal("Target unit not found or not on battlefield")
+                } else {
+                    CommandValidationResult::Legal
+                }
+            }
+            Command::ArriveFromEntryZone { player, unit_id, .. } => {
+                if *player != state.active_player && *player != state.decision_owner {
+                    return CommandValidationResult::illegal("Not this player's turn");
+                }
+                match state.unit(*unit_id) {
+                    Some(_) => CommandValidationResult::Legal,
+                    None => CommandValidationResult::illegal("Unit not found"),
+                }
+            }
+            Command::BoardingMissionAction { player, .. } => {
+                if *player != state.active_player && *player != state.decision_owner {
+                    CommandValidationResult::illegal("Not this player's turn")
+                } else {
+                    CommandValidationResult::Legal
+                }
             }
         }
     }
@@ -2230,7 +2297,7 @@ mod tests {
     use crate::state::{GameState, PlayerState, TurnFlags};
     use crate::unit::{ModelState, UnitState};
     use wh40k_core_types::{
-        ArmorSave, BaseSize, BattleRound, DatasheetId, GameOutcome, Keyword, KeywordSet,
+        ArmorSave, BaseSize, BattleRound, DatasheetId, GameMode, GameOutcome, Keyword, KeywordSet,
         Leadership, ModelId, MoveCharacteristic, ObjectiveControl, PlayerId, Position, SubPhase,
         Toughness, UnitId, Wounds,
     };
@@ -2267,6 +2334,8 @@ mod tests {
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         };
 
         state.players[0].first_turn = true;

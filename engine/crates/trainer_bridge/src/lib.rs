@@ -28,7 +28,7 @@ use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 
 use wh40k_core_types::{
-    FactionId, GameOutcome, MissionId, PlayerId,
+    FactionId, GameMode, GameOutcome, MissionId, PlayerId,
 };
 use wh40k_eval_features::{
     NnueFeatureSchema, TOTAL_FEATURES, FEATURE_SCHEMA_VERSION,
@@ -44,7 +44,7 @@ use wh40k_selfplay::{
     action_to_vocab_index,
     play_single_game, collect_training_data, benchmark_selfplay_throughput,
     MatchConfig, MatchResult as RustMatchResult,
-    PlayerConfig,
+    PlayerConfig, AiType,
     GatingConfig, GatingHarness,
     ModelLineage, LineageEntry, EloRating,
     ShardReader,
@@ -1083,6 +1083,7 @@ fn play_game(
 
     let match_config = MatchConfig {
         seed: seed_bytes,
+        game_mode: GameMode::CombatPatrol,
         mission_id: mission.map(MissionId::new),
         player1_faction: FactionId::new(faction_a),
         player2_faction: FactionId::new(faction_b),
@@ -1177,6 +1178,7 @@ fn evaluate_candidate(
         num_games,
         promotion_threshold,
         seed_base: 42,
+        game_mode: GameMode::CombatPatrol,
         missions: vec![
             Some(MissionId::new(0)),
             Some(MissionId::new(1)),
@@ -1211,6 +1213,206 @@ fn evaluate_candidate(
         confidence_lower: conf_lo,
         confidence_upper: conf_hi,
     })
+}
+
+/// Result of one Perturabo vs Basic matchup.
+#[pyclass(name = "MatchupResult")]
+#[derive(Clone)]
+struct PyMatchupResult {
+    #[pyo3(get)]
+    perturabo_level: String,
+    #[pyo3(get)]
+    basic_level: String,
+    #[pyo3(get)]
+    perturabo_wins: usize,
+    #[pyo3(get)]
+    basic_wins: usize,
+    #[pyo3(get)]
+    draws: usize,
+    #[pyo3(get)]
+    win_rate: f64,
+    #[pyo3(get)]
+    total_games: usize,
+}
+
+#[pymethods]
+impl PyMatchupResult {
+    fn __repr__(&self) -> String {
+        format!(
+            "{} vs {}: {}W-{}L-{}D ({:.0}%)",
+            self.perturabo_level, self.basic_level,
+            self.perturabo_wins, self.basic_wins, self.draws,
+            self.win_rate * 100.0,
+        )
+    }
+}
+
+/// Run Perturabo vs Basic tier gating.
+///
+/// Tests Perturabo (ID6, 30K node budget) against all 4 Basic levels
+/// (Recruit=Greedy, Battle_Ready=OnePly, Veteran=Negamax2, Elite=Negamax3).
+///
+/// 4 matchups total, `games_per_matchup` games each.
+///
+/// Args:
+///     games_per_matchup: Number of games per matchup (default 20).
+///     nnue_path: Optional path to .nnue model. Omit for heuristic baseline.
+///
+/// Returns:
+///     List of 4 MatchupResult objects.
+#[pyfunction]
+#[pyo3(signature = (games_per_matchup=20, nnue_path=None))]
+fn perturabo_vs_basic(
+    games_per_matchup: usize,
+    nnue_path: Option<&str>,
+) -> PyResult<Vec<PyMatchupResult>> {
+    // Load NNUE model if provided (post-training evaluation)
+    let nnue_artifact = match nnue_path {
+        Some(path) => {
+            let artifact = NnueModelArtifact::load_from_file(Path::new(path))
+                .map_err(|e| PyIOError::new_err(format!("Failed to load NNUE: {:?}", e)))?;
+            println!("  Using NNUE model: {}", path);
+            Some(artifact)
+        }
+        None => {
+            println!("  Using heuristic evaluator (baseline)");
+            None
+        }
+    };
+
+    // Single Perturabo level — ID6 with 30K node budget
+    let perturabo_levels: Vec<(&str, AiType)> = vec![
+        ("Perturabo (ID6)", AiType::IterativeDeepening(6)),
+    ];
+
+    let basic_levels: Vec<(&str, AiType)> = vec![
+        ("Recruit (Greedy)", AiType::Greedy),
+        ("Battle_Ready (OnePly)", AiType::OnePly),
+        ("Veteran (Negamax2)", AiType::Negamax(2)),
+        ("Elite (Negamax3)", AiType::Negamax(3)),
+    ];
+
+    let missions: Vec<Option<MissionId>> = (1..=6)
+        .map(|i| Some(MissionId::new(i)))
+        .collect();
+
+    let mut all_results = Vec::new();
+    let total_matchups = perturabo_levels.len() * basic_levels.len();
+    let mut matchup_num = 0;
+
+    let eval_label = if nnue_artifact.is_some() { "NNUE" } else { "Heuristic" };
+    println!("{}", "=".repeat(60));
+    println!("  PERTURABO ({}) vs BASIC — Full Tier Gating", eval_label);
+    println!("  {} matchups × {} games = {} total games",
+        total_matchups, games_per_matchup, total_matchups * games_per_matchup);
+    println!("{}\n", "=".repeat(60));
+
+    for (p_name, p_ai) in &perturabo_levels {
+        for (b_name, b_ai) in &basic_levels {
+            matchup_num += 1;
+            let p_config = PlayerConfig {
+                name: p_name.to_string(),
+                ai_type: p_ai.clone(),
+                weights: None,
+                model_artifact: nnue_artifact.clone(),
+                search_config: None,
+            };
+            let b_config = PlayerConfig {
+                name: b_name.to_string(),
+                ai_type: b_ai.clone(),
+                weights: None,
+                model_artifact: None,
+                search_config: None,
+            };
+
+            let match_configs = wh40k_selfplay::GameVariation::generate_configs(
+                games_per_matchup,
+                42 + matchup_num as u64,
+                &missions,
+                true,
+                GameMode::CombatPatrol,
+            );
+
+            let mut p_wins: usize = 0;
+            let mut b_wins: usize = 0;
+            let mut draws: usize = 0;
+
+            let start = std::time::Instant::now();
+
+            for (game_idx, match_config) in match_configs.iter().enumerate() {
+                // Alternate sides
+                let (p1, p2) = if game_idx % 2 == 0 {
+                    (&p_config, &b_config)
+                } else {
+                    (&b_config, &p_config)
+                };
+
+                match play_single_game(match_config, p1, p2, false, false) {
+                    Ok(result) => {
+                        let perturabo_is_p1 = game_idx % 2 == 0;
+                        match result.outcome {
+                            GameOutcome::Victory(winner) => {
+                                let winner_is_p1 = winner == PlayerId::new(0);
+                                if (perturabo_is_p1 && winner_is_p1)
+                                    || (!perturabo_is_p1 && !winner_is_p1)
+                                {
+                                    p_wins += 1;
+                                } else {
+                                    b_wins += 1;
+                                }
+                            }
+                            _ => { draws += 1; }
+                        }
+                    }
+                    Err(_) => { draws += 1; }
+                }
+            }
+
+            let total = p_wins + b_wins + draws;
+            let win_rate = if total > 0 {
+                (p_wins as f64 + 0.5 * draws as f64) / total as f64
+            } else {
+                0.5
+            };
+
+            let elapsed = start.elapsed();
+            println!(
+                "[{:2}/{}] {} vs {} : {}W-{}L-{}D  ({:.0}%)  {:.1}s",
+                matchup_num, total_matchups,
+                p_name, b_name,
+                p_wins, b_wins, draws,
+                win_rate * 100.0,
+                elapsed.as_secs_f64(),
+            );
+
+            all_results.push(PyMatchupResult {
+                perturabo_level: p_name.to_string(),
+                basic_level: b_name.to_string(),
+                perturabo_wins: p_wins,
+                basic_wins: b_wins,
+                draws,
+                win_rate,
+                total_games: total,
+            });
+        }
+    }
+
+    // Print summary table
+    println!("\n{}", "=".repeat(60));
+    println!("  RESULTS SUMMARY");
+    println!("{}", "=".repeat(60));
+    println!("{:<22} {:<22} {:>5} {:>5} {:>5} {:>6}",
+        "Perturabo", "Basic", "W", "L", "D", "Win%");
+    println!("{:-<68}", "");
+    for r in &all_results {
+        println!("{:<22} {:<22} {:>5} {:>5} {:>5} {:>5.0}%",
+            r.perturabo_level, r.basic_level,
+            r.perturabo_wins, r.basic_wins, r.draws,
+            r.win_rate * 100.0);
+    }
+    println!("{}", "=".repeat(60));
+
+    Ok(all_results)
 }
 
 /// Compute Elo rating delta from a win rate.
@@ -1302,6 +1504,7 @@ fn wh40k_trainer_bridge(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyNnueWeights>()?;
     m.add_class::<PyMatchResult>()?;
     m.add_class::<PyGatingResult>()?;
+    m.add_class::<PyMatchupResult>()?;
     m.add_class::<PyModelLineage>()?;
 
     // Functions
@@ -1312,6 +1515,7 @@ fn wh40k_trainer_bridge(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_selfplay_batch, m)?)?;
     m.add_function(wrap_pyfunction!(benchmark, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate_candidate, m)?)?;
+    m.add_function(wrap_pyfunction!(perturabo_vs_basic, m)?)?;
     m.add_function(wrap_pyfunction!(elo_delta, m)?)?;
     m.add_function(wrap_pyfunction!(engine_constants, m)?)?;
 

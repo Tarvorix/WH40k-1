@@ -8,8 +8,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 use wh40k_core_types::{
-    BattleRound, CommandPoints, EnhancementId, FactionId, GameOutcome,
-    MissionId, ObjectiveId, Phase, PlayerId, SecondaryObjectiveId, StratagemId, SubPhase, UnitId,
+    BattleRound, CommandPoints, EnhancementId, FactionId, GameMode, GameOutcome,
+    HatchwayId, HatchwayState, MissionId, ObjectiveId, Phase, PlayerId,
+    SecondaryObjectiveId, StratagemId, SubPhase, TacticalManoeuvre, UnitId,
     VictoryPoints,
 };
 use wh40k_dice::DiceRoller;
@@ -92,6 +93,15 @@ pub struct GameState {
 
     /// Monotonically increasing counter for deterministic operations.
     pub deterministic_counter: u64,
+
+    /// The game mode (Combat Patrol or Boarding Actions).
+    /// Determines which ruleset and board topology apply.
+    /// Source: boarding_actions_complete_v3.md
+    pub game_mode: GameMode,
+
+    /// Mode-specific state. None for Combat Patrol (state is inline in GameState).
+    /// Some(BoardingActions(...)) for Boarding Actions with hatchway/objective/mission state.
+    pub mode_state: Option<ModeState>,
 }
 
 impl GameState {
@@ -184,6 +194,127 @@ impl GameState {
     pub fn compute_hash(&self) -> u64 {
         crate::hasher::compute_state_hash(self)
     }
+
+    /// Check if this game is in Boarding Actions mode.
+    pub fn is_boarding_actions(&self) -> bool {
+        self.game_mode == GameMode::BoardingActions
+    }
+
+    /// Get the Boarding Actions mode state, if in BA mode.
+    pub fn boarding_state(&self) -> Option<&BoardingActionsModeState> {
+        match &self.mode_state {
+            Some(ModeState::BoardingActions(ba)) => Some(ba),
+            _ => None,
+        }
+    }
+
+    /// Get a mutable reference to the Boarding Actions mode state, if in BA mode.
+    pub fn boarding_state_mut(&mut self) -> Option<&mut BoardingActionsModeState> {
+        match &mut self.mode_state {
+            Some(ModeState::BoardingActions(ba)) => Some(ba),
+            _ => None,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Mode-specific state
+// ---------------------------------------------------------------------------
+
+/// Mode-specific game state extension. Wraps the state for whichever game mode is active.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ModeState {
+    /// Combat Patrol mode state (currently empty — CP state lives inline in GameState).
+    CombatPatrol(CombatPatrolModeState),
+    /// Boarding Actions mode state with hatchway tracking, secured objectives, and mission state.
+    BoardingActions(BoardingActionsModeState),
+}
+
+/// Combat Patrol mode-specific state. Currently empty as CP state is inline in GameState.
+/// This exists as a placeholder for future CP-specific extensions.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CombatPatrolModeState {}
+
+/// Boarding Actions mode-specific state.
+/// Tracks hatchway states, secured objectives, tactical manoeuvres, leader projection,
+/// entry zone arrivals, and mission-specific mechanics.
+///
+/// Source: boarding_actions_complete_v3.md, boarding_actions_integration_rust.md Section 5.4
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct BoardingActionsModeState {
+    /// Current state of each hatchway on the map.
+    pub hatchway_states: HashMap<HatchwayId, HatchwayState>,
+
+    /// Objectives that have been secured (persistent control until opponent flips).
+    /// Key: objective ID, Value: player who secured it.
+    /// Source: boarding_actions_complete_v3.md Section 3.4 — Secure Site
+    pub secured_objectives: HashMap<ObjectiveId, PlayerId>,
+
+    /// Units currently performing a tactical manoeuvre this turn.
+    pub tactical_manoeuvres: HashMap<UnitId, TacticalManoeuvre>,
+
+    /// Active Battlefield Command links (leader projecting abilities to a bodyguard unit).
+    pub battlefield_command_links: Vec<BattlefieldCommandLink>,
+
+    /// Number of deep strike arrivals per player this battle round (max 1 per round in BA).
+    pub deep_strike_arrivals_this_round: HashMap<PlayerId, u8>,
+
+    /// Mission-specific state (lighting, radiation, corruption, venting, etc.).
+    pub mission_state: BoardingMissionSpecificState,
+}
+
+/// A temporary link where a Leader projects one of their abilities to a nearby bodyguard-type unit
+/// via the Battlefield Command stratagem.
+///
+/// Source: boarding_actions_complete_v3.md Section 3.7, Section 4.2
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BattlefieldCommandLink {
+    /// The Leader unit projecting the ability.
+    pub leader_unit: UnitId,
+    /// The target bodyguard-type unit receiving the ability.
+    pub target_unit: UnitId,
+    /// Description of the granted leader ability.
+    pub granted_ability: String,
+    /// The phase at which this link expires (start of next Command Phase).
+    pub expires_at_round: BattleRound,
+}
+
+/// Mission-specific state for Boarding Actions missions.
+/// Each field is populated only for missions that use that mechanic.
+///
+/// Source: boarding_actions_mission_tags_complete_v3.json
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct BoardingMissionSpecificState {
+    /// Lighting area states: region ID → lit (true) or dark (false).
+    /// Used by: BA-22 Death in the Dark
+    pub lighting_areas: HashMap<u32, bool>,
+
+    /// Radiation sector levels: sector label → current rad level (Mild=1, High=2, Extreme=3).
+    /// Used by: BA-33 Rad Leak
+    pub radiation_sectors: HashMap<String, u8>,
+
+    /// Objectives that have been corrupted and removed from play.
+    /// Used by: BA-06 Corrupt the Machine Spirit
+    pub corrupted_objectives: HashSet<ObjectiveId>,
+
+    /// Corruption consequences already selected (each can only be picked once).
+    /// Used by: BA-06 Corrupt the Machine Spirit
+    pub corruption_consequences_used: HashSet<String>,
+
+    /// Compartments that have been vented.
+    /// Used by: BA-23 Hull Breach
+    pub vented_compartments: HashSet<u32>,
+
+    /// Objectives that have had data downloaded (one-shot).
+    /// Used by: BA-23 Hull Breach
+    pub downloaded_objectives: HashSet<ObjectiveId>,
+
+    /// Whether the global hatch unlock override has been triggered.
+    /// Used by: BA-31 Control Centre
+    pub all_hatchways_unlocked: bool,
+
+    /// Generic mission flags for mission-specific state that doesn't fit above.
+    pub mission_flags: HashMap<String, String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -745,6 +876,8 @@ mod tests {
             turn_flags: TurnFlags::new(),
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         }
     }
 

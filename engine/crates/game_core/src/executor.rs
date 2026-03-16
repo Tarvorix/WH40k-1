@@ -412,6 +412,68 @@ impl CommandExecutor {
                     outcome: GameOutcome::Victory(winner),
                 }])
             }
+
+            // ===== Boarding Actions commands =====
+            Command::OperateHatchway { player, unit_id, hatchway_id } => {
+                // Boarding Actions hatchway operation: emits event.
+                // Full hatchway state mutation will live in boarding_rules crate.
+                Ok(vec![GameEvent::HatchwayOperated {
+                    hatchway_id: *hatchway_id,
+                    new_state: wh40k_core_types::HatchwayState::Open,
+                    operator_unit: *unit_id,
+                    player: *player,
+                }])
+            }
+            Command::PerformTacticalManoeuvre { player: _, unit_id, manoeuvre, target_objective } => {
+                let mut events = vec![GameEvent::TacticalManoeuvrePerformed {
+                    unit: *unit_id,
+                    manoeuvre: *manoeuvre,
+                    target_objective: *target_objective,
+                }];
+                // If SecureSite with a target, also emit ObjectiveSecured
+                if *manoeuvre == wh40k_core_types::TacticalManoeuvre::SecureSite {
+                    if let Some(obj_id) = target_objective {
+                        let owner = state.unit(*unit_id)
+                            .map(|u| u.owner)
+                            .unwrap_or(state.active_player);
+                        events.push(GameEvent::ObjectiveSecured {
+                            objective: *obj_id,
+                            player: owner,
+                        });
+                    }
+                }
+                Ok(events)
+            }
+            Command::UseBattlefieldCommand { player: _, leader_unit_id, target_unit_id, ability_name } => {
+                Ok(vec![GameEvent::BattlefieldCommandActivated {
+                    leader_unit: *leader_unit_id,
+                    target_unit: *target_unit_id,
+                    ability_name: ability_name.clone(),
+                }])
+            }
+            Command::ArriveFromEntryZone { player: _, unit_id, entry_zone_id, position } => {
+                // Set position for all models in the unit
+                if let Some(unit) = state.unit_mut(*unit_id) {
+                    for model in unit.models.iter_mut() {
+                        if model.alive {
+                            model.position = *position;
+                        }
+                    }
+                    unit.status = UnitStatus::OnBattlefield;
+                }
+                Ok(vec![GameEvent::EntryZoneArrival {
+                    unit: *unit_id,
+                    entry_zone_id: *entry_zone_id,
+                    position: *position,
+                }])
+            }
+            Command::BoardingMissionAction { player, action_type, target } => {
+                Ok(vec![GameEvent::BoardingMissionActionPerformed {
+                    player: *player,
+                    action_type: action_type.clone(),
+                    target: target.clone(),
+                }])
+            }
         }
     }
 
@@ -1592,12 +1654,16 @@ impl CommandExecutor {
             )
         };
 
-        // Look up defender
+        // Look up defender — if already destroyed (e.g., killed by earlier
+        // attack in the same macro-action), return early with no events.
         let (defender_toughness, defender_armor_save, mut defender_invulnerable,
              target_model_count, target_keywords) = {
             let def_unit = state.unit(target_id).ok_or_else(|| ExecutionError::EntityNotFound {
                 entity: format!("Defender unit {}", target_id),
             })?;
+            if def_unit.is_destroyed() || def_unit.models_alive() == 0 {
+                return Ok(Vec::new()); // Target already dead, skip gracefully
+            }
             (
                 def_unit.base_toughness,
                 def_unit.base_armor_save,
@@ -2261,8 +2327,9 @@ mod tests {
     use crate::state::{GameState, PlayerState, TurnFlags};
     use crate::unit::{ModelState, UnitState};
     use wh40k_core_types::{
-        ArmorSave, BaseSize, BattleRound, DatasheetId, EngagementStatus, Keyword, KeywordSet,
-        Leadership, ModelId, MoveCharacteristic, ObjectiveControl, SubPhase, Toughness, Wounds,
+        ArmorSave, BaseSize, BattleRound, DatasheetId, EngagementStatus, GameMode, Keyword,
+        KeywordSet, Leadership, ModelId, MoveCharacteristic, ObjectiveControl, SubPhase, Toughness,
+        Wounds,
     };
     use wh40k_dice::{DiceContext, DiceRoller, StreamKind};
     use wh40k_event_system::EventBus;
@@ -2297,6 +2364,8 @@ mod tests {
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         };
 
         state.players[0].first_turn = true;
@@ -2494,6 +2563,8 @@ mod tests {
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         };
 
         state.players[0].first_turn = true;
@@ -2630,6 +2701,8 @@ mod tests {
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         };
 
         state.players[0].first_turn = true;
@@ -2756,6 +2829,8 @@ mod tests {
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         };
 
         state.players[0].first_turn = true;

@@ -1,0 +1,963 @@
+{
+  "artifact": "boarding_actions_maps_complete_v3",
+  "version": "2.0.0",
+  "source": {
+    "primary": "Wahapedia Boarding Action Rules page (Warhammer 40,000 10th Edition Boarding Actions)",
+    "method": [
+      "mission text extracted from the Wahapedia Boarding Action Rules page",
+      "mission-map labels and regions transcribed from visible mission-map thumbnails/snippets surfaced from the same Wahapedia page"
+    ],
+    "notes": [
+      "This file is the machine-readable mission-map companion for the Boarding Actions rules set.",
+      "It captures mission labels, special regions, objective label families, entry-zone role structure, and transcription notes for board loading.",
+      "Where a field depends on a visual mission map rather than body text, the transcription method is recorded explicitly."
+    ]
+  },
+  "schema_notes": {
+    "purpose": "Digital-engine mission metadata for Boarding Actions missions.",
+    "status_values": [
+      "confirmed",
+      "thumbnail_transcribed",
+      "map_defined",
+      "placeholder"
+    ],
+    "map_ref_pattern": "boarding_actions/mission_<id>",
+    "geometry_policy": "Mission maps remain the source of truth. This file encodes a best-effort transcription layer for engine use."
+  },
+  "global": {
+    "battlefield": {
+      "boards": 2,
+      "zones": "Mission maps use zone-based boards and labeled regions.",
+      "terrain_defined_by_mission_map": true,
+      "entry_zones_defined_by_mission_map": true,
+      "objective_markers_defined_by_mission_map": true,
+      "starting_hatch_states_defined_by_mission_map": true
+    },
+    "common_region_labels": [
+      "Underdog Entry Zone",
+      "Patrol Entry Zone",
+      "Guard Entry Zone",
+      "Backup Entry Zone",
+      "Lighting Area",
+      "Compartment",
+      "Furnace",
+      "Furnace Control Zone",
+      "Sector",
+      "Access Zone",
+      "Strongroom",
+      "Prison Cells",
+      "Airlock",
+      "Inaccessible Area"
+    ]
+  },
+  "missions": [
+    {
+      "id": "BA-11",
+      "name": "Access Junction Primus",
+      "type": "symmetric",
+      "roles": {
+        "attacker": null,
+        "defender": null
+      },
+      "turn_order_override": null,
+      "map_ref": "boarding_actions/mission_11",
+      "map_extraction_status": {
+        "geometry": "thumbnail_transcribed",
+        "hatchway_initial_states": "map_defined",
+        "objective_coordinates": "map_defined",
+        "entry_zone_coordinates": "map_defined"
+      },
+      "tags": [
+        "junction",
+        "objective_control",
+        "destroyed_points_thresholds",
+        "underdog_bonus"
+      ],
+      "entry_zones": [
+        {
+          "name": "player_green_entry_cluster",
+          "status": "thumbnail_transcribed"
+        },
+        {
+          "name": "player_red_entry_cluster",
+          "status": "thumbnail_transcribed"
+        }
+      ],
+      "special_regions": [
+        {
+          "name": "central junction",
+          "status": "confirmed"
+        }
+      ],
+      "labeled_objectives": [
+        {
+          "name": "objective_markers",
+          "count": 3,
+          "status": "confirmed"
+        }
+      ],
+      "labeled_hatchways": [],
+      "notes": [
+        "Mirrored control mission.",
+        "Requires end-game destroyed-points threshold table.",
+        "Three visible objective markers aligned through the central corridor/junction."
+      ],
+      "transcription_method": "manual_from_wahapedia_page_and_visible_mission_thumbnail"
+    },
+    {
+      "id": "BA-12",
+      "name": "Deck Sweepers",
+      "type": "symmetric",
+      "roles": {
+        "attacker": null,
+        "defender": null
+      },
+      "turn_order_override": null,
+      "map_ref": "boarding_actions/mission_12",
+      "map_extraction_status": {
+        "geometry": "thumbnail_transcribed",
+        "hatchway_initial_states": "map_defined",
+        "objective_coordinates": "map_defined",
+        "entry_zone_coordinates": "map_defined"
+      },
+      "tags": [
+        "underdog_entry_zone",
+        "objective_control",
+        "end_game_objective_hold"
+      ],
+      "entry_zones": [
+        {
+          "name": "Player A main entry",
+          "status": "placeholder"
+        },
+        {
+          "name": "Player B main entry",
+          "status": "placeholder"
+        },
+        {
+          "name": "Underdog Entry Zone",
+          "status": "confirmed",
+          "availability": "Deploy Armies only for underdog; disabled for Strategic Reserve entry after battle round 1 begins"
+        }
+      ],
+      "special_regions": [
+        {
+          "name": "underdog_entry_zone",
+          "status": "confirmed"
+        }
+      ],
+      "labeled_objectives": [
+        {
+          "name": "objective_markers",
+          "count": 3,
+          "status": "confirmed"
+        }
+      ],
+      "labeled_hatchways": [],
+      "notes": [
+        "Progressive scoring omits the usual 'control two or more' bullet in the extracted text.",
+        "End-game scores 15 VP per objective marker controlled.",
+        "Visible underdog entry-zone callout on the mission page."
+      ],
+      "transcription_method": "manual_from_wahapedia_page_and_visible_mission_thumbnail"
+    },
+    {
+      "id": "BA-13",
+      "name": "The Pipeline",
+      "type": "symmetric",
+      "roles": {
+        "attacker": null,
+        "defender": null
+      },
+      "turn_order_override": null,
+      "map_ref": "boarding_actions/mission_13",
+      "map_extraction_status": {
+        "geometry": "thumbnail_transcribed",
+        "hatchway_initial_states": "map_defined",
+        "objective_coordinates": "map_defined",
+        "entry_zone_coordinates": "map_defined"
+      },
+      "tags": [
+        "power_lines",
+        "linked_objectives",
+        "objective_graph",
+        "underdog_bonus"
+      ],
+      "entry_zones": [
+        {
+          "name": "Player A main entry",
+          "status": "placeholder"
+        },
+        {
+          "name": "Player B main entry",
+          "status": "placeholder"
+        }
+      ],
+      "special_regions": [
+        {
+          "name": "Power Line network",
+          "status": "confirmed"
+        }
+      ],
+      "labeled_objectives": [
+        {
+          "name": "A_objectives",
+          "count": 2,
+          "status": "confirmed"
+        },
+        {
+          "name": "B_objectives",
+          "count": 2,
+          "status": "confirmed"
+        }
+      ],
+      "labeled_hatchways": [],
+      "notes": [
+        "Mission needs explicit objective adjacency / direct-link graph data.",
+        "Mission uses paired A/B marker labels for pipeline regulation."
+      ],
+      "transcription_method": "manual_from_wahapedia_page_and_visible_mission_thumbnail"
+    },
+    {
+      "id": "BA-21",
+      "name": "Power Struggle",
+      "type": "symmetric",
+      "roles": {
+        "attacker": null,
+        "defender": null
+      },
+      "turn_order_override": null,
+      "map_ref": "boarding_actions/mission_21",
+      "map_extraction_status": {
+        "geometry": "thumbnail_transcribed",
+        "hatchway_initial_states": "map_defined",
+        "objective_coordinates": "map_defined",
+        "entry_zone_coordinates": "map_defined"
+      },
+      "tags": [
+        "power_network",
+        "linked_objectives",
+        "warlord_kill",
+        "underdog_bonus"
+      ],
+      "entry_zones": [
+        {
+          "name": "Player A main entry",
+          "status": "placeholder"
+        },
+        {
+          "name": "Player B main entry",
+          "status": "placeholder"
+        }
+      ],
+      "special_regions": [
+        {
+          "name": "power_lines",
+          "status": "confirmed"
+        }
+      ],
+      "labeled_objectives": [
+        {
+          "name": "objective_markers",
+          "count": 4,
+          "status": "confirmed"
+        }
+      ],
+      "labeled_hatchways": [],
+      "notes": [
+        "Full progressive bullet list was not fully visible in extracted text.",
+        "Likely requires linked/sequential node metadata similar to The Pipeline.",
+        "Objective markers are linked by printed Power Lines; direct-link state matters for scoring."
+      ],
+      "transcription_method": "manual_from_wahapedia_page_and_visible_mission_thumbnail"
+    },
+    {
+      "id": "BA-22",
+      "name": "Death in the Dark",
+      "type": "symmetric",
+      "roles": {
+        "attacker": null,
+        "defender": null
+      },
+      "turn_order_override": null,
+      "map_ref": "boarding_actions/mission_22",
+      "map_extraction_status": {
+        "geometry": "thumbnail_transcribed",
+        "hatchway_initial_states": "map_defined",
+        "objective_coordinates": "map_defined",
+        "entry_zone_coordinates": "map_defined"
+      },
+      "tags": [
+        "lighting_areas",
+        "lights_out",
+        "visibility_modifiers",
+        "charge_modifiers",
+        "underdog_bonus"
+      ],
+      "entry_zones": [
+        {
+          "name": "Player A main entry",
+          "status": "placeholder"
+        },
+        {
+          "name": "Player B main entry",
+          "status": "placeholder"
+        }
+      ],
+      "special_regions": [
+        {
+          "name": "lighting_areas",
+          "status": "confirmed"
+        }
+      ],
+      "labeled_objectives": [
+        {
+          "name": "objective_markers",
+          "count": 3,
+          "status": "confirmed"
+        }
+      ],
+      "labeled_hatchways": [],
+      "notes": [
+        "Lights are rolled separately for each Lighting Area at end of each player's Movement phase.",
+        "Need exact zone membership for both Lighting Areas.",
+        "Lighting Areas are map-defined regions with per-turn light-state rolls."
+      ],
+      "transcription_method": "manual_from_wahapedia_page_and_visible_mission_thumbnail"
+    },
+    {
+      "id": "BA-23",
+      "name": "Hull Breach",
+      "type": "symmetric",
+      "roles": {
+        "attacker": null,
+        "defender": null
+      },
+      "turn_order_override": null,
+      "map_ref": "boarding_actions/mission_23",
+      "map_extraction_status": {
+        "geometry": "thumbnail_transcribed",
+        "hatchway_initial_states": "map_defined",
+        "objective_coordinates": "map_defined",
+        "entry_zone_coordinates": "map_defined"
+      },
+      "tags": [
+        "compartments",
+        "venting",
+        "data_download",
+        "mortal_wounds",
+        "movement_penalty"
+      ],
+      "entry_zones": [
+        {
+          "name": "Player A main entry",
+          "status": "placeholder"
+        },
+        {
+          "name": "Player B main entry",
+          "status": "placeholder"
+        }
+      ],
+      "special_regions": [
+        {
+          "name": "compartment_1",
+          "status": "confirmed"
+        },
+        {
+          "name": "compartment_2",
+          "status": "confirmed"
+        },
+        {
+          "name": "compartment_4",
+          "status": "confirmed"
+        },
+        {
+          "name": "compartment_5",
+          "status": "confirmed"
+        }
+      ],
+      "labeled_objectives": [
+        {
+          "name": "datacore_objective_markers",
+          "count": 3,
+          "status": "confirmed"
+        }
+      ],
+      "labeled_hatchways": [
+        {
+          "name": "compartment hatchways",
+          "status": "confirmed",
+          "rule": "close all open hatchways within vented compartment"
+        }
+      ],
+      "notes": [
+        "Needs compartment membership for every zone/hatchway/objective.",
+        "Attacker rolls to trigger venting; Defender determines vented compartment when applicable.",
+        "Compartments are explicitly numbered on the map and used for vent-to-void events."
+      ],
+      "transcription_method": "manual_from_wahapedia_page_and_visible_mission_thumbnail"
+    },
+    {
+      "id": "BA-31",
+      "name": "Control Centre",
+      "type": "symmetric",
+      "roles": {
+        "attacker": null,
+        "defender": null
+      },
+      "turn_order_override": null,
+      "map_ref": "boarding_actions/mission_31",
+      "map_extraction_status": {
+        "geometry": "thumbnail_transcribed",
+        "hatchway_initial_states": "map_defined",
+        "objective_coordinates": "map_defined",
+        "entry_zone_coordinates": "map_defined"
+      },
+      "tags": [
+        "marker_A",
+        "marker_B",
+        "global_hatch_open",
+        "warlord_kill",
+        "underdog_bonus"
+      ],
+      "entry_zones": [
+        {
+          "name": "Player A main entry",
+          "status": "placeholder"
+        },
+        {
+          "name": "Player B main entry",
+          "status": "placeholder"
+        }
+      ],
+      "special_regions": [
+        {
+          "name": "control centre region",
+          "status": "inferred"
+        }
+      ],
+      "labeled_objectives": [
+        {
+          "name": "objective_A",
+          "count": 1,
+          "status": "confirmed"
+        },
+        {
+          "name": "objective_B",
+          "count": 1,
+          "status": "confirmed"
+        },
+        {
+          "name": "additional_objective_markers",
+          "count": 2,
+          "status": "thumbnail_transcribed"
+        }
+      ],
+      "labeled_hatchways": [
+        {
+          "name": "all hatchways",
+          "status": "confirmed",
+          "rule": "can all be opened globally via Unlock Overrides"
+        }
+      ],
+      "notes": [
+        "Need exact positions of A and B plus count of remaining objectives.",
+        "Objective B controls unlock overrides; objective A is referenced by scoring."
+      ],
+      "transcription_method": "manual_from_wahapedia_page_and_visible_mission_thumbnail"
+    },
+    {
+      "id": "BA-32",
+      "name": "The Furnace",
+      "type": "symmetric",
+      "roles": {
+        "attacker": null,
+        "defender": null
+      },
+      "turn_order_override": null,
+      "map_ref": "boarding_actions/mission_32",
+      "map_extraction_status": {
+        "geometry": "thumbnail_transcribed",
+        "hatchway_initial_states": "map_defined",
+        "objective_coordinates": "map_defined",
+        "entry_zone_coordinates": "map_defined"
+      },
+      "tags": [
+        "furnace",
+        "furnace_control_zones",
+        "burners",
+        "secure_site_override",
+        "cp_generation",
+        "underdog_bonus"
+      ],
+      "entry_zones": [
+        {
+          "name": "Player A main entry",
+          "status": "placeholder"
+        },
+        {
+          "name": "Player B main entry",
+          "status": "placeholder"
+        }
+      ],
+      "special_regions": [
+        {
+          "name": "furnace",
+          "status": "confirmed"
+        },
+        {
+          "name": "furnace_control_zones",
+          "status": "confirmed"
+        }
+      ],
+      "labeled_objectives": [
+        {
+          "name": "objective_markers_within_furnace",
+          "count": "map_defined",
+          "status": "map_defined"
+        }
+      ],
+      "labeled_hatchways": [],
+      "notes": [
+        "Any unit can Secure Site on an objective within the Furnace.",
+        "Need exact furnace-zone membership and objective locations.",
+        "Furnace and Furnace Control Zone are both map-defined labeled regions."
+      ],
+      "transcription_method": "manual_from_wahapedia_page_and_visible_mission_thumbnail"
+    },
+    {
+      "id": "BA-33",
+      "name": "Rad Leak",
+      "type": "symmetric",
+      "roles": {
+        "attacker": null,
+        "defender": null
+      },
+      "turn_order_override": null,
+      "map_ref": "boarding_actions/mission_33",
+      "map_extraction_status": {
+        "geometry": "thumbnail_transcribed",
+        "hatchway_initial_states": "map_defined",
+        "objective_coordinates": "map_defined",
+        "entry_zone_coordinates": "map_defined"
+      },
+      "tags": [
+        "radiation",
+        "sector_overlays",
+        "leadership_penalty",
+        "move_penalty",
+        "toughness_penalty",
+        "underdog_bonus"
+      ],
+      "entry_zones": [
+        {
+          "name": "Player A main entry",
+          "status": "placeholder"
+        },
+        {
+          "name": "Player B main entry",
+          "status": "placeholder"
+        }
+      ],
+      "special_regions": [
+        {
+          "name": "sector_A",
+          "status": "confirmed"
+        },
+        {
+          "name": "sector_B",
+          "status": "confirmed"
+        },
+        {
+          "name": "sector_C",
+          "status": "confirmed"
+        },
+        {
+          "name": "sector_D",
+          "status": "confirmed"
+        }
+      ],
+      "labeled_objectives": [
+        {
+          "name": "critical_objectives",
+          "count": 2,
+          "status": "confirmed"
+        },
+        {
+          "name": "additional_objective_markers",
+          "count": 1,
+          "status": "thumbnail_transcribed"
+        }
+      ],
+      "labeled_hatchways": [],
+      "notes": [
+        "Need exact sector overlays and Salvation Shrines scoring bullets.",
+        "Two objective markers are labelled Critical. Radiation sectors are map-defined."
+      ],
+      "transcription_method": "manual_from_wahapedia_page_and_visible_mission_thumbnail"
+    },
+    {
+      "id": "BA-1",
+      "name": "Void the Ship",
+      "type": "asymmetric",
+      "roles": {
+        "attacker": "Attacker",
+        "defender": "Defender"
+      },
+      "turn_order_override": "defender_first",
+      "map_ref": "boarding_actions/mission_1",
+      "map_extraction_status": {
+        "geometry": "thumbnail_transcribed",
+        "hatchway_initial_states": "map_defined",
+        "objective_coordinates": "map_defined",
+        "entry_zone_coordinates": "map_defined"
+      },
+      "tags": [
+        "airlocks",
+        "inaccessible_area",
+        "patrol_entry_zone",
+        "warlord_kill",
+        "underdog_bonus"
+      ],
+      "entry_zones": [
+        {
+          "name": "Attacker entry zones",
+          "status": "needs_map_extraction"
+        },
+        {
+          "name": "Defender entry zones",
+          "status": "needs_map_extraction"
+        },
+        {
+          "name": "Patrol Entry Zone",
+          "status": "confirmed",
+          "deployment_only_for": "Defender",
+          "reserve_restriction": "Defender cannot use after battle round 1 begins"
+        }
+      ],
+      "special_regions": [
+        {
+          "name": "inaccessible_area",
+          "status": "confirmed"
+        }
+      ],
+      "labeled_objectives": [
+        {
+          "name": "airlock_state_scoring",
+          "status": "confirmed"
+        }
+      ],
+      "labeled_hatchways": [
+        {
+          "name": "airlocks",
+          "count": 4,
+          "status": "thumbnail_transcribed"
+        }
+      ],
+      "notes": [
+        "Battle-end scoring keyed to opened vs closed Airlocks.",
+        "Airlock hatchways are specially labelled and only the attacker can open them."
+      ],
+      "transcription_method": "manual_from_wahapedia_page_and_visible_mission_thumbnail"
+    },
+    {
+      "id": "BA-2",
+      "name": "Pull Their Teeth",
+      "type": "asymmetric",
+      "roles": {
+        "attacker": "Attacker",
+        "defender": "Defender"
+      },
+      "turn_order_override": "attacker_first",
+      "map_ref": "boarding_actions/mission_2",
+      "map_extraction_status": {
+        "geometry": "thumbnail_transcribed",
+        "hatchway_initial_states": "map_defined",
+        "objective_coordinates": "map_defined",
+        "entry_zone_coordinates": "map_defined"
+      },
+      "tags": [
+        "control_node",
+        "loader_markers",
+        "vp_transfer",
+        "secure_site_override",
+        "underdog_bonus"
+      ],
+      "entry_zones": [
+        {
+          "name": "Attacker entry zones",
+          "status": "needs_map_extraction"
+        },
+        {
+          "name": "Defender entry zones",
+          "status": "needs_map_extraction"
+        }
+      ],
+      "special_regions": [
+        {
+          "name": "weapons battery deck",
+          "status": "inferred"
+        }
+      ],
+      "labeled_objectives": [
+        {
+          "name": "control_node",
+          "count": 1,
+          "status": "confirmed"
+        },
+        {
+          "name": "loader_objectives",
+          "count": "map_defined",
+          "status": "map_defined"
+        }
+      ],
+      "labeled_hatchways": [],
+      "notes": [
+        "Attacker starts at 60 VP.",
+        "Defender scoring subtracts VP from Attacker based on Loader control and Control Node state.",
+        "Control Node is the only securable objective for either player in the mission rules."
+      ],
+      "transcription_method": "manual_from_wahapedia_page_and_visible_mission_thumbnail"
+    },
+    {
+      "id": "BA-3",
+      "name": "Strongrooms",
+      "type": "asymmetric",
+      "roles": {
+        "attacker": "Attacker",
+        "defender": "Defender"
+      },
+      "turn_order_override": "attacker_first",
+      "map_ref": "boarding_actions/mission_3",
+      "map_extraction_status": {
+        "geometry": "thumbnail_transcribed",
+        "hatchway_initial_states": "map_defined",
+        "objective_coordinates": "map_defined",
+        "entry_zone_coordinates": "map_defined"
+      },
+      "tags": [
+        "strongrooms",
+        "defender_predeployment",
+        "high_swing_endgame",
+        "underdog_bonus"
+      ],
+      "entry_zones": [
+        {
+          "name": "Attacker entry zones",
+          "status": "needs_map_extraction"
+        },
+        {
+          "name": "Defender entry zones",
+          "status": "needs_map_extraction"
+        }
+      ],
+      "special_regions": [
+        {
+          "name": "strongrooms",
+          "status": "confirmed"
+        }
+      ],
+      "labeled_objectives": [
+        {
+          "name": "strongroom_objective_markers",
+          "count": "map_defined",
+          "status": "map_defined"
+        }
+      ],
+      "labeled_hatchways": [],
+      "notes": [
+        "Defender predeploys one unit wholly within each Strongroom at start of Deploy Armies.",
+        "Attacker scores 45 VP for each objective they control at end of battle.",
+        "Defender-side Purge the Thieves VP line still needs exact extraction.",
+        "Each Strongroom contains a defender-selected guard unit during deployment."
+      ],
+      "transcription_method": "manual_from_wahapedia_page_and_visible_mission_thumbnail"
+    },
+    {
+      "id": "BA-4",
+      "name": "Jailbreak",
+      "type": "asymmetric",
+      "roles": {
+        "attacker": "Attacker",
+        "defender": "Defender"
+      },
+      "turn_order_override": "attacker_first",
+      "map_ref": "boarding_actions/mission_4",
+      "map_extraction_status": {
+        "geometry": "thumbnail_transcribed",
+        "hatchway_initial_states": "map_defined",
+        "objective_coordinates": "map_defined",
+        "entry_zone_coordinates": "map_defined"
+      },
+      "tags": [
+        "prison_cells",
+        "guard_entry_zone",
+        "patrol_entry_zones",
+        "backup_entry_zones",
+        "silent_infiltration",
+        "custom_end_state_table"
+      ],
+      "entry_zones": [
+        {
+          "name": "defender_guard_entry_zone",
+          "status": "confirmed"
+        },
+        {
+          "name": "defender_backup_entry_zones",
+          "status": "confirmed"
+        },
+        {
+          "name": "defender_patrol_entry_zones",
+          "status": "confirmed"
+        }
+      ],
+      "special_regions": [
+        {
+          "name": "prison_cells",
+          "status": "confirmed"
+        }
+      ],
+      "labeled_objectives": [],
+      "labeled_hatchways": [
+        {
+          "name": "Prison Cells hatchway",
+          "status": "confirmed",
+          "rule": "only imprisoned unit can attempt to open while closed under stated condition; once opened cannot be closed; Defender cannot operate it"
+        }
+      ],
+      "notes": [
+        "Requires bespoke end-state evaluation table instead of standard additive scoring.",
+        "Imprisoned unit must be at least 60 points and starts inside Prison Cells.",
+        "The imprisoned unit starts in Prison Cells; distinct defender entry-zone roles are called out on the mission page."
+      ],
+      "transcription_method": "manual_from_wahapedia_page_and_visible_mission_thumbnail"
+    },
+    {
+      "id": "BA-5",
+      "name": "Power the Generators",
+      "type": "asymmetric",
+      "roles": {
+        "attacker": "Attacker",
+        "defender": "Defender"
+      },
+      "turn_order_override": "defender_first",
+      "map_ref": "boarding_actions/mission_5",
+      "map_extraction_status": {
+        "geometry": "thumbnail_transcribed",
+        "hatchway_initial_states": "map_defined",
+        "objective_coordinates": "map_defined",
+        "entry_zone_coordinates": "map_defined"
+      },
+      "tags": [
+        "multi_level",
+        "change_level",
+        "access_zones",
+        "two_board_layers"
+      ],
+      "entry_zones": [
+        {
+          "name": "Attacker entry zones",
+          "status": "needs_map_extraction"
+        },
+        {
+          "name": "Defender entry zones",
+          "status": "needs_map_extraction"
+        },
+        {
+          "name": "Access Zones",
+          "status": "confirmed",
+          "count": "needs_map_extraction"
+        }
+      ],
+      "special_regions": [
+        {
+          "name": "deck_level",
+          "status": "confirmed"
+        },
+        {
+          "name": "sub_level",
+          "status": "confirmed"
+        },
+        {
+          "name": "access_zones",
+          "status": "confirmed"
+        }
+      ],
+      "labeled_objectives": [
+        {
+          "name": "generator_objective_markers",
+          "count": "map_defined",
+          "status": "map_defined"
+        },
+        {
+          "name": "terminal_objective_markers",
+          "count": "map_defined",
+          "status": "map_defined"
+        }
+      ],
+      "labeled_hatchways": [],
+      "notes": [
+        "Each board is a different level; no LOS between boards.",
+        "Units can change level only via corresponding Access Zones at end of Movement phase.",
+        "Exact objective text still needs extraction.",
+        "The mission uses two different boards as separate levels joined by matching Access Zones."
+      ],
+      "transcription_method": "manual_from_wahapedia_page_and_visible_mission_thumbnail"
+    },
+    {
+      "id": "BA-6",
+      "name": "Corrupt the Machine Spirit",
+      "type": "asymmetric",
+      "roles": {
+        "attacker": "Attacker",
+        "defender": "Defender"
+      },
+      "turn_order_override": "defender_first",
+      "map_ref": "boarding_actions/mission_6",
+      "map_extraction_status": {
+        "geometry": "thumbnail_transcribed",
+        "hatchway_initial_states": "map_defined",
+        "objective_coordinates": "map_defined",
+        "entry_zone_coordinates": "map_defined"
+      },
+      "tags": [
+        "corruption",
+        "remove_objectives",
+        "unique_consequences",
+        "objective_state_mutation"
+      ],
+      "entry_zones": [
+        {
+          "name": "Attacker entry zones",
+          "status": "needs_map_extraction"
+        },
+        {
+          "name": "Defender entry zones",
+          "status": "needs_map_extraction"
+        }
+      ],
+      "special_regions": [
+        {
+          "name": "machine_spirit objective network",
+          "status": "inferred"
+        }
+      ],
+      "labeled_objectives": [
+        {
+          "name": "corruptible_objective_markers",
+          "count": "map_defined",
+          "status": "map_defined"
+        }
+      ],
+      "labeled_hatchways": [],
+      "notes": [
+        "At end of Attacker's Command phase, each controlled objective can be corrupted on 2+ and removed.",
+        "Each corruption selects a unique mission consequence not previously chosen.",
+        "Defender scores 30 VP for each objective controlled at end of battle.",
+        "Attacker-side complementary objective still needs exact extraction.",
+        "Each corrupted objective is removed and grants one unique corruption consequence."
+      ],
+      "transcription_method": "manual_from_wahapedia_page_and_visible_mission_thumbnail"
+    }
+  ]
+}

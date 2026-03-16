@@ -28,6 +28,8 @@ members = [
     "crates/wasm_api",
     "crates/native_api",
     "crates/mcp_server",
+    "crates/boarding_content",
+    "crates/boarding_rules",
 ]
 
 [workspace.package]
@@ -90,3 +92,5 @@ wh40k_trainer_bridge = { path = "crates/trainer_bridge" }
 wh40k_wasm_api = { path = "crates/wasm_api" }
 wh40k_native_api = { path = "crates/native_api" }
 wh40k_mcp_server = { path = "crates/mcp_server" }
+wh40k_boarding_content = { path = "crates/boarding_content" }
+wh40k_boarding_rules = { path = "crates/boarding_rules" }

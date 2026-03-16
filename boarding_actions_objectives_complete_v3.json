@@ -1,0 +1,856 @@
+{
+  "schema_version": "2.0.0",
+  "title": "Boarding Actions Mission Objectives Complete v3",
+  "source_basis": {
+    "primary_docs": [
+      "boarding_actions_missions_complete_v3.md",
+      "boarding_patrol_complete_v3.md"
+    ],
+    "notes": [
+      "Refreshed scoring/objective layer aligned to the Wahapedia Boarding Action Rules page.",
+      "Where a mission depends on map-defined labels (A/B/Critical/Generator/Terminal/etc.), the canonical labels are cross-referenced in boarding_actions_maps_complete_v3.json."
+    ]
+  },
+  "global_rules": {
+    "mission_vp_cap": 90,
+    "battle_ready_bonus_vp": 10,
+    "battle_rounds": 5,
+    "round5_second_player_timing_default": "end_of_turn",
+    "common_progressive_template": {
+      "id": "ba_common_control_3x5",
+      "description": "Common Boarding Actions progressive scoring pattern.",
+      "rounds": [
+        2,
+        3,
+        4
+      ],
+      "timing": "end_of_command_phase",
+      "per_satisfied_condition_vp": 5,
+      "default_conditions": [
+        "control_one_or_more_objective_markers",
+        "control_two_or_more_objective_markers",
+        "control_more_objective_markers_than_opponent"
+      ],
+      "round5": {
+        "first_player_timing": "end_of_command_phase",
+        "second_player_timing": "end_of_turn"
+      }
+    }
+  },
+  "missions": [
+    {
+      "mission_id": "BA-11",
+      "mission_number": 11,
+      "mission_name": "Access Junction Primus",
+      "mission_type": "symmetric",
+      "roles": [],
+      "objectives": [
+        {
+          "objective_id": "BA-11-O1",
+          "name": "Capture the Junction",
+          "objective_type": "progressive",
+          "status": "complete",
+          "scoring": {
+            "rounds": [
+              2,
+              3,
+              4
+            ],
+            "timing": "end_of_command_phase",
+            "vp_per_condition": 5,
+            "conditions": [
+              {
+                "id": "control_1plus",
+                "text": "control one or more objective markers"
+              },
+              {
+                "id": "control_2plus",
+                "text": "control two or more objective markers"
+              },
+              {
+                "id": "control_more",
+                "text": "control more objective markers than opponent"
+              }
+            ],
+            "round5": {
+              "first_player_timing": "end_of_command_phase",
+              "second_player_timing": "end_of_turn",
+              "same_conditions": true
+            }
+          }
+        },
+        {
+          "objective_id": "BA-11-O2",
+          "name": "Purge the Ship",
+          "objective_type": "end_game",
+          "scoring": {
+            "method": "threshold_table",
+            "threshold_metric": "enemy_points_destroyed",
+            "vp_per_threshold": 15,
+            "thresholds": [],
+            "exact_value_known": false
+          }
+        }
+      ],
+      "implementation_notes": [
+        "Requires destroyed-points threshold table extraction."
+      ]
+    },
+    {
+      "mission_id": "BA-12",
+      "mission_number": 12,
+      "mission_name": "Deck Sweepers",
+      "mission_type": "symmetric",
+      "roles": [],
+      "objectives": [
+        {
+          "objective_id": "BA-12-O1",
+          "name": "Take and Hold",
+          "objective_type": "progressive",
+          "status": "complete",
+          "scoring": {
+            "rounds": [
+              2,
+              3,
+              4
+            ],
+            "timing": "end_of_command_phase",
+            "vp_per_condition": 5,
+            "conditions": [
+              {
+                "id": "control_1plus",
+                "text": "control one or more objective markers"
+              },
+              {
+                "id": "control_more",
+                "text": "control more objective markers than opponent"
+              }
+            ],
+            "round5": {
+              "first_player_timing": "end_of_command_phase",
+              "second_player_timing": "end_of_turn",
+              "same_conditions": true
+            }
+          }
+        },
+        {
+          "objective_id": "BA-12-O2",
+          "name": "Sweep the Decks",
+          "objective_type": "end_game",
+          "status": "complete",
+          "scoring": {
+            "method": "per_marker_controlled",
+            "timing": "end_of_battle",
+            "vp_per_marker": 15
+          }
+        }
+      ],
+      "implementation_notes": []
+    },
+    {
+      "mission_id": "BA-13",
+      "mission_number": 13,
+      "mission_name": "The Pipeline",
+      "mission_type": "symmetric",
+      "roles": [],
+      "objectives": [
+        {
+          "objective_id": "BA-13-O1",
+          "name": "Power Network",
+          "objective_type": "progressive",
+          "status": "complete",
+          "scoring": {
+            "rounds": [
+              2,
+              3,
+              4
+            ],
+            "timing": "end_of_command_phase",
+            "vp_per_condition": 5,
+            "conditions": [
+              {
+                "id": "control_1plus",
+                "text": "control one or more objective markers"
+              },
+              {
+                "id": "control_2plus",
+                "text": "control two or more objective markers"
+              },
+              {
+                "id": "control_more",
+                "text": "control more objective markers than opponent"
+              },
+              {
+                "id": "linked_power_lines",
+                "text": "control two or more objective markers that are directly linked by the Power Lines"
+              }
+            ],
+            "round5": {
+              "first_player_timing": "end_of_command_phase",
+              "second_player_timing": "end_of_turn",
+              "same_conditions": true
+            }
+          }
+        }
+      ],
+      "implementation_notes": [
+        "Requires objective linkage graph metadata."
+      ]
+    },
+    {
+      "mission_id": "BA-21",
+      "mission_number": 21,
+      "mission_name": "Power Struggle",
+      "mission_type": "symmetric",
+      "roles": [],
+      "objectives": [
+        {
+          "objective_id": "BA-21-O1",
+          "name": "Power Network",
+          "objective_type": "progressive",
+          "status": "complete",
+          "scoring": {
+            "method": "command_phase_conditions",
+            "rounds": [
+              2,
+              3,
+              4,
+              5
+            ],
+            "timing": "end_of_command_phase",
+            "vp_per_condition": 5,
+            "conditions": [
+              {
+                "id": "control_1plus",
+                "text": "control one or more objective markers"
+              },
+              {
+                "id": "control_2plus",
+                "text": "control two or more objective markers"
+              },
+              {
+                "id": "control_more",
+                "text": "control more objective markers than opponent"
+              },
+              {
+                "id": "control_2plus_linked",
+                "text": "control two or more objective markers directly linked by power lines"
+              }
+            ],
+            "exact_value_known": true
+          }
+        },
+        {
+          "objective_id": "BA-21-O2",
+          "name": "Cut Off the Head",
+          "objective_type": "end_game",
+          "status": "complete",
+          "scoring": {
+            "method": "binary_if_true",
+            "timing": "end_of_battle",
+            "condition": "opponent_warlord_destroyed",
+            "vp": 10
+          }
+        }
+      ],
+      "implementation_notes": []
+    },
+    {
+      "mission_id": "BA-22",
+      "mission_number": 22,
+      "mission_name": "Death in the Dark",
+      "mission_type": "symmetric",
+      "roles": [],
+      "objectives": [
+        {
+          "objective_id": "BA-22-O1",
+          "name": "Lock It Down!",
+          "objective_type": "progressive",
+          "status": "complete",
+          "scoring": {
+            "rounds": [
+              2,
+              3,
+              4
+            ],
+            "timing": "end_of_command_phase",
+            "vp_per_condition": 5,
+            "conditions": [
+              {
+                "id": "control_1plus",
+                "text": "control one or more objective markers"
+              },
+              {
+                "id": "control_2plus",
+                "text": "control two or more objective markers"
+              },
+              {
+                "id": "control_more",
+                "text": "control more objective markers than opponent"
+              }
+            ],
+            "round5": {
+              "first_player_timing": "end_of_command_phase",
+              "second_player_timing": "end_of_turn",
+              "same_conditions": true
+            }
+          }
+        },
+        {
+          "objective_id": "BA-22-O2",
+          "name": "Seek Sanctuary",
+          "objective_type": "end_game",
+          "status": "complete",
+          "scoring": {
+            "method": "per_condition",
+            "timing": "end_of_battle",
+            "vp_per_condition": 15,
+            "conditions": [
+              {
+                "id": "lighting_area_1_pair",
+                "text": "control both objective markers within Lighting Area 1"
+              },
+              {
+                "id": "lighting_area_2_pair",
+                "text": "control both objective markers within Lighting Area 2"
+              }
+            ]
+          }
+        }
+      ],
+      "implementation_notes": []
+    },
+    {
+      "mission_id": "BA-23",
+      "mission_number": 23,
+      "mission_name": "Hull Breach",
+      "mission_type": "symmetric",
+      "roles": [],
+      "objectives": [
+        {
+          "objective_id": "BA-23-O1",
+          "name": "Data Retrieval",
+          "objective_type": "progressive",
+          "status": "complete",
+          "scoring": {
+            "method": "event_trigger",
+            "event": "download_data_from_objective_marker",
+            "vp_per_event": 15
+          }
+        },
+        {
+          "objective_id": "BA-23-O2",
+          "name": "Temporary Stabilisation",
+          "objective_type": "progressive",
+          "status": "complete",
+          "scoring": {
+            "rounds": [
+              2,
+              3,
+              4
+            ],
+            "timing": "end_of_command_phase",
+            "vp_per_condition": 5,
+            "conditions": [
+              {
+                "id": "control_1plus",
+                "text": "control one or more objective markers"
+              },
+              {
+                "id": "control_2plus",
+                "text": "control two or more objective markers"
+              },
+              {
+                "id": "control_more",
+                "text": "control more objective markers than opponent"
+              }
+            ],
+            "round5": {
+              "first_player_timing": "end_of_command_phase",
+              "second_player_timing": "end_of_turn",
+              "same_conditions": true
+            }
+          }
+        }
+      ],
+      "implementation_notes": [
+        "Track per-objective downloaded/not-downloaded state explicitly."
+      ]
+    },
+    {
+      "mission_id": "BA-31",
+      "mission_number": 31,
+      "mission_name": "Control Centre",
+      "mission_type": "symmetric",
+      "roles": [],
+      "objectives": [
+        {
+          "objective_id": "BA-31-O1",
+          "name": "Secure at All Costs",
+          "objective_type": "progressive",
+          "status": "complete",
+          "scoring": {
+            "rounds": [
+              2,
+              3,
+              4
+            ],
+            "timing": "end_of_command_phase",
+            "vp_per_condition": 5,
+            "conditions": [
+              {
+                "id": "control_1plus",
+                "text": "control one or more objective markers"
+              },
+              {
+                "id": "control_2plus",
+                "text": "control two or more objective markers"
+              },
+              {
+                "id": "control_more",
+                "text": "control more objective markers than opponent"
+              },
+              {
+                "id": "control_A",
+                "text": "control objective marker A"
+              }
+            ],
+            "round5": {
+              "first_player_timing": "end_of_command_phase",
+              "second_player_timing": "end_of_turn",
+              "same_conditions": true
+            }
+          }
+        },
+        {
+          "objective_id": "BA-31-O2",
+          "name": "Cut Off the Head",
+          "objective_type": "end_game",
+          "status": "complete",
+          "scoring": {
+            "method": "binary_if_true",
+            "timing": "end_of_battle",
+            "condition": "opponent_warlord_destroyed",
+            "vp": 10
+          }
+        }
+      ],
+      "implementation_notes": []
+    },
+    {
+      "mission_id": "BA-32",
+      "mission_number": 32,
+      "mission_name": "The Furnace",
+      "mission_type": "symmetric",
+      "roles": [],
+      "objectives": [
+        {
+          "objective_id": "BA-32-O1",
+          "name": "Promethium Exchangers",
+          "objective_type": "progressive",
+          "status": "complete",
+          "scoring": {
+            "rounds": [
+              2,
+              3,
+              4
+            ],
+            "timing": "end_of_command_phase",
+            "vp_per_condition": 5,
+            "conditions": [
+              {
+                "id": "control_1plus",
+                "text": "control one or more objective markers"
+              },
+              {
+                "id": "control_2plus",
+                "text": "control two or more objective markers"
+              },
+              {
+                "id": "control_more",
+                "text": "control more objective markers than opponent"
+              },
+              {
+                "id": "control_furnace",
+                "text": "control one or more objective markers within the Furnace"
+              }
+            ],
+            "round5": {
+              "first_player_timing": "end_of_command_phase",
+              "second_player_timing": "end_of_turn",
+              "same_conditions": true
+            }
+          }
+        }
+      ],
+      "implementation_notes": [
+        "Secure Site exception for Furnace markers belongs in mission rules, not objective scoring."
+      ]
+    },
+    {
+      "mission_id": "BA-33",
+      "mission_number": 33,
+      "mission_name": "Rad Leak",
+      "mission_type": "symmetric",
+      "roles": [],
+      "objectives": [
+        {
+          "objective_id": "BA-33-O1",
+          "name": "Urgent Takeover",
+          "objective_type": "progressive",
+          "status": "complete",
+          "scoring": {
+            "rounds": [
+              2,
+              3,
+              4
+            ],
+            "timing": "end_of_command_phase",
+            "vp_per_condition": 5,
+            "conditions": [
+              {
+                "id": "control_1plus",
+                "text": "control one or more objective markers"
+              },
+              {
+                "id": "control_2plus",
+                "text": "control two or more objective markers"
+              },
+              {
+                "id": "control_more",
+                "text": "control more objective markers than opponent"
+              }
+            ],
+            "round5": {
+              "first_player_timing": "end_of_command_phase",
+              "second_player_timing": "end_of_turn",
+              "same_conditions": true
+            }
+          }
+        },
+        {
+          "objective_id": "BA-33-O2",
+          "name": "Salvation Shrines",
+          "objective_type": "end_game",
+          "status": "complete",
+          "scoring": {
+            "method": "binary_if_true",
+            "timing": "end_of_battle",
+            "condition": "one_player_controls_both_critical_markers",
+            "vp": 15,
+            "exact_value_known": true
+          }
+        },
+        {
+          "objective_id": "BA-33-O3",
+          "name": "Cut Off the Head",
+          "objective_type": "end_game",
+          "status": "complete",
+          "scoring": {
+            "method": "binary_if_true",
+            "timing": "end_of_battle",
+            "condition": "opponent_warlord_destroyed",
+            "vp": 15
+          }
+        }
+      ],
+      "implementation_notes": []
+    },
+    {
+      "mission_id": "BA-01",
+      "mission_number": 1,
+      "mission_name": "Void the Ship",
+      "mission_type": "asymmetric",
+      "roles": [
+        "Attacker",
+        "Defender"
+      ],
+      "objectives": [
+        {
+          "objective_id": "BA-01-O1",
+          "name": "Maintain Ship Integrity",
+          "objective_type": "end_game",
+          "status": "complete",
+          "scoring": {
+            "method": "role_based_per_object",
+            "timing": "end_of_battle",
+            "role_scoring": {
+              "Attacker": {
+                "metric": "airlocks_opened",
+                "vp_per": 20
+              },
+              "Defender": {
+                "metric": "airlocks_still_closed",
+                "vp_per": 20
+              }
+            }
+          }
+        },
+        {
+          "objective_id": "BA-01-O2",
+          "name": "Cut Off the Head",
+          "objective_type": "end_game",
+          "status": "complete",
+          "scoring": {
+            "method": "binary_if_true",
+            "timing": "end_of_battle",
+            "condition": "opponent_warlord_destroyed",
+            "vp": 10
+          }
+        }
+      ],
+      "implementation_notes": []
+    },
+    {
+      "mission_id": "BA-02",
+      "mission_number": 2,
+      "mission_name": "Pull Their Teeth",
+      "mission_type": "asymmetric",
+      "roles": [
+        "Attacker",
+        "Defender"
+      ],
+      "objectives": [
+        {
+          "objective_id": "BA-02-O1",
+          "name": "Destroy Ground Targets",
+          "objective_type": "progressive",
+          "status": "complete",
+          "scoring": {
+            "method": "vp_transfer",
+            "initial_state": {
+              "Attacker_vp": 60,
+              "Defender_vp": 0
+            },
+            "timing": "start_of_defender_command_phase",
+            "branches": [
+              {
+                "if": "defender_controls_control_node",
+                "per_loader_effect": {
+                  "Attacker_vp_delta": -10,
+                  "Defender_vp_delta": 10
+                }
+              },
+              {
+                "if": "defender_does_not_control_control_node",
+                "per_loader_effect": {
+                  "Attacker_vp_delta": -5,
+                  "Defender_vp_delta": 5
+                }
+              }
+            ],
+            "attacker_vp_minimum": 0
+          }
+        },
+        {
+          "objective_id": "BA-02-O2",
+          "name": "Seize the Guns",
+          "objective_type": "progressive",
+          "status": "complete",
+          "scoring": {
+            "method": "binary_if_true_repeating",
+            "timing": "start_of_attacker_command_phase",
+            "condition": "attacker_controls_control_node",
+            "vp": 5
+          }
+        }
+      ],
+      "implementation_notes": [
+        "Requires distinct Control Node and Loader objective tags."
+      ]
+    },
+    {
+      "mission_id": "BA-03",
+      "mission_number": 3,
+      "mission_name": "Strongrooms",
+      "mission_type": "asymmetric",
+      "roles": [
+        "Attacker",
+        "Defender"
+      ],
+      "objectives": [
+        {
+          "objective_id": "BA-03-O1",
+          "name": "They Are Ours",
+          "objective_type": "end_game",
+          "status": "complete",
+          "scoring": {
+            "method": "role_based_per_marker_controlled",
+            "timing": "end_of_battle",
+            "role_scoring": {
+              "Attacker": {
+                "vp_per_marker": 45
+              }
+            }
+          }
+        },
+        {
+          "objective_id": "BA-03-O2",
+          "name": "Purge the Thieves",
+          "objective_type": "end_game",
+          "scoring": {
+            "method": "role_based_end_game_objective",
+            "timing": "end_of_battle",
+            "role_scoring": {
+              "Defender": {
+                "exact_value_known": false
+              }
+            }
+          }
+        }
+      ],
+      "implementation_notes": []
+    },
+    {
+      "mission_id": "BA-04",
+      "mission_number": 4,
+      "mission_name": "Jailbreak",
+      "mission_type": "asymmetric",
+      "roles": [
+        "Attacker",
+        "Defender"
+      ],
+      "objectives": [
+        {
+          "objective_id": "BA-04-O1",
+          "name": "Prison Break Outcome Table",
+          "objective_type": "end_game",
+          "status": "complete",
+          "scoring": {
+            "method": "exclusive_outcome_table",
+            "timing": "end_of_battle",
+            "subject": "imprisoned_unit_final_state",
+            "outcomes": [
+              {
+                "condition": "imprisoned_unit_still_within_prison_cells",
+                "Attacker_vp": 0,
+                "Defender_vp": 90
+              },
+              {
+                "condition": "imprisoned_unit_not_within_prison_cells_and_destroyed",
+                "Attacker_vp": 30,
+                "Defender_vp": 60
+              },
+              {
+                "condition": "imprisoned_unit_not_within_prison_cells_not_destroyed_and_within_engagement_range_of_one_or_more_defender_models",
+                "Attacker_vp": 60,
+                "Defender_vp": 30
+              },
+              {
+                "condition": "imprisoned_unit_not_within_prison_cells_not_destroyed_and_not_within_engagement_range_of_any_defender_models",
+                "Attacker_vp": 90,
+                "Defender_vp": 0
+              }
+            ]
+          }
+        }
+      ],
+      "implementation_notes": []
+    },
+    {
+      "mission_id": "BA-05",
+      "mission_number": 5,
+      "mission_name": "Power the Generators",
+      "mission_type": "asymmetric",
+      "roles": [
+        "Attacker",
+        "Defender"
+      ],
+      "objectives": [
+        {
+          "objective_id": "BA-05-O1",
+          "name": "Access the Data",
+          "objective_type": "end_game",
+          "status": "complete",
+          "scoring": {
+            "method": "role_based_per_object",
+            "timing": "end_of_battle",
+            "role_scoring": {
+              "Attacker": {
+                "metric": "powered_terminals_controlled",
+                "vp_per": 10
+              }
+            },
+            "exact_value_known": true
+          }
+        },
+        {
+          "objective_id": "BA-05-O2",
+          "name": "Rout and Crush Them",
+          "objective_type": "end_game",
+          "status": "complete",
+          "scoring": {
+            "method": "threshold_table_plus_warlord",
+            "timing": "end_of_battle",
+            "role_scoring": {
+              "Defender": {
+                "threshold_table": {
+                  "metric": "total_attacker_points_destroyed",
+                  "thresholds": [
+                    { "min": 0, "max": 124, "vp": 0 },
+                    { "min": 125, "max": 249, "vp": 15 },
+                    { "min": 250, "max": 374, "vp": 40 },
+                    { "min": 375, "max": 499, "vp": 60 },
+                    { "min": 500, "max": 999999, "vp": 80 }
+                  ]
+                },
+                "warlord_bonus": {
+                  "condition": "opponent_warlord_destroyed",
+                  "vp": 20
+                }
+              }
+            },
+            "exact_value_known": true
+          }
+        }
+      ],
+      "implementation_notes": []
+    },
+    {
+      "mission_id": "BA-06",
+      "mission_number": 6,
+      "mission_name": "Corrupt the Machine Spirit",
+      "mission_type": "asymmetric",
+      "roles": [
+        "Attacker",
+        "Defender"
+      ],
+      "objectives": [
+        {
+          "objective_id": "BA-06-O1",
+          "name": "Thwart the Corrupters",
+          "objective_type": "end_game",
+          "status": "complete",
+          "scoring": {
+            "method": "role_based_per_marker_controlled",
+            "timing": "end_of_battle",
+            "role_scoring": {
+              "Defender": {
+                "vp_per_marker": 30
+              }
+            },
+            "exact_value_known": true
+          }
+        },
+        {
+          "objective_id": "BA-06-O2",
+          "name": "Humble the Machine",
+          "objective_type": "end_game",
+          "status": "complete",
+          "scoring": {
+            "method": "role_based_per_marker_corrupted",
+            "timing": "end_of_battle",
+            "role_scoring": {
+              "Attacker": {
+                "metric": "corrupted_markers",
+                "vp_per": 20
+              }
+            },
+            "exact_value_known": true
+          }
+        }
+      ],
+      "implementation_notes": []
+    }
+  ]
+}

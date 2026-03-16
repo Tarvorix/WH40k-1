@@ -28,3 +28,5 @@ wh40k_search_abstraction = { workspace = true }
 wh40k_eval_heuristic = { workspace = true }
 wh40k_eval_features = { workspace = true }
 wh40k_stratagem_runtime = { workspace = true }
+wh40k_boarding_content = { workspace = true }
+wh40k_boarding_rules = { workspace = true }

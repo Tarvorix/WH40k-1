@@ -447,6 +447,11 @@ def main():
     gate_parser.add_argument('--num-games', type=int, default=100, help='Evaluation games')
     gate_parser.add_argument('--threshold', type=float, default=0.55, help='Promotion threshold')
 
+    # Perturabo vs Basic gating
+    pvb_parser = subparsers.add_parser('perturabo-gate', help='Run Perturabo vs Basic tier gating (12 matchups)')
+    pvb_parser.add_argument('--games-per-matchup', type=int, default=20, help='Games per matchup (default 20)')
+    pvb_parser.add_argument('--nnue', type=str, default=None, help='Path to .nnue model (omit for heuristic baseline)')
+
     # Benchmark
     bench_parser = subparsers.add_parser('benchmark', help='Run throughput benchmark')
     bench_parser.add_argument('--num-games', type=int, default=10, help='Number of games')
@@ -482,6 +487,14 @@ def main():
             candidate_path=args.candidate,
             num_games=args.num_games,
             promotion_threshold=args.threshold,
+        )
+
+    elif args.command == 'perturabo-gate':
+        if not HAS_BRIDGE:
+            raise ImportError("wh40k_trainer_bridge not available — run: cd engine/crates/trainer_bridge && maturin develop --release")
+        results = wtb.perturabo_vs_basic(
+            games_per_matchup=args.games_per_matchup,
+            nnue_path=args.nnue,
         )
 
     elif args.command == 'benchmark':

@@ -8,8 +8,8 @@ use crate::view_models::*;
 
 use wh40k_core_types::{
     AllocationStatus, ArmorPenetration, ArmorSave, AttackCount, Damage, EngagementStatus,
-    FeelNoPain, GameOutcome, InvulnerableSave, Phase, PlayerId, SubPhase, UnitStatus,
-    WeaponAbility, WeaponProfile, WeaponType,
+    FeelNoPain, GameMode, GameOutcome, HatchwayState, InvulnerableSave, Phase, PlayerId,
+    SubPhase, UnitStatus, WeaponAbility, WeaponProfile, WeaponType,
 };
 use wh40k_command_system::Command;
 use wh40k_event_system::EventLogEntry;
@@ -49,6 +49,38 @@ pub fn game_state_to_view(state: &GameState) -> GameView {
 
     let in_progress = matches!(state.game_outcome, GameOutcome::InProgress);
 
+    // Game mode string
+    let game_mode = match state.game_mode {
+        GameMode::CombatPatrol => "CombatPatrol".to_string(),
+        GameMode::BoardingActions => "BoardingActions".to_string(),
+    };
+
+    // Boarding Actions specific view data
+    let (hatchway_states, secured_objectives) = if let Some(ba) = state.boarding_state() {
+        let hatches: Vec<HatchwayStateView> = ba.hatchway_states.iter().map(|(id, st)| {
+            HatchwayStateView {
+                id: id.0,
+                state: match st {
+                    HatchwayState::Open => "Open".to_string(),
+                    HatchwayState::Closed => "Closed".to_string(),
+                    HatchwayState::Locked => "Locked".to_string(),
+                    HatchwayState::OneWayOpened => "OneWayOpened".to_string(),
+                },
+            }
+        }).collect();
+
+        let secured: Vec<SecuredObjectiveView> = ba.secured_objectives.iter().map(|(obj_id, player_id)| {
+            SecuredObjectiveView {
+                objective_id: obj_id.0,
+                player: player_id.0,
+            }
+        }).collect();
+
+        (Some(hatches), Some(secured))
+    } else {
+        (None, None)
+    };
+
     GameView {
         battle_round: state.battle_round.number(),
         phase: phase_to_string(&state.current_phase),
@@ -63,6 +95,9 @@ pub fn game_state_to_view(state: &GameState) -> GameView {
         in_progress,
         content_version: state.content_version.clone(),
         scenario_id: state.scenario_id.map(|m| m.0),
+        game_mode,
+        hatchway_states,
+        secured_objectives,
     }
 }
 
@@ -842,6 +877,15 @@ pub fn tactical_intent_to_string(intent: &TacticalIntent) -> String {
         TacticalIntent::MovementReaction => "Movement Reaction".to_string(),
         TacticalIntent::FightOrderManipulation => "Fight Order Manipulation".to_string(),
         TacticalIntent::DeclineStratagem => "Decline Stratagem".to_string(),
+        // Boarding Actions intents
+        TacticalIntent::OperateHatch => "Operate Hatch".to_string(),
+        TacticalIntent::SecureObjective => "Secure Objective".to_string(),
+        TacticalIntent::DefendPosition => "Defend Position".to_string(),
+        TacticalIntent::ControlChokepoint => "Control Chokepoint".to_string(),
+        TacticalIntent::FlankThroughHatch => "Flank Through Hatch".to_string(),
+        TacticalIntent::ProjectLeaderAbility => "Project Leader Ability".to_string(),
+        TacticalIntent::EnterFromReserves => "Enter From Reserves".to_string(),
+        // Misc intents
         TacticalIntent::ScoreObjective => "Score Objective".to_string(),
         TacticalIntent::AllocateBlessings => "Allocate Blessings".to_string(),
         TacticalIntent::PhaseControl => "Phase Control".to_string(),

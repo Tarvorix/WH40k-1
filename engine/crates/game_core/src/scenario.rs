@@ -5,12 +5,13 @@
 //! Source: implementation_v3.md Section 8.1 (State model)
 //! Source: CP_Rules.md - Combat Patrol game setup
 
+use std::collections::HashMap;
 use wh40k_core_types::{
     ArmorPenetration, ArmorSave, AttackCount, BaseSize, BattleRound, BoardDimensions, Damage,
-    DatasheetId, FactionId, GameOutcome, Inches, Keyword, KeywordSet, Leadership, MissionId,
-    ModelId, MoveCharacteristic, ObjectiveControl, Phase, PlayerId, Position, Skill, Strength,
-    SubPhase, Toughness, UnitId, WeaponAbility, WeaponAbilitySet, WeaponId, WeaponProfile,
-    WeaponType, Wounds,
+    DatasheetId, FactionId, GameMode, GameOutcome, HatchwayId, HatchwayState, Inches, Keyword,
+    KeywordSet, Leadership, MissionId, ModelId, MoveCharacteristic, ObjectiveControl, Phase,
+    PlayerId, Position, Skill, Strength, SubPhase, Toughness, UnitId, WeaponAbility,
+    WeaponAbilitySet, WeaponId, WeaponProfile, WeaponType, Wounds,
 };
 use wh40k_dice::{DiceContext, DiceRoller, SeedBundle, StreamKind};
 use wh40k_event_system::EventBus;
@@ -20,7 +21,10 @@ use wh40k_geometry::{
     create_standard_deployment, create_search_and_destroy_deployment,
 };
 
-use crate::state::{GameState, PlayerState, TurnFlags};
+use crate::state::{
+    BoardingActionsModeState, BoardingMissionSpecificState, GameState, ModeState, PlayerState,
+    TurnFlags,
+};
 use crate::unit::{ModelState, UnitState};
 
 // ---------------------------------------------------------------------------
@@ -158,6 +162,8 @@ impl ScenarioLoader {
             turn_flags: TurnFlags::new(),
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         }
     }
 
@@ -1426,6 +1432,101 @@ impl ScenarioLoader {
 
         units
     }
+
+    // -----------------------------------------------------------------------
+    // Boarding Actions scenario loader
+    // -----------------------------------------------------------------------
+
+    /// Load a Boarding Actions scenario.
+    ///
+    /// Creates a GameState with:
+    /// - game_mode: GameMode::BoardingActions
+    /// - mode_state: Some(ModeState::BoardingActions(...)) with hatchway states, empty secured objectives, etc.
+    /// - board: sized to BoardDimensions::BOARDING_ACTIONS
+    /// - units: empty (army builder / caller is responsible for adding units)
+    /// - players: with CP=0 (CP is gained at start of Command Phase), VP=0, faction IDs
+    ///
+    /// # Arguments
+    /// - `player_a_name` - Display name for Player A
+    /// - `player_b_name` - Display name for Player B
+    /// - `player_a_faction_id` - Faction ID for Player A
+    /// - `player_b_faction_id` - Faction ID for Player B
+    /// - `mission_id` - Optional mission identifier
+    /// - `seed` - Random seed for deterministic dice
+    /// - `hatchway_initial_states` - Map of HatchwayId to initial HatchwayState (from mission data)
+    ///
+    /// # Returns
+    /// A fully initialized GameState ready for the PreBattle/Deployment phase in Boarding Actions mode.
+    ///
+    /// Source: boarding_actions_complete_v3.md
+    /// Source: boarding_actions_integration_rust.md
+    pub fn load_boarding_actions_scenario(
+        player_a_name: &str,
+        player_b_name: &str,
+        player_a_faction_id: FactionId,
+        player_b_faction_id: FactionId,
+        mission_id: Option<MissionId>,
+        seed: [u8; 32],
+        hatchway_initial_states: HashMap<HatchwayId, HatchwayState>,
+    ) -> GameState {
+        // 1. Create the board with Boarding Actions dimensions (42" x 22")
+        let board = Board::new(BoardDimensions::BOARDING_ACTIONS);
+
+        // 2. Create dice roller from seed
+        let bundle = SeedBundle::new(seed, "boarding_actions".to_string(), 0);
+        let ctx = DiceContext::from_bundle(&bundle, StreamKind::BattleShockTest, 0, 0);
+        let dice_roller = DiceRoller::new(ctx);
+
+        // 3. Create player states with CP=0 (CP gained at start of Command Phase)
+        let player_a = {
+            let mut p = PlayerState::new(PlayerId::new(0), player_a_name.to_string());
+            p.faction_id = Some(player_a_faction_id);
+            p
+        };
+        let player_b = {
+            let mut p = PlayerState::new(PlayerId::new(1), player_b_name.to_string());
+            p.faction_id = Some(player_b_faction_id);
+            p
+        };
+
+        // 4. Set up BoardingActionsModeState
+        let ba_state = BoardingActionsModeState {
+            hatchway_states: hatchway_initial_states,
+            secured_objectives: HashMap::new(),
+            tactical_manoeuvres: HashMap::new(),
+            battlefield_command_links: Vec::new(),
+            deep_strike_arrivals_this_round: HashMap::new(),
+            mission_state: BoardingMissionSpecificState::default(),
+        };
+
+        // 5. Assemble the GameState
+        // Player A deploys first in Boarding Actions (attacker)
+        let initial_decision_owner = PlayerId::new(0);
+
+        GameState {
+            content_version: "v1.0.0-boarding-actions".to_string(),
+            scenario_id: mission_id,
+            battle_round: BattleRound::new(1),
+            active_player: PlayerId::new(0),
+            current_phase: Phase::PreBattle,
+            current_subphase: SubPhase::Deployment,
+            decision_owner: initial_decision_owner,
+            players: [player_a, player_b],
+            units: Vec::new(),
+            board,
+            deployment_config: None,
+            event_bus: EventBus::new(),
+            command_history: CommandHistory::new(),
+            dice_roller,
+            active_effects: Vec::new(),
+            reaction_windows: Vec::new(),
+            turn_flags: TurnFlags::new(),
+            game_outcome: GameOutcome::InProgress,
+            deterministic_counter: 0,
+            game_mode: GameMode::BoardingActions,
+            mode_state: Some(ModeState::BoardingActions(ba_state)),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1729,5 +1830,57 @@ mod tests {
         let total_models: usize = we_units.iter().map(|u| u.models.len()).sum();
         // Vorrakh(1) + MoE(1) + Berzerkers(10) + Jakhals(10) = 22
         assert_eq!(total_models, 22);
+    }
+
+    // -----------------------------------------------------------------------
+    // Boarding Actions scenario tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_load_boarding_actions_scenario() {
+        let state = ScenarioLoader::load_boarding_actions_scenario(
+            "Player A",
+            "Player B",
+            FactionId::new(0),
+            FactionId::new(1),
+            None,
+            [0u8; 32],
+            HashMap::new(),
+        );
+
+        assert_eq!(state.game_mode, GameMode::BoardingActions);
+        assert!(state.is_boarding_actions());
+        assert!(state.boarding_state().is_some());
+        assert_eq!(state.board.dimensions, BoardDimensions::BOARDING_ACTIONS);
+        assert_eq!(state.players[0].name, "Player A");
+        assert_eq!(state.players[1].name, "Player B");
+        assert_eq!(state.battle_round, BattleRound::new(1));
+        assert_eq!(state.current_phase, Phase::PreBattle);
+    }
+
+    #[test]
+    fn test_boarding_scenario_with_hatchway_states() {
+        let mut hatches = HashMap::new();
+        hatches.insert(HatchwayId::new(0), HatchwayState::Closed);
+        hatches.insert(HatchwayId::new(1), HatchwayState::Open);
+        hatches.insert(HatchwayId::new(2), HatchwayState::Locked);
+
+        let state = ScenarioLoader::load_boarding_actions_scenario(
+            "Attacker",
+            "Defender",
+            FactionId::new(0),
+            FactionId::new(1),
+            Some(MissionId::new(11)),
+            [42u8; 32],
+            hatches,
+        );
+
+        let ba = state.boarding_state().unwrap();
+        assert_eq!(ba.hatchway_states.len(), 3);
+        assert_eq!(ba.hatchway_states[&HatchwayId::new(0)], HatchwayState::Closed);
+        assert_eq!(ba.hatchway_states[&HatchwayId::new(1)], HatchwayState::Open);
+        assert_eq!(ba.hatchway_states[&HatchwayId::new(2)], HatchwayState::Locked);
+        assert!(ba.secured_objectives.is_empty());
+        assert!(ba.tactical_manoeuvres.is_empty());
     }
 }

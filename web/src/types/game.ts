@@ -239,12 +239,129 @@ export interface ValidationResultView {
 // Difficulty levels for AI
 export type AiDifficulty =
   | 'Basic_Recruit' | 'Basic_Battle_Ready' | 'Basic_Veteran' | 'Basic_Elite'
-  | 'Perturabo_Shallow' | 'Perturabo_Regular' | 'Perturabo_Deep'
-  | 'Alpharius_Shallow' | 'Alpharius_Regular' | 'Alpharius_Deep';
+  | 'Perturabo';
 
 // Screen routing
-export type Screen = 'setup' | 'play' | 'replay' | 'game_end';
+export type Screen = 'menu' | 'setup' | 'boarding_setup' | 'play' | 'replay' | 'game_end';
 
 // Phase names
 export const PHASES = ['Command', 'Movement', 'Shooting', 'Charge', 'Fight'] as const;
 export type PhaseName = typeof PHASES[number];
+
+// ===== Boarding Actions Types =====
+
+export interface BoardingFaction {
+  faction_name: string;
+  faction_keyword: string;
+  army_rule_name: string;
+  army_rule_description: string;
+  detachments: BoardingDetachment[];
+  datasheets: BoardingUnitDatasheet[];
+}
+
+export interface BoardingDetachment {
+  detachment_name: string;
+  detachment_rule_name: string;
+  detachment_rule_description: string;
+  enhancements: BoardingEnhancement[];
+  stratagems: BoardingStratagem[];
+  allowed_units: BoardingUnitRef[];
+  mustering_rules: MusteringRule[];
+}
+
+export interface BoardingEnhancement {
+  name: string;
+  description: string;
+}
+
+export interface BoardingStratagem {
+  name: string;
+  cp_cost: number;
+  timing: string;
+  target: string;
+  effect: string;
+}
+
+export interface BoardingUnitRef {
+  datasheet_name: string;
+  max_count: number | null;
+  allowed_sizes: number[];
+  conditional_limit: string | null;
+}
+
+export interface MusteringRule {
+  rule_type: string;
+  description: string;
+}
+
+export interface BoardingUnitDatasheet {
+  name: string;
+  points: { model_count: number; points: number }[];
+  is_epic_hero: boolean;
+  is_character: boolean;
+  is_battleline: boolean;
+  profile: {
+    movement: string;
+    toughness: number;
+    save: string;
+    wounds: number;
+    leadership: string;
+    oc: number;
+  };
+  ranged_weapons: WeaponProfileView[];
+  melee_weapons: WeaponProfileView[];
+  abilities: { name: string; description: string; ability_type: string }[];
+  leader_info: { can_lead: string[]; leader_abilities: string[] } | null;
+  keywords: string[];
+  faction_keywords: string[];
+  wargear_options: { description: string }[];
+  unit_composition: { model_name: string; count: string }[];
+}
+
+export interface WeaponProfileView {
+  name: string;
+  range: string;
+  attacks: string;
+  skill: string;
+  strength: number;
+  ap: string;
+  damage: string;
+  abilities: string[];
+}
+
+export interface BoardingMissionSummary {
+  mission_id: string;
+  name: string;
+  mission_type: string;
+  tags: string[];
+}
+
+export interface BoardingRosterValidation {
+  valid: boolean;
+  errors: { code: string; message: string }[];
+  warnings: { code: string; message: string }[];
+}
+
+export interface SelectedUnit {
+  datasheet_name: string;
+  model_count: number;
+  points: number;
+  wargear_selections: number[];
+}
+
+export interface EnhancementAssignment {
+  enhancement_name: string;
+  unit_index: number;
+}
+
+// Hatchway view for board rendering
+export interface HatchwayView {
+  id: number;
+  state: 'Open' | 'Closed' | 'Locked' | 'OneWayOpened';
+}
+
+// Secured objective view
+export interface SecuredObjectiveView {
+  objective_id: number;
+  player: number;
+}

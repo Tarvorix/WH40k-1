@@ -206,6 +206,7 @@ impl SearchConfig {
     }
 
     /// Create a config for negamax at the given depth.
+    /// Basic tier — intentionally limited node budget to keep it weaker than Perturabo.
     pub fn negamax(depth: u8) -> Self {
         Self {
             max_depth: depth,
@@ -216,7 +217,7 @@ impl SearchConfig {
             use_move_ordering: true,
             chance_samples: 3,
             heuristic_root_ordering: true,
-            node_budget: 0,
+            node_budget: 5_000, // Low budget — Basic tier should be weaker than Perturabo
             use_iterative_deepening: false,
             use_aspiration_windows: false,
             aspiration_window_initial: 50,
@@ -246,7 +247,7 @@ impl SearchConfig {
             use_move_ordering: true,
             chance_samples: 3,
             heuristic_root_ordering: true,
-            node_budget: 0,
+            node_budget: 40_000, // Hard cap — same-player moves are depth-free
             use_iterative_deepening: true,
             use_aspiration_windows: true,
             aspiration_window_initial: 50,
@@ -309,7 +310,7 @@ pub struct SearchStats {
     pub tt_cutoffs: u64,
     /// Number of transposition table hits for move ordering.
     pub tt_ordering_hits: u64,
-    /// Maximum depth reached during search.
+    /// Maximum ply reached during search (total moves including same-player).
     pub max_depth_reached: u8,
     /// Number of candidate actions generated at root.
     pub root_candidates: usize,
@@ -809,8 +810,12 @@ impl NegamaxSearch {
             return SCORE_WIN - ply as Score;
         }
 
-        // Leaf node: evaluate statically
-        if depth == 0 {
+        // Leaf node: evaluate statically.
+        // Cap at max ply to prevent runaway same-player recursion
+        // (since same-player decisions no longer decrement depth).
+        // 16 plies allows exploring one full player turn (~8-12 actions)
+        // plus seeing opponent response.
+        if depth == 0 || ply >= 16 {
             self.stats.leaf_evaluations += 1;
             return self.evaluator.evaluate(state, perspective);
         }
@@ -913,20 +918,24 @@ impl NegamaxSearch {
                 continue;
             }
 
-            // Determine who decides next in the child state
+            // Determine who decides next in the child state.
+            // Same-player micro-decisions don't consume depth — only opponent
+            // perspective switches cost depth. The ply limit (64) prevents
+            // runaway recursion within a single player's turn, and the node
+            // budget provides a hard cap on total work.
             let child_perspective = child_state.decision_owner;
             let score = if child_perspective == perspective {
-                // Same player continues (e.g., multiple decisions in a phase)
+                // Same player continues — free (ply still increments for safety)
                 self.negamax(
                     &child_state,
-                    depth - 1,
+                    depth,
                     alpha,
                     beta,
                     perspective,
                     ply + 1,
                 )
             } else {
-                // Opponent's turn - negate the score
+                // Opponent's turn — negate the score, consume one depth
                 -self.negamax(
                     &child_state,
                     depth - 1,
@@ -1943,10 +1952,11 @@ impl IterativeDeepeningSearch {
             return SCORE_WIN - ply as Score;
         }
 
-        // Leaf node: use quiescence search or static evaluation
-        if depth == 0 {
+        // Leaf node: use quiescence search or static evaluation.
+        // Cap at max ply to prevent runaway same-player recursion.
+        if depth == 0 || ply >= 16 {
             self.stats.leaf_evaluations += 1;
-            if self.config.use_quiescence {
+            if self.config.use_quiescence && depth == 0 {
                 return self.quiescence(state, alpha, beta, perspective, ply, 0);
             } else {
                 return self.evaluator.evaluate(state, perspective);
@@ -2074,11 +2084,16 @@ impl IterativeDeepeningSearch {
             if extension > 0 {
                 self.stats.extensions += 1;
             }
-            let child_depth = depth - 1 + extension;
             let child_extensions = extensions_used + extension;
 
-            // Determine who decides next in the child state
+            // Determine who decides next in the child state.
+            // Only decrement depth on perspective switch (opponent's turn).
             let child_perspective = child_state.decision_owner;
+            let child_depth = if child_perspective == perspective {
+                depth + extension // Same player — don't consume depth
+            } else {
+                depth - 1 + extension // Opponent — consume one depth
+            };
 
             child_pv.clear();
 
@@ -2254,7 +2269,12 @@ impl IterativeDeepeningSearch {
                     if extension > 0 {
                         self.stats.extensions += 1;
                     }
-                    let child_depth = depth - 1 + extension;
+                    // Only decrement depth on perspective switch
+                    let child_depth = if child_perspective == perspective {
+                        depth + extension
+                    } else {
+                        depth - 1 + extension
+                    };
 
                     child_pv.clear();
 
@@ -3874,7 +3894,7 @@ mod tests {
     /// Create a minimal GameState for testing.
     /// This uses the same pattern as other test modules in the project.
     fn create_test_game_state() -> GameState {
-        use wh40k_core_types::BattleRound;
+        use wh40k_core_types::{BattleRound, GameMode};
         use wh40k_dice::{DiceContext, StreamKind};
 
         let seed = [0u8; 32];
@@ -3904,6 +3924,8 @@ mod tests {
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         }
     }
 

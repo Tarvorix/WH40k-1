@@ -20,9 +20,9 @@ use std::fmt;
 use thiserror::Error;
 
 use wh40k_core_types::{
-    BattleRound, BattleShockResult, EffectDuration, EventId, GameOutcome, IdGenerator,
-    ModelId, MovementAction, ObjectiveId, Phase, PlayerId, Position, ReactionWindowType,
-    SaveType, StratagemId, UnitId, WeaponId,
+    BattleRound, BattleShockResult, EffectDuration, EventId, GameOutcome, HatchwayId,
+    HatchwayState, IdGenerator, ModelId, MovementAction, ObjectiveId, Phase, PlayerId, Position,
+    ReactionWindowType, SaveType, StratagemId, TacticalManoeuvre, UnitId, WeaponId,
 };
 
 // ============================================================================
@@ -695,6 +695,65 @@ pub enum GameEvent {
         new_roll: u8,
     },
 
+    // === Boarding Actions ===
+
+    /// A hatchway has been operated (opened or closed).
+    /// Source: boarding_actions_complete_v3.md Section 3.2
+    HatchwayOperated {
+        hatchway_id: HatchwayId,
+        new_state: HatchwayState,
+        operator_unit: UnitId,
+        player: PlayerId,
+    },
+
+    /// A tactical manoeuvre has been performed.
+    /// Source: boarding_actions_complete_v3.md Section 3.4
+    TacticalManoeuvrePerformed {
+        unit: UnitId,
+        manoeuvre: TacticalManoeuvre,
+        target_objective: Option<ObjectiveId>,
+    },
+
+    /// Battlefield Command stratagem activated — leader projects ability to bodyguard unit.
+    /// Source: boarding_actions_complete_v3.md Section 4.2
+    BattlefieldCommandActivated {
+        leader_unit: UnitId,
+        target_unit: UnitId,
+        ability_name: String,
+    },
+
+    /// A unit arrived from a Boarding Actions entry zone.
+    /// Source: boarding_actions_complete_v3.md Section 7.5
+    EntryZoneArrival {
+        unit: UnitId,
+        entry_zone_id: u32,
+        position: Position,
+    },
+
+    /// Lighting state changed in a region (Death in the Dark).
+    LightingChanged {
+        region_id: u32,
+        lit: bool,
+    },
+
+    /// A compartment has been vented (Hull Breach).
+    CompartmentVented {
+        compartment_id: u32,
+    },
+
+    /// An objective was corrupted and removed (Corrupt the Machine Spirit).
+    ObjectiveCorrupted {
+        objective: ObjectiveId,
+        consequence: String,
+    },
+
+    /// A mission-specific action was performed.
+    BoardingMissionActionPerformed {
+        player: PlayerId,
+        action_type: String,
+        target: Option<String>,
+    },
+
     // === Game End ===
 
     /// The battle has ended.
@@ -753,6 +812,14 @@ impl GameEvent {
             GameEvent::KaTahStanceChosen { .. } => "KaTahStanceChosen",
             GameEvent::StratagemEffectApplied { .. } => "StratagemEffectApplied",
             GameEvent::CommandRerollUsed { .. } => "CommandRerollUsed",
+            GameEvent::HatchwayOperated { .. } => "HatchwayOperated",
+            GameEvent::TacticalManoeuvrePerformed { .. } => "TacticalManoeuvrePerformed",
+            GameEvent::BattlefieldCommandActivated { .. } => "BattlefieldCommandActivated",
+            GameEvent::EntryZoneArrival { .. } => "EntryZoneArrival",
+            GameEvent::LightingChanged { .. } => "LightingChanged",
+            GameEvent::CompartmentVented { .. } => "CompartmentVented",
+            GameEvent::ObjectiveCorrupted { .. } => "ObjectiveCorrupted",
+            GameEvent::BoardingMissionActionPerformed { .. } => "BoardingMissionActionPerformed",
             GameEvent::BattleEnded { .. } => "BattleEnded",
         }
     }
@@ -788,6 +855,10 @@ impl GameEvent {
             GameEvent::ConsolidationMade { unit, .. } => Some(*unit),
             GameEvent::KaTahStanceChosen { unit, .. } => Some(*unit),
             GameEvent::StratagemEffectApplied { target, .. } => Some(*target),
+            GameEvent::HatchwayOperated { operator_unit, .. } => Some(*operator_unit),
+            GameEvent::TacticalManoeuvrePerformed { unit, .. } => Some(*unit),
+            GameEvent::BattlefieldCommandActivated { leader_unit, .. } => Some(*leader_unit),
+            GameEvent::EntryZoneArrival { unit, .. } => Some(*unit),
             _ => None,
         }
     }
@@ -805,6 +876,8 @@ impl GameEvent {
             GameEvent::VictoryPointsScored { player, .. } => Some(*player),
             GameEvent::StratagemUsed { player, .. } => Some(*player),
             GameEvent::CommandRerollUsed { player, .. } => Some(*player),
+            GameEvent::HatchwayOperated { player, .. } => Some(*player),
+            GameEvent::BoardingMissionActionPerformed { player, .. } => Some(*player),
             _ => None,
         }
     }
@@ -1077,6 +1150,95 @@ impl fmt::Display for GameEvent {
                     "Player {} used Command Re-roll on {}: {} -> {}",
                     player, roll_type, original_roll, new_roll
                 )
+            }
+            GameEvent::HatchwayOperated {
+                hatchway_id,
+                new_state,
+                operator_unit,
+                player,
+            } => {
+                write!(
+                    f,
+                    "Player {} unit {} operated hatchway {} -> {:?}",
+                    player, operator_unit, hatchway_id, new_state
+                )
+            }
+            GameEvent::TacticalManoeuvrePerformed {
+                unit,
+                manoeuvre,
+                target_objective,
+            } => {
+                if let Some(obj) = target_objective {
+                    write!(
+                        f,
+                        "Unit {} performed {:?} on objective {}",
+                        unit, manoeuvre, obj
+                    )
+                } else {
+                    write!(f, "Unit {} performed {:?}", unit, manoeuvre)
+                }
+            }
+            GameEvent::BattlefieldCommandActivated {
+                leader_unit,
+                target_unit,
+                ability_name,
+            } => {
+                write!(
+                    f,
+                    "Battlefield Command: leader {} projects '{}' to unit {}",
+                    leader_unit, ability_name, target_unit
+                )
+            }
+            GameEvent::EntryZoneArrival {
+                unit,
+                entry_zone_id,
+                position,
+            } => {
+                write!(
+                    f,
+                    "Unit {} arrived from entry zone {} at {}",
+                    unit, entry_zone_id, position
+                )
+            }
+            GameEvent::LightingChanged { region_id, lit } => {
+                write!(
+                    f,
+                    "Region {} lighting changed to {}",
+                    region_id,
+                    if *lit { "lit" } else { "dark" }
+                )
+            }
+            GameEvent::CompartmentVented { compartment_id } => {
+                write!(f, "Compartment {} vented", compartment_id)
+            }
+            GameEvent::ObjectiveCorrupted {
+                objective,
+                consequence,
+            } => {
+                write!(
+                    f,
+                    "Objective {} corrupted: {}",
+                    objective, consequence
+                )
+            }
+            GameEvent::BoardingMissionActionPerformed {
+                player,
+                action_type,
+                target,
+            } => {
+                if let Some(t) = target {
+                    write!(
+                        f,
+                        "Player {} boarding action '{}' on {}",
+                        player, action_type, t
+                    )
+                } else {
+                    write!(
+                        f,
+                        "Player {} boarding action '{}'",
+                        player, action_type
+                    )
+                }
             }
             GameEvent::BattleEnded { outcome } => {
                 write!(f, "Battle ended: {:?}", outcome)

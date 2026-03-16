@@ -173,6 +173,118 @@ pub enum MovementAction {
     FallBack,
     /// Arrive from Reserves/Deep Strike
     ArriveFromReserves,
+    /// Operate a hatchway (Boarding Actions only)
+    OperateHatchway,
+    /// Arrive from an Entry Zone (Boarding Actions reserves)
+    ArriveFromEntryZone,
+}
+
+// ---------------------------------------------------------------------------
+// Boarding Actions enums
+// ---------------------------------------------------------------------------
+
+/// The game mode determines which ruleset and board topology is active.
+/// Source: boarding_actions_complete_v3.md
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum GameMode {
+    /// Standard Combat Patrol on 44"x30" open board
+    CombatPatrol,
+    /// Boarding Actions on compartmentalized ship interior maps
+    BoardingActions,
+}
+
+impl Default for GameMode {
+    fn default() -> Self {
+        GameMode::CombatPatrol
+    }
+}
+
+/// State of a hatchway on a Boarding Actions map.
+/// Source: boarding_actions_complete_v3.md Section 2
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum HatchwayState {
+    /// Hatchway is open: allows movement and visibility through
+    Open,
+    /// Hatchway is closed: blocks movement and visibility
+    Closed,
+    /// Hatchway is locked: cannot be operated (mission-specific)
+    Locked,
+    /// Hatchway was opened one-way and cannot be closed again (e.g., airlocks)
+    OneWayOpened,
+}
+
+impl HatchwayState {
+    /// Whether this hatchway allows passage through it.
+    pub fn allows_passage(self) -> bool {
+        matches!(self, HatchwayState::Open | HatchwayState::OneWayOpened)
+    }
+
+    /// Whether this hatchway allows line of sight through it.
+    pub fn allows_los(self) -> bool {
+        matches!(self, HatchwayState::Open | HatchwayState::OneWayOpened)
+    }
+
+    /// Whether this hatchway can be toggled by an operate action.
+    pub fn can_operate(self) -> bool {
+        matches!(self, HatchwayState::Open | HatchwayState::Closed)
+    }
+
+    /// Toggle between open and closed. Returns None if not toggleable.
+    pub fn toggle(self) -> Option<HatchwayState> {
+        match self {
+            HatchwayState::Open => Some(HatchwayState::Closed),
+            HatchwayState::Closed => Some(HatchwayState::Open),
+            HatchwayState::Locked | HatchwayState::OneWayOpened => None,
+        }
+    }
+}
+
+/// Tactical Manoeuvres available at the start of the Shooting Phase in Boarding Actions.
+/// Source: boarding_actions_complete_v3.md Section 3.4
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TacticalManoeuvre {
+    /// Secure an objective marker (creates persistent "secured" control).
+    /// Normally BATTLELINE only, but some missions override this.
+    SecureSite,
+    /// +1 to Hit for melee attacks until start of next Command Phase.
+    SetToDefend,
+    /// Unit may fire Overwatch until end of opponent's next turn.
+    SetOverwatch,
+}
+
+/// Role of an entry zone in a Boarding Actions mission.
+/// Source: boarding_actions_complete_v3.md Section 7, boarding_actions_mission_tags_complete_v3.json
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum EntryZoneRole {
+    /// Primary deployment and reserve entry zone
+    Main,
+    /// Extra deployment zone for the underdog player
+    Underdog,
+    /// Patrol Entry Zone with role restrictions
+    Patrol,
+    /// Guard Entry Zone for defender deployment
+    Guard,
+    /// Backup Entry Zone with delayed enablement
+    Backup,
+}
+
+/// Orientation of a hatchway on the map.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum HatchwayOrientation {
+    /// Hatchway opens along the horizontal axis
+    Horizontal,
+    /// Hatchway opens along the vertical axis
+    Vertical,
+}
+
+/// Type of mission (symmetric or asymmetric roles).
+/// Source: boarding_actions_maps_complete_v3.json
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum BoardingMissionType {
+    /// Both players have identical rules and scoring
+    Symmetric,
+    /// Players have distinct Attacker/Defender roles with different rules and scoring
+    Asymmetric,
 }
 
 /// Current status of a unit on the battlefield.

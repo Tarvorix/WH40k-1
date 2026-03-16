@@ -1,0 +1,834 @@
+{
+  "faction_name": "World Eaters",
+  "faction_keyword": "WORLD EATERS",
+  "army_rule_name": "Slaughterers' Glory",
+  "army_rule_description": "Units from your army with the Blessings of Khorne ability retain that ability and gain Slaughterers' Glory. At the start of the battle round, when making a Blessings of Khorne roll: roll four D6 instead of eight D6; you can activate only one Blessing of Khorne per battle round, instead of up to two.",
+  "detachments": [
+    {
+      "detachment_name": "Boarding Butchers",
+      "detachment_rule_name": "Focused Ferocity",
+      "detachment_rule_description": "Each time a WORLD EATERS unit from your army declares a charge, each target of that charge must take a Battle-shock test.",
+      "enhancements": [
+        {
+          "name": "Chosen of Khorne",
+          "description": "Once the bearer has destroyed one or more enemy units, until the end of the battle, each time you make a Blessings of Khorne roll, if the bearer is on the battlefield, you can re-roll all of the dice. If you do, you must re-roll every die."
+        },
+        {
+          "name": "Battle Lust",
+          "description": "Each time an enemy unit is selected to shoot, after that unit has shot, if the bearer was the target of one or more of those attacks, it can make a Battle Lust move. Roll one D6; the bearer can be moved a distance in inches up to the result, but must end that move as close as possible to the attacking unit. When doing so, the bearer can be moved within Engagement Range of that enemy unit, but only that enemy unit."
+        }
+      ],
+      "stratagems": [
+        {
+          "name": "Terrifying Screams",
+          "cp_cost": 1,
+          "timing": "Fight phase, just after a WORLD EATERS unit from your army destroys an enemy unit.",
+          "target": "That WORLD EATERS unit.",
+          "effect": "Until the end of your opponent's next Command phase, subtract 1 from Battle-shock and Leadership tests taken for all enemy units."
+        },
+        {
+          "name": "Unstoppable Rage",
+          "cp_cost": 1,
+          "timing": "Your Movement phase, just after a WORLD EATERS unit from your army (excluding JAKHAL units) opens a Hatchway.",
+          "target": "That unit.",
+          "effect": "For each enemy unit within 3\" of that Hatchway and wholly on the opposite side of it from your unit, until the start of your next Movement phase, that enemy unit is stunned. While a unit is stunned, each time a model in it makes an attack, subtract 1 from the Hit roll."
+        },
+        {
+          "name": "Savage Resilience",
+          "cp_cost": 1,
+          "timing": "Your opponent's Shooting phase, just after an enemy unit has selected its targets.",
+          "target": "One WORLD EATERS unit from your army that was selected as the target of one or more of that attacking unit's attacks.",
+          "effect": "Until the end of the phase, each time an attack is allocated to a model in your unit, subtract 1 from the Damage characteristic of that attack."
+        },
+        {
+          "name": "Cowards' Bane",
+          "cp_cost": 1,
+          "timing": "Your opponent's Movement phase, just after an enemy unit is selected to Fall Back.",
+          "target": "One WORLD EATERS unit from your army (excluding JAKHAL units) within Engagement Range of that enemy unit.",
+          "effect": "Until the end of the phase, each time that enemy unit Falls Back, models in it must take Desperate Escape tests as if their unit was Battle-shocked. If that enemy unit is also Battle-shocked by other means, subtract 1 from each of those Desperate Escape tests."
+        }
+      ],
+      "allowed_units": [
+        {
+          "datasheet_name": "Kharn The Betrayer",
+          "max_count": 1,
+          "allowed_sizes": [1],
+          "conditional_limit": "Shared pool: up to 2 total characters"
+        },
+        {
+          "datasheet_name": "Master of Executions",
+          "max_count": 1,
+          "allowed_sizes": [1],
+          "conditional_limit": "Shared pool: up to 2 total characters"
+        },
+        {
+          "datasheet_name": "Khorne Berzerkers",
+          "max_count": 3,
+          "allowed_sizes": [5, 10],
+          "conditional_limit": null
+        },
+        {
+          "datasheet_name": "Jakhals",
+          "max_count": 3,
+          "allowed_sizes": [10],
+          "conditional_limit": "Combined total of Jakhals units cannot exceed the number of Khorne Berzerkers units"
+        },
+        {
+          "datasheet_name": "Eightbound",
+          "max_count": 1,
+          "allowed_sizes": [3],
+          "conditional_limit": null
+        },
+        {
+          "datasheet_name": "Exalted Eightbound",
+          "max_count": 1,
+          "allowed_sizes": [3],
+          "conditional_limit": null
+        },
+        {
+          "datasheet_name": "Chaos Spawn",
+          "max_count": 1,
+          "allowed_sizes": [2],
+          "conditional_limit": null
+        },
+        {
+          "datasheet_name": "Chaos Terminators",
+          "max_count": 1,
+          "allowed_sizes": [5],
+          "conditional_limit": null
+        }
+      ],
+      "mustering_rules": [
+        {
+          "rule_type": "character_pool",
+          "description": "You can include up to 2 of the following units: Kharn The Betrayer, Master of Executions."
+        },
+        {
+          "rule_type": "unit_limit",
+          "description": "Up to 3 Khorne Berzerkers units (5 or 10 models). Up to 3 Jakhals units (10 models). The combined total of Jakhals units cannot exceed the number of Khorne Berzerkers units."
+        },
+        {
+          "rule_type": "unit_limit",
+          "description": "Up to 1 Eightbound (3 models) and up to 1 Exalted Eightbound (3 models)."
+        },
+        {
+          "rule_type": "unit_limit",
+          "description": "Up to 1 Chaos Spawn (2 models) and up to 1 Chaos Terminators (5 models)."
+        },
+        {
+          "rule_type": "form_boarding_squads",
+          "description": "Do not split Jakhals units into separate units during the Form Boarding Squads step."
+        },
+        {
+          "rule_type": "ability_loss",
+          "description": "Exalted Eightbound lose Overwhelming Wrath."
+        },
+        {
+          "rule_type": "ability_loss",
+          "description": "Jakhals lose Objective Ravaged."
+        },
+        {
+          "rule_type": "ability_loss",
+          "description": "Kharn The Betrayer loses The Betrayer."
+        },
+        {
+          "rule_type": "ability_loss",
+          "description": "Khorne Berzerkers lose Blood Surge."
+        },
+        {
+          "rule_type": "ability_loss",
+          "description": "Chaos Spawn lose Regenerating Monstrosities."
+        },
+        {
+          "rule_type": "battleline_interaction",
+          "description": "Chaos Terminators can perform the Secure Site Tactical Manoeuvre as if they had the BATTLELINE keyword."
+        }
+      ]
+    }
+  ],
+  "datasheets": [
+    {
+      "name": "Kharn The Betrayer",
+      "points": [{"model_count": 1, "points": 100}],
+      "is_epic_hero": true,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "8\"",
+        "toughness": 4,
+        "save": "3+",
+        "wounds": 5,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Plasma pistol - standard",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 7,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        },
+        {
+          "name": "Plasma pistol - supercharge",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-3",
+          "damage": "2",
+          "abilities": ["Hazardous", "Pistol"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Gorechild",
+          "range": "Melee",
+          "attacks": "8",
+          "skill": "2+",
+          "strength": 7,
+          "ap": "-2",
+          "damage": "3",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a Bodyguard unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Blessings of Khorne",
+          "description": "At the start of the battle round, when making a Blessings of Khorne roll, this unit benefits from activated Blessings.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Legendary Killer",
+          "description": "While this model is leading a unit, each time a model in that unit makes a melee attack, re-roll a Hit roll of 1 and re-roll a Wound roll of 1.",
+          "ability_type": "leader"
+        },
+        {
+          "name": "The Betrayer",
+          "description": "At the end of your Charge phase, if this model is leading a unit and that unit is not within Engagement Range of one or more enemy units, you must take a Leadership test for this model. If that test is failed, one Bodyguard model in that unit is destroyed. Lost in Boarding Butchers Boarding Actions.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Berzerker Frenzy",
+          "description": "The first time this model is destroyed, at the end of the phase, roll one D6: on a 2+, set this model back up on the battlefield as close as possible to where it was destroyed and not within Engagement Range of one or more enemy units, with 3 wounds remaining.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Khorne Berzerkers"],
+        "leader_abilities": ["Legendary Killer"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "EPIC HERO", "GRENADES", "CHAOS", "KHORNE", "KHARN THE BETRAYER"],
+      "faction_keywords": ["WORLD EATERS"],
+      "wargear_options": [],
+      "unit_composition": [
+        {"model_name": "Kharn The Betrayer", "count": "1"}
+      ]
+    },
+    {
+      "name": "Master of Executions",
+      "points": [{"model_count": 1, "points": 60}],
+      "is_epic_hero": false,
+      "is_character": true,
+      "is_battleline": false,
+      "profile": {
+        "movement": "8\"",
+        "toughness": 4,
+        "save": "3+",
+        "wounds": 4,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Bolt pistol",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Axe of dismemberment",
+          "range": "Melee",
+          "attacks": "5",
+          "skill": "2+",
+          "strength": 7,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": ["Devastating Wounds", "Precision"]
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Leader",
+          "description": "This model can be attached to a Bodyguard unit.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Blessings of Khorne",
+          "description": "At the start of the battle round, when making a Blessings of Khorne roll, this unit benefits from activated Blessings.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Forwards, for Blood!",
+          "description": "While this model is leading a unit, you can re-roll Advance rolls made for that unit and each time that unit makes a Blood Surge move, you can re-roll the D6 used to determine how far models in that unit move.",
+          "ability_type": "leader"
+        },
+        {
+          "name": "A Worthy Skull",
+          "description": "Each time this model makes a melee attack that targets a CHARACTER unit, you can re-roll the Hit roll and the Wound roll. Each time this model's unit destroys a CHARACTER model, you gain 1CP.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": {
+        "can_lead": ["Khorne Berzerkers"],
+        "leader_abilities": ["Forwards, for Blood!"]
+      },
+      "keywords": ["INFANTRY", "CHARACTER", "CHAOS", "KHORNE", "MASTER OF EXECUTIONS"],
+      "faction_keywords": ["WORLD EATERS"],
+      "wargear_options": [],
+      "unit_composition": [
+        {"model_name": "Master of Executions", "count": "1"}
+      ]
+    },
+    {
+      "name": "Khorne Berzerkers",
+      "points": [{"model_count": 5, "points": 90}, {"model_count": 10, "points": 180}],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": true,
+      "profile": {
+        "movement": "8\"",
+        "toughness": 4,
+        "save": "3+",
+        "wounds": 2,
+        "leadership": "6+",
+        "oc": 2
+      },
+      "ranged_weapons": [
+        {
+          "name": "Bolt pistol",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "4+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        },
+        {
+          "name": "Plasma pistol - standard",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "4+",
+          "strength": 7,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        },
+        {
+          "name": "Plasma pistol - supercharge",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "4+",
+          "strength": 8,
+          "ap": "-3",
+          "damage": "2",
+          "abilities": ["Hazardous", "Pistol"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Chainblade",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 4,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Khornate eviscerator",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Blessings of Khorne",
+          "description": "At the start of the battle round, when making a Blessings of Khorne roll, this unit benefits from activated Blessings.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Blood Surge",
+          "description": "In your opponent's Shooting phase, each time an enemy unit has shot, if any models from this unit were destroyed as a result of those attacks, this unit can make a Blood Surge move. Roll one D6 and add 2; models in this unit move up to that many inches, but the unit must end that move as close as possible to the closest enemy unit (excluding AIRCRAFT). When doing so, those models can be moved within Engagement Range of that enemy unit. This unit cannot make a Blood Surge move while it is Battle-shocked or within Engagement Range of one or more enemy units, and can only make one Blood Surge move per phase. Lost in Boarding Butchers Boarding Actions.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Icon of Khorne",
+          "description": "If the bearer's unit contains one or more Icons of Khorne, each time the bearer's unit destroys an enemy unit, you gain 1 Bloodshed point. Each time you make a Blessings of Khorne roll, roll one additional D6 for each Bloodshed point you have, after which all your Bloodshed points are lost.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["INFANTRY", "GRENADES", "CHAOS", "KHORNE", "KHORNE BERZERKERS"],
+      "faction_keywords": ["WORLD EATERS"],
+      "wargear_options": [
+        {"description": "The Khorne Berzerker Champion's bolt pistol can be replaced with 1 plasma pistol."},
+        {"description": "For every 5 models in this unit, 1 Khorne Berzerker's bolt pistol can be replaced with 1 plasma pistol."},
+        {"description": "For every 5 models in this unit, 1 Khorne Berzerker's chainblade can be replaced with 1 Khornate eviscerator."},
+        {"description": "1 model can be equipped with 1 icon of Khorne."}
+      ],
+      "unit_composition": [
+        {"model_name": "Khorne Berzerker Champion", "count": "1"},
+        {"model_name": "Khorne Berzerker", "count": "4-9"}
+      ]
+    },
+    {
+      "name": "Jakhals",
+      "points": [{"model_count": 10, "points": 65}],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": false,
+      "profile": {
+        "movement": "7\"",
+        "toughness": 4,
+        "save": "6+",
+        "wounds": 1,
+        "leadership": "7+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Autopistol",
+          "range": "12\"",
+          "attacks": "1",
+          "skill": "4+",
+          "strength": 3,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Pistol"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Chainblades",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "4+",
+          "strength": 3,
+          "ap": "0",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Paired manglers",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "4+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Mauler chainblade",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "5+",
+          "strength": 4,
+          "ap": "-1",
+          "damage": "2",
+          "abilities": []
+        },
+        {
+          "name": "Skullsmasher and mangler",
+          "range": "Melee",
+          "attacks": "2",
+          "skill": "4+",
+          "strength": 4,
+          "ap": "-1",
+          "damage": "2",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Blessings of Khorne",
+          "description": "At the start of the battle round, when making a Blessings of Khorne roll, this unit benefits from activated Blessings.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Objective Ravaged",
+          "description": "At the end of your Command phase, if this unit is within range of an objective marker you control, that objective marker remains under your control until your opponent's Level of Control over that objective marker is greater than yours at the end of a phase. Lost in Boarding Butchers Boarding Actions.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Icon of Khorne",
+          "description": "If the bearer's unit contains one or more Icons of Khorne, each time the bearer's unit destroys an enemy unit, you gain 1 Bloodshed point. Each time you make a Blessings of Khorne roll, roll one additional D6 for each Bloodshed point you have, after which all your Bloodshed points are lost.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["INFANTRY", "CHAOS", "KHORNE", "JAKHALS"],
+      "faction_keywords": ["WORLD EATERS"],
+      "wargear_options": [
+        {"description": "For every 10 models in this unit, 1 Jakhal's chainblades can be replaced with 1 mauler chainblade."},
+        {"description": "Any number of Dishonoured models can each have their paired manglers replaced with 1 skullsmasher and mangler."},
+        {"description": "For every 10 models in this unit, 1 Jakhal can be equipped with 1 icon of Khorne."}
+      ],
+      "unit_composition": [
+        {"model_name": "Jakhal Pack Leader", "count": "1"},
+        {"model_name": "Dishonoured", "count": "1"},
+        {"model_name": "Jakhal", "count": "8"}
+      ]
+    },
+    {
+      "name": "Eightbound",
+      "points": [{"model_count": 3, "points": 135}],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": false,
+      "profile": {
+        "movement": "10\"",
+        "toughness": 6,
+        "save": "3+",
+        "wounds": 3,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [],
+      "melee_weapons": [
+        {
+          "name": "Chainblades",
+          "range": "Melee",
+          "attacks": "5",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Scouts 6\"",
+          "description": "This unit can make a Normal move of up to 6\" as if it were your Movement phase, but must end that move more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Blessings of Khorne",
+          "description": "At the start of the battle round, when making a Blessings of Khorne roll, this unit benefits from activated Blessings.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 5+",
+          "description": "This model has a 5+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Beacons of Rage",
+          "description": "Aura: While a friendly WORLD EATERS unit is within 6\" of this unit, each time a model in that unit makes a melee attack that targets a unit (excluding MONSTERS and VEHICLES), add 1 to the Hit roll. If that attack targets a unit (excluding MONSTERS and VEHICLES) that is Below Half-strength, add 1 to the Wound roll as well.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["INFANTRY", "CHAOS", "KHORNE", "DAEMON", "POSSESSED", "EIGHTBOUND"],
+      "faction_keywords": ["WORLD EATERS"],
+      "wargear_options": [],
+      "unit_composition": [
+        {"model_name": "Eightbound Champion", "count": "1"},
+        {"model_name": "Eightbound", "count": "2"}
+      ]
+    },
+    {
+      "name": "Exalted Eightbound",
+      "points": [{"model_count": 3, "points": 140}],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": false,
+      "profile": {
+        "movement": "10\"",
+        "toughness": 6,
+        "save": "3+",
+        "wounds": 3,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [],
+      "melee_weapons": [
+        {
+          "name": "Chainblades",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-3",
+          "damage": "2",
+          "abilities": ["Anti-Monster 3+", "Anti-Vehicle 3+"]
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "During the Declare Battle Formations step, if every model in a unit has this ability, you can set it up in Reserves instead of setting it up on the battlefield. If you do, in the Reinforcements step of one of your Movement phases you can set up this unit anywhere on the battlefield that is more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Blessings of Khorne",
+          "description": "At the start of the battle round, when making a Blessings of Khorne roll, this unit benefits from activated Blessings.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 5+",
+          "description": "This model has a 5+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Rend and Tear",
+          "description": "Each time a model in this unit makes a melee attack that targets a MONSTER or VEHICLE unit, until the end of the phase, improve the Damage characteristic of that attack by 1.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Overwhelming Wrath",
+          "description": "Listed on the full datasheet, but lost in Boarding Butchers Boarding Actions.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["INFANTRY", "CHAOS", "KHORNE", "DAEMON", "POSSESSED", "EXALTED EIGHTBOUND"],
+      "faction_keywords": ["WORLD EATERS"],
+      "wargear_options": [],
+      "unit_composition": [
+        {"model_name": "Exalted Eightbound Champion", "count": "1"},
+        {"model_name": "Exalted Eightbound", "count": "2"}
+      ]
+    },
+    {
+      "name": "Chaos Spawn",
+      "points": [{"model_count": 2, "points": 90}],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": false,
+      "profile": {
+        "movement": "10\"",
+        "toughness": 5,
+        "save": "4+",
+        "wounds": 4,
+        "leadership": "7+",
+        "oc": 1
+      },
+      "ranged_weapons": [],
+      "melee_weapons": [
+        {
+          "name": "Hideous mutations",
+          "range": "Melee",
+          "attacks": "D6+4",
+          "skill": "4+",
+          "strength": 5,
+          "ap": "-1",
+          "damage": "2",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Feel No Pain 5+",
+          "description": "Each time a model in this unit would lose a wound, roll one D6: on a 5+, that wound is not lost.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Scouts 8\"",
+          "description": "This unit can make a Normal move of up to 8\" as if it were your Movement phase, but must end that move more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Blessings of Khorne",
+          "description": "At the start of the battle round, when making a Blessings of Khorne roll, this unit benefits from activated Blessings.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "To Slake its Rage",
+          "description": "This unit is eligible to declare a charge in a turn in which it Advanced.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Regenerating Monstrosities",
+          "description": "Listed on the full datasheet, but lost in Boarding Butchers Boarding Actions.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["BEAST", "CHAOS", "KHORNE", "SPAWN"],
+      "faction_keywords": ["WORLD EATERS"],
+      "wargear_options": [],
+      "unit_composition": [
+        {"model_name": "Chaos Spawn", "count": "2"}
+      ]
+    },
+    {
+      "name": "Chaos Terminators",
+      "points": [{"model_count": 5, "points": 175}],
+      "is_epic_hero": false,
+      "is_character": false,
+      "is_battleline": false,
+      "profile": {
+        "movement": "7\"",
+        "toughness": 5,
+        "save": "2+",
+        "wounds": 3,
+        "leadership": "6+",
+        "oc": 1
+      },
+      "ranged_weapons": [
+        {
+          "name": "Combi-bolter",
+          "range": "24\"",
+          "attacks": "2",
+          "skill": "4+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Rapid Fire 4"]
+        },
+        {
+          "name": "Combi-weapon",
+          "range": "24\"",
+          "attacks": "1",
+          "skill": "4+",
+          "strength": 4,
+          "ap": "0",
+          "damage": "1",
+          "abilities": ["Anti-Infantry 4+", "Devastating Wounds", "Rapid Fire 1"]
+        },
+        {
+          "name": "Heavy flamer",
+          "range": "12\"",
+          "attacks": "D6",
+          "skill": "N/A",
+          "strength": 5,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": ["Ignores Cover", "Torrent"]
+        },
+        {
+          "name": "Reaper autocannon",
+          "range": "36\"",
+          "attacks": "4",
+          "skill": "4+",
+          "strength": 7,
+          "ap": "-1",
+          "damage": "1",
+          "abilities": ["Devastating Wounds", "Rapid Fire 2", "Sustained Hits 1"]
+        }
+      ],
+      "melee_weapons": [
+        {
+          "name": "Accursed weapon",
+          "range": "Melee",
+          "attacks": "4",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": []
+        },
+        {
+          "name": "Chainfist",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "4+",
+          "strength": 8,
+          "ap": "-3",
+          "damage": "2",
+          "abilities": ["Anti-Vehicle 3+"]
+        },
+        {
+          "name": "Paired accursed weapons",
+          "range": "Melee",
+          "attacks": "5",
+          "skill": "3+",
+          "strength": 5,
+          "ap": "-2",
+          "damage": "1",
+          "abilities": ["Twin-linked"]
+        },
+        {
+          "name": "Power fist",
+          "range": "Melee",
+          "attacks": "3",
+          "skill": "3+",
+          "strength": 8,
+          "ap": "-2",
+          "damage": "2",
+          "abilities": []
+        }
+      ],
+      "abilities": [
+        {
+          "name": "Deep Strike",
+          "description": "During the Declare Battle Formations step, if every model in a unit has this ability, you can set it up in Reserves instead of setting it up on the battlefield. If you do, in the Reinforcements step of one of your Movement phases you can set up this unit anywhere on the battlefield that is more than 9\" horizontally away from all enemy models.",
+          "ability_type": "core"
+        },
+        {
+          "name": "Blessings of Khorne",
+          "description": "At the start of the battle round, when making a Blessings of Khorne roll, this unit benefits from activated Blessings.",
+          "ability_type": "faction"
+        },
+        {
+          "name": "Invulnerable Save 4+",
+          "description": "This model has a 4+ invulnerable save.",
+          "ability_type": "invulnerable_save"
+        },
+        {
+          "name": "Bloody Fury",
+          "description": "Each time a model in this unit makes a ranged attack that targets the closest enemy unit, you can re-roll the Hit roll. Each time this unit declares a charge that targets the closest eligible enemy unit, you can re-roll the Charge roll.",
+          "ability_type": "unit"
+        },
+        {
+          "name": "Secure Site (Boarding Actions)",
+          "description": "In this Boarding Actions detachment, Chaos Terminator Squads can perform the Secure Site Tactical Manoeuvre as if they had the BATTLELINE keyword.",
+          "ability_type": "unit"
+        }
+      ],
+      "leader_info": null,
+      "keywords": ["INFANTRY", "CHAOS", "KHORNE", "TERMINATOR", "CHAOS TERMINATORS"],
+      "faction_keywords": ["WORLD EATERS"],
+      "wargear_options": [
+        {"description": "For every 5 models in this unit, 1 Chaos Terminator's combi-bolter can be replaced with one of the following: 1 heavy flamer or 1 reaper autocannon."},
+        {"description": "Any number of models can each have their combi-bolter replaced with 1 combi-weapon."},
+        {"description": "For every 5 models in this unit, 1 model's combi-bolter and accursed weapon can be replaced with 1 paired accursed weapons."},
+        {"description": "For every 5 models in this unit, up to 3 models can each have their accursed weapon replaced with 1 power fist."},
+        {"description": "For every 5 models in this unit, 1 model's accursed weapon can be replaced with 1 chainfist."}
+      ],
+      "unit_composition": [
+        {"model_name": "Terminator Champion", "count": "1"},
+        {"model_name": "Chaos Terminator", "count": "4"}
+      ]
+    }
+  ]
+}

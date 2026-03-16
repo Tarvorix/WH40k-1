@@ -995,7 +995,7 @@ mod tests {
         Condition,
     };
     use wh40k_core_types::{
-        ArmorSave, BaseSize, DatasheetId, Inches, KeywordSet, Keyword,
+        ArmorSave, BaseSize, DatasheetId, GameMode, Inches, KeywordSet, Keyword,
         Leadership, MissionId, ModelId, MoveCharacteristic, ObjectiveControl,
         PlayerId, Position, Toughness, UnitId, UnitStatus, Wounds,
     };
@@ -1192,6 +1192,8 @@ mod tests {
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         };
 
         let events = MissionRuntime::apply_battle_ready_bonus(&state);
@@ -1302,6 +1304,8 @@ mod tests {
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         };
 
         let mission = MissionRuntime::create_clash_of_patrols();
@@ -1346,6 +1350,8 @@ mod tests {
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         };
 
         let mission = MissionRuntime::create_clash_of_patrols();
@@ -1427,6 +1433,8 @@ mod tests {
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         };
 
         let mission = MissionRuntime::create_clash_of_patrols();

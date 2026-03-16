@@ -12,9 +12,9 @@
 
 use wh40k_core_types::{
     ArmorSave, BaseSize, BattleRound, CommandPoints, DatasheetId, EffectDuration, FactionId,
-    GameOutcome, Inches, InvulnerableSave, Keyword, KeywordSet, Leadership, MissionId, ModelId,
-    MoveCharacteristic, ObjectiveControl, Phase, PlayerId, Position, StackingBehavior, StratagemId,
-    SubPhase, Toughness, UnitId, VictoryPoints, Wounds,
+    GameMode, GameOutcome, Inches, InvulnerableSave, Keyword, KeywordSet, Leadership, MissionId,
+    ModelId, MoveCharacteristic, ObjectiveControl, Phase, PlayerId, Position, StackingBehavior,
+    StratagemId, SubPhase, Toughness, UnitId, VictoryPoints, Wounds,
 };
 use wh40k_command_system::{Command, CommandHistory};
 use wh40k_determinism::{
@@ -65,6 +65,8 @@ fn create_test_game_state(seed: u64) -> GameState {
         game_outcome: GameOutcome::InProgress,
         deterministic_counter: 0,
         deployment_config: None,
+        game_mode: GameMode::CombatPatrol,
+        mode_state: None,
     }
 }
 

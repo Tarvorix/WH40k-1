@@ -17,7 +17,7 @@
 use serde::{Deserialize, Serialize};
 
 use wh40k_core_types::{
-    BattleRound, EnhancementId, FactionId, GameOutcome, MissionId, Phase, PlayerId,
+    BattleRound, EnhancementId, FactionId, GameMode, GameOutcome, MissionId, Phase, PlayerId,
     SecondaryObjectiveId,
 };
 use wh40k_command_system::Command;
@@ -94,6 +94,8 @@ pub struct ReplayHeader {
     pub seed_bundle: SeedBundle,
     /// Player names and faction selections.
     pub players: [ReplayPlayerInfo; 2],
+    /// Game mode (CombatPatrol or BoardingActions).
+    pub game_mode: GameMode,
     /// Mission/scenario being played.
     pub mission_id: Option<MissionId>,
     /// Timestamp when the game started (Unix seconds).
@@ -223,6 +225,7 @@ impl ReplayRecorder {
             content_version: state.content_version.clone(),
             seed_bundle,
             players,
+            game_mode: state.game_mode,
             mission_id: state.scenario_id,
             started_at: current_timestamp_secs(),
             ended_at: None,
@@ -680,7 +683,11 @@ pub fn export_summary(replay: &ReplayFile) -> String {
     let mut out = String::new();
 
     // ── Header ──────────────────────────────────────────────────────
-    out.push_str("=== WH40K Combat Patrol - Replay Summary ===\n");
+    let mode_str = match replay.header.game_mode {
+        GameMode::CombatPatrol => "Combat Patrol",
+        GameMode::BoardingActions => "Boarding Actions",
+    };
+    out.push_str(&format!("=== WH40K {} - Replay Summary ===\n", mode_str));
     out.push_str(&format!("Format version: {}\n", replay.format_version));
     out.push_str(&format!("Engine version: {}\n", replay.header.engine_version));
     out.push_str(&format!("Content version: {}\n", replay.header.content_version));
@@ -1004,6 +1011,17 @@ impl ReplayDiff {
             });
         }
 
+        if a.header.game_mode != b.header.game_mode {
+            differences.push(ReplayDifference {
+                frame_index: 0,
+                diff_type: DiffType::HeaderMismatch,
+                description: format!(
+                    "Game mode differs: {:?} vs {:?}",
+                    a.header.game_mode, b.header.game_mode
+                ),
+            });
+        }
+
         if a.header.initial_state_hash != b.header.initial_state_hash {
             differences.push(ReplayDifference {
                 frame_index: 0,
@@ -1272,6 +1290,7 @@ mod tests {
                 test_player_info(0, "Alice"),
                 test_player_info(1, "Bob"),
             ],
+            game_mode: GameMode::CombatPatrol,
             mission_id: None,
             started_at: 1700000000,
             ended_at: Some(1700003600),
@@ -1976,6 +1995,7 @@ mod tests {
         assert_eq!(back.initial_state_hash, header.initial_state_hash);
         assert_eq!(back.final_state_hash, header.final_state_hash);
         assert_eq!(back.mission_id, header.mission_id);
+        assert_eq!(back.game_mode, header.game_mode);
     }
 
     #[test]

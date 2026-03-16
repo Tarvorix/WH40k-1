@@ -45,7 +45,9 @@ git config user.email "Tarvorix@users.noreply.github.com"
 - Use implementation_v3.md, architecture.md, mcp_api.md, repo_scaffold.md, rules_coverage_matrix.md as primary planning documents.
 - Primary Rules Documents: 40k_revised.md and CP_Rules.md
 - Inital Combat Patrol Factions: Frenzied_Reavers.md and Custodes.md
-
+- Boarding Actions Rules/Map Documents: boarding_actions_complete_v3.md, boarding_patrol_missions_complete_v3.md, boarding_actions_maps_complete_v3.json, boarding_actions_objectives_complete_v3.json and boarding_actions_mission_tags_complete_v3.json
+- Boarding Actions Integration Document: boarding_actions_integration_rust.md
+- Boarding Actions Factions/Detachment Rules and Datasheets: Astra_Militarum_BA_Tempestus_Boarding_Regiment.md, World_Eaters_BA_Boarding_Butchers.md, World_Eaters_BA_Skullsworn.md, Chaos_Space_Marines_BA_Champions_of_Chaos.md, Chaos_Space_Marines_BA_Underdeck_Uprising.md, Space_Marines_BA_Terminator_Assault.md
 
 ## Project Rules
 - Always create plan

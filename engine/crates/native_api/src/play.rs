@@ -104,13 +104,18 @@ pub fn run_play(config: PlayConfig) -> PlayResult {
                 let action = &search_result.best_action;
 
                 if config.verbose {
-                    println!("BR{} {:?} P{}: {} (intent: {:?}, score: {})",
+                    let s = &search_result.stats;
+                    println!("BR{} {:?} P{}: {} (intent: {:?}, score: {}, iter={}, ply={}, nodes={}, leaves={})",
                         state.battle_round.number(),
                         state.current_phase,
                         perspective.raw(),
                         action.label,
                         action.intent,
                         search_result.score,
+                        s.iterations_completed,
+                        s.max_depth_reached,
+                        s.nodes_evaluated,
+                        s.leaf_evaluations,
                     );
                 }
 

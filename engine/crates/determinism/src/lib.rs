@@ -544,7 +544,7 @@ pub struct FuzzFailure {
 mod tests {
     use super::*;
     use wh40k_core_types::{
-        BattleRound, CommandId, GameOutcome, Phase, PlayerId, SubPhase,
+        BattleRound, CommandId, GameMode, GameOutcome, Phase, PlayerId, SubPhase,
     };
     use wh40k_command_system::{Command, CommandHistory, CommandRecord, CommandValidationResult};
     use wh40k_dice::{DiceContext, DiceRoller, StreamKind};
@@ -581,6 +581,8 @@ mod tests {
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 0,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         }
     }
 
@@ -613,6 +615,8 @@ mod tests {
             game_outcome: GameOutcome::InProgress,
             deterministic_counter: 42,
             deployment_config: None,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
         }
     }
 
