@@ -1298,6 +1298,22 @@ pub fn play_single_game(
 
     // Load the scenario based on game mode
     let mut state = if match_config.game_mode == GameMode::BoardingActions {
+        // Load faction definitions for BA selfplay
+        let faction_jsons: &[&str] = &[
+            include_str!("../../../../content/boarding_actions/factions/space_marines_terminator_assault.json"),
+            include_str!("../../../../content/boarding_actions/factions/world_eaters_boarding_butchers.json"),
+            include_str!("../../../../content/boarding_actions/factions/world_eaters_skullsworn.json"),
+            include_str!("../../../../content/boarding_actions/factions/csm_champions_of_chaos.json"),
+            include_str!("../../../../content/boarding_actions/factions/csm_underdeck_uprising.json"),
+            include_str!("../../../../content/boarding_actions/factions/astra_militarum_tempestus.json"),
+        ];
+        let factions: Vec<wh40k_boarding_content::faction_data::BoardingFactionDef> = faction_jsons
+            .iter()
+            .map(|json| serde_json::from_str(json).expect("Failed to parse faction JSON"))
+            .collect();
+        let fa_idx = (match_config.player1_faction.raw() as usize).min(factions.len() - 1);
+        let fb_idx = (match_config.player2_faction.raw() as usize).min(factions.len() - 1);
+
         ScenarioLoader::load_boarding_actions_scenario(
             "Player A",
             "Player B",
@@ -1306,6 +1322,10 @@ pub fn play_single_game(
             match_config.mission_id,
             match_config.seed,
             std::collections::HashMap::new(), // default hatchway states
+            None, // auto-generate roster for player A
+            None, // auto-generate roster for player B
+            &factions[fa_idx],
+            &factions[fb_idx],
         )
     } else {
         ScenarioLoader::load_scenario(

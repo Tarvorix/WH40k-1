@@ -455,13 +455,28 @@ impl CommandValidator {
         }
 
         // Check that the position is within the player's deployment zone
-        // Source: CP_Rules.md - "Models must be set up wholly within their deployment zone"
         if let Some(ref config) = state.deployment_config {
+            // Combat Patrol: check standard deployment zones
+            // Source: CP_Rules.md - "Models must be set up wholly within their deployment zone"
             let zone = config.zone_for(player);
             if !zone.contains(position) {
                 return CommandValidationResult::illegal_with_ref(
                     "Position is outside the player's deployment zone",
                     "CP_Rules.md - Deployment zones",
+                );
+            }
+        } else if let Some(ref bmap) = state.board.boarding_map {
+            // Boarding Actions: check entry zones assigned to this player
+            // Source: boarding_actions_complete_v3.md - Entry zones
+            let in_entry_zone = bmap.entry_zones.iter().any(|ez| {
+                ez.enabled
+                    && ez.player_assignment == Some(player)
+                    && ez.boundary.contains(position)
+            });
+            if !in_entry_zone {
+                return CommandValidationResult::illegal_with_ref(
+                    "Position is outside the player's entry zone",
+                    "boarding_actions_complete_v3.md - Entry zones",
                 );
             }
         }

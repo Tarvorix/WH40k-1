@@ -14,4 +14,5 @@ wh40k_geometry = { workspace = true }
 wh40k_event_system = { workspace = true }
 wh40k_command_system = { workspace = true }
 wh40k_content_schema = { workspace = true }
+wh40k_boarding_content = { workspace = true }
 ahash = { workspace = true }

@@ -64,20 +64,24 @@ pub enum Keyword {
     Berzerkers = 28,
     Jakhals = 29,
 
-    // === Reserved for future factions ===
-    // Add new keywords here for additional factions.
-    // Then recompile. No engine logic changes needed.
-    Tyranids = 30,
-    Orks = 31,
-    Aeldari = 32,
-    Drukhari = 33,
-    Necrons = 34,
-    TauEmpire = 35,
-    GscCults = 36,
-    DeathGuard = 37,
-    ThousandSons = 38,
-    GreyKnights = 39,
-    SistersOfBattle = 40,
+    // === Faction Keywords - Chaos Space Marines (Boarding Actions) ===
+    HereticAstartes = 30,
+    ChaosUndivided = 31,
+
+    // === Faction Keywords - Astra Militarum (Boarding Actions) ===
+    AstraMilitarum = 32,
+    MilitarumTempestus = 33,
+
+    // === Type/Role Keywords - Boarding Actions ===
+    Ogryn = 34,
+    Possessed = 35,
+    Eightbound = 36,
+    Officer = 37,
+    Spawn = 38,
+    Chosen = 39,
+    TerminatorArmour = 40,
+
+    // === Special Keywords ===
     Psyker = 41,
     Fly = 42,
     Walker = 43,
@@ -85,6 +89,21 @@ pub enum Keyword {
     Smoke = 45,
     Aircraft = 46,
     Titanic = 47,
+
+    // === Reserved for future factions ===
+    Tyranids = 48,
+    Orks = 49,
+    Aeldari = 50,
+    Drukhari = 51,
+    Necrons = 52,
+    TauEmpire = 53,
+    GscCults = 54,
+    DeathGuard = 55,
+    ThousandSons = 56,
+    GreyKnights = 57,
+    SistersOfBattle = 58,
+    Damned = 59,
+    Tacticus = 60,
 }
 
 impl Keyword {
@@ -96,6 +115,84 @@ impl Keyword {
     /// Get the bit index for this keyword (for KeywordSet).
     pub fn bit_index(self) -> u8 {
         self as u8
+    }
+
+    /// Parse a keyword string (from Boarding Actions JSON datasheets) into a Keyword enum.
+    /// Returns None for unit-specific keywords that aren't mechanically relevant
+    /// (e.g., "KHARN THE BETRAYER", "ARJAC ROCKFIST").
+    pub fn from_keyword_str(s: &str) -> Option<Self> {
+        match s.trim().to_uppercase().as_str() {
+            // Type keywords
+            "INFANTRY" => Some(Keyword::Infantry),
+            "MONSTER" => Some(Keyword::Monster),
+            "VEHICLE" => Some(Keyword::Vehicle),
+            "MOUNTED" => Some(Keyword::Mounted),
+            "BEAST" => Some(Keyword::Beast),
+            "SWARM" => Some(Keyword::Swarm),
+            "TERMINATOR" => Some(Keyword::Terminator),
+            "OGRYN" => Some(Keyword::Ogryn),
+            "SPAWN" => Some(Keyword::Spawn),
+
+            // Role keywords
+            "CHARACTER" => Some(Keyword::Character),
+            "BATTLELINE" => Some(Keyword::Battleline),
+            "DEDICATED TRANSPORT" => Some(Keyword::DedicatedTransport),
+            "EPIC HERO" => Some(Keyword::EpicHero),
+            "LEADER" => Some(Keyword::Leader),
+            "OFFICER" => Some(Keyword::Officer),
+
+            // Faction keywords - Imperium
+            "IMPERIUM" => Some(Keyword::Imperium),
+            "ADEPTUS CUSTODES" => Some(Keyword::AdeptusCustodes),
+            "SPACE MARINES" => Some(Keyword::SpaceMarines),
+            "ADEPTUS ASTARTES" => Some(Keyword::Astartes),
+
+            // Faction keywords - Chaos
+            "CHAOS" => Some(Keyword::Chaos),
+            "KHORNE" => Some(Keyword::Khorne),
+            "DAEMON" => Some(Keyword::Daemon),
+            "WORLD EATERS" => Some(Keyword::WorldEaters),
+            "HERETIC ASTARTES" => Some(Keyword::HereticAstartes),
+            "CHAOS UNDIVIDED" => Some(Keyword::ChaosUndivided),
+
+            // Faction keywords - Astra Militarum
+            "ASTRA MILITARUM" => Some(Keyword::AstraMilitarum),
+            "MILITARUM TEMPESTUS" => Some(Keyword::MilitarumTempestus),
+
+            // Unit type keywords
+            "POSSESSED" => Some(Keyword::Possessed),
+            "EIGHTBOUND" | "EXALTED EIGHTBOUND" => Some(Keyword::Eightbound),
+            "CHOSEN" => Some(Keyword::Chosen),
+            "TERMINATOR ARMOUR" => Some(Keyword::TerminatorArmour),
+            "DAMNED" => Some(Keyword::Damned),
+            "TACTICUS" => Some(Keyword::Tacticus),
+
+            // Special keywords
+            "PSYKER" => Some(Keyword::Psyker),
+            "FLY" => Some(Keyword::Fly),
+            "WALKER" => Some(Keyword::Walker),
+            "GRENADES" => Some(Keyword::Grenades),
+            "SMOKE" => Some(Keyword::Smoke),
+            "AIRCRAFT" => Some(Keyword::Aircraft),
+            "TITANIC" => Some(Keyword::Titanic),
+
+            // Unit-specific keywords (not mechanically relevant, silently ignored)
+            _ => None,
+        }
+    }
+}
+
+impl KeywordSet {
+    /// Build a KeywordSet from a slice of keyword strings (from BA JSON datasheets).
+    /// Unknown keywords are silently ignored.
+    pub fn from_keyword_strings(strings: &[String]) -> Self {
+        let mut set = KeywordSet::empty();
+        for s in strings {
+            if let Some(kw) = Keyword::from_keyword_str(s) {
+                set |= KeywordSet::from_keyword(kw);
+            }
+        }
+        set
     }
 }
 
@@ -135,17 +232,20 @@ bitflags! {
         const MASTER_OF_EXECUTIONS = 1 << 27;
         const BERZERKERS = 1 << 28;
         const JAKHALS = 1 << 29;
-        const TYRANIDS = 1 << 30;
-        const ORKS = 1 << 31;
-        const AELDARI = 1 << 32;
-        const DRUKHARI = 1 << 33;
-        const NECRONS = 1 << 34;
-        const TAU_EMPIRE = 1 << 35;
-        const GSC_CULTS = 1 << 36;
-        const DEATH_GUARD = 1 << 37;
-        const THOUSAND_SONS = 1 << 38;
-        const GREY_KNIGHTS = 1 << 39;
-        const SISTERS_OF_BATTLE = 1 << 40;
+        // BA faction keywords
+        const HERETIC_ASTARTES = 1 << 30;
+        const CHAOS_UNDIVIDED = 1 << 31;
+        const ASTRA_MILITARUM = 1 << 32;
+        const MILITARUM_TEMPESTUS = 1 << 33;
+        // BA type/role keywords
+        const OGRYN = 1 << 34;
+        const POSSESSED = 1 << 35;
+        const EIGHTBOUND = 1 << 36;
+        const OFFICER = 1 << 37;
+        const SPAWN = 1 << 38;
+        const CHOSEN = 1 << 39;
+        const TERMINATOR_ARMOUR = 1 << 40;
+        // Special keywords
         const PSYKER = 1 << 41;
         const FLY = 1 << 42;
         const WALKER = 1 << 43;
@@ -153,6 +253,20 @@ bitflags! {
         const SMOKE = 1 << 45;
         const AIRCRAFT = 1 << 46;
         const TITANIC = 1 << 47;
+        // Reserved
+        const TYRANIDS = 1 << 48;
+        const ORKS = 1 << 49;
+        const AELDARI = 1 << 50;
+        const DRUKHARI = 1 << 51;
+        const NECRONS = 1 << 52;
+        const TAU_EMPIRE = 1 << 53;
+        const GSC_CULTS = 1 << 54;
+        const DEATH_GUARD = 1 << 55;
+        const THOUSAND_SONS = 1 << 56;
+        const GREY_KNIGHTS = 1 << 57;
+        const SISTERS_OF_BATTLE = 1 << 58;
+        const DAMNED = 1 << 59;
+        const TACTICUS = 1 << 60;
     }
 }
 

@@ -26,6 +26,11 @@ use crate::state::{
     TurnFlags,
 };
 use crate::unit::{ModelState, UnitState};
+use crate::boarding_unit_builder::{
+    IdAllocator, PlayerRoster, build_roster_units, auto_generate_roster,
+};
+use crate::boarding_map_layouts;
+use wh40k_boarding_content::faction_data::BoardingFactionDef;
 
 // ---------------------------------------------------------------------------
 // ScenarioLoader
@@ -1443,7 +1448,7 @@ impl ScenarioLoader {
     /// - game_mode: GameMode::BoardingActions
     /// - mode_state: Some(ModeState::BoardingActions(...)) with hatchway states, empty secured objectives, etc.
     /// - board: sized to BoardDimensions::BOARDING_ACTIONS
-    /// - units: empty (army builder / caller is responsible for adding units)
+    /// - units: populated from player rosters (converted from faction datasheets)
     /// - players: with CP=0 (CP is gained at start of Command Phase), VP=0, faction IDs
     ///
     /// # Arguments
@@ -1454,12 +1459,17 @@ impl ScenarioLoader {
     /// - `mission_id` - Optional mission identifier
     /// - `seed` - Random seed for deterministic dice
     /// - `hatchway_initial_states` - Map of HatchwayId to initial HatchwayState (from mission data)
+    /// - `player_a_roster` - Player A's roster selections (if None, auto-generate)
+    /// - `player_b_roster` - Player B's roster selections (if None, auto-generate)
+    /// - `faction_a` - Player A's full faction definition (with datasheets)
+    /// - `faction_b` - Player B's full faction definition (with datasheets)
     ///
     /// # Returns
     /// A fully initialized GameState ready for the PreBattle/Deployment phase in Boarding Actions mode.
     ///
     /// Source: boarding_actions_complete_v3.md
     /// Source: boarding_actions_integration_rust.md
+    #[allow(clippy::too_many_arguments)]
     pub fn load_boarding_actions_scenario(
         player_a_name: &str,
         player_b_name: &str,
@@ -1468,9 +1478,23 @@ impl ScenarioLoader {
         mission_id: Option<MissionId>,
         seed: [u8; 32],
         hatchway_initial_states: HashMap<HatchwayId, HatchwayState>,
+        player_a_roster: Option<PlayerRoster>,
+        player_b_roster: Option<PlayerRoster>,
+        faction_a: &BoardingFactionDef,
+        faction_b: &BoardingFactionDef,
     ) -> GameState {
-        // 1. Create the board with Boarding Actions dimensions (48" x 28")
-        let board = Board::new(BoardDimensions::BOARDING_ACTIONS);
+        // 1. Create the board with Boarding Actions map geometry
+        let boarding_map = boarding_map_layouts::load_mission_map(mission_id);
+
+        // Populate hatchway initial states from the map data
+        let mut hatchway_states_combined = hatchway_initial_states;
+        for h in &boarding_map.hatchways {
+            hatchway_states_combined
+                .entry(h.id)
+                .or_insert(h.initial_state);
+        }
+
+        let board = Board::boarding_actions(boarding_map);
 
         // 2. Create dice roller from seed
         let bundle = SeedBundle::new(seed, "boarding_actions".to_string(), 0);
@@ -1489,9 +1513,30 @@ impl ScenarioLoader {
             p
         };
 
-        // 4. Set up BoardingActionsModeState
+        // 4. Build units from rosters
+        let mut alloc_a = IdAllocator::for_player(PlayerId::new(0));
+        let mut alloc_b = IdAllocator::for_player(PlayerId::new(1));
+
+        // Player A roster: use provided or auto-generate
+        let roster_a = player_a_roster.unwrap_or_else(|| {
+            auto_generate_roster(faction_a, 0)
+        });
+        let units_a = build_roster_units(&roster_a, faction_a, PlayerId::new(0), &mut alloc_a);
+
+        // Player B roster: use provided or auto-generate
+        let roster_b = player_b_roster.unwrap_or_else(|| {
+            auto_generate_roster(faction_b, 0)
+        });
+        let units_b = build_roster_units(&roster_b, faction_b, PlayerId::new(1), &mut alloc_b);
+
+        // Merge all units
+        let mut all_units = Vec::with_capacity(units_a.len() + units_b.len());
+        all_units.extend(units_a);
+        all_units.extend(units_b);
+
+        // 5. Set up BoardingActionsModeState
         let ba_state = BoardingActionsModeState {
-            hatchway_states: hatchway_initial_states,
+            hatchway_states: hatchway_states_combined,
             secured_objectives: HashMap::new(),
             tactical_manoeuvres: HashMap::new(),
             battlefield_command_links: Vec::new(),
@@ -1499,7 +1544,7 @@ impl ScenarioLoader {
             mission_state: BoardingMissionSpecificState::default(),
         };
 
-        // 5. Assemble the GameState
+        // 6. Assemble the GameState
         // Player A deploys first in Boarding Actions (attacker)
         let initial_decision_owner = PlayerId::new(0);
 
@@ -1512,7 +1557,7 @@ impl ScenarioLoader {
             current_subphase: SubPhase::Deployment,
             decision_owner: initial_decision_owner,
             players: [player_a, player_b],
-            units: Vec::new(),
+            units: all_units,
             board,
             deployment_config: None,
             event_bus: EventBus::new(),
@@ -1836,8 +1881,68 @@ mod tests {
     // Boarding Actions scenario tests
     // -----------------------------------------------------------------------
 
+    /// Helper: create a minimal test faction definition for BA tests.
+    fn test_faction(name: &str) -> wh40k_boarding_content::faction_data::BoardingFactionDef {
+        use wh40k_boarding_content::faction_data::*;
+        BoardingFactionDef {
+            faction_name: name.to_string(),
+            faction_keyword: name.to_uppercase(),
+            army_rule_name: "Test Rule".to_string(),
+            army_rule_description: "Test".to_string(),
+            detachments: vec![BoardingDetachmentDef {
+                detachment_name: "Test Detachment".to_string(),
+                detachment_rule_name: "Test".to_string(),
+                detachment_rule_description: "Test".to_string(),
+                enhancements: vec![],
+                stratagems: vec![],
+                allowed_units: vec![BoardingUnitRef {
+                    datasheet_name: "Test Squad".to_string(),
+                    max_count: Some(3),
+                    allowed_sizes: vec![5],
+                    conditional_limit: None,
+                }],
+                mustering_rules: vec![],
+            }],
+            datasheets: vec![BoardingUnitDatasheet {
+                name: "Test Squad".to_string(),
+                points: vec![PointsCost { model_count: 5, points: 100 }],
+                is_epic_hero: false,
+                is_character: false,
+                is_battleline: true,
+                profile: UnitProfile {
+                    movement: "6\"".to_string(),
+                    toughness: 4,
+                    save: "3+".to_string(),
+                    wounds: 1,
+                    leadership: "7+".to_string(),
+                    oc: 2,
+                },
+                ranged_weapons: vec![],
+                melee_weapons: vec![WeaponProfile {
+                    name: "Close combat weapon".to_string(),
+                    range: "Melee".to_string(),
+                    attacks: "1".to_string(),
+                    skill: "4+".to_string(),
+                    strength: 4,
+                    ap: "0".to_string(),
+                    damage: "1".to_string(),
+                    abilities: vec![],
+                }],
+                abilities: vec![],
+                leader_info: None,
+                keywords: vec!["INFANTRY".to_string(), "BATTLELINE".to_string()],
+                faction_keywords: vec![],
+                wargear_options: vec![],
+                unit_composition: vec![],
+            }],
+        }
+    }
+
     #[test]
     fn test_load_boarding_actions_scenario() {
+        let faction_a = test_faction("Faction A");
+        let faction_b = test_faction("Faction B");
+
         let state = ScenarioLoader::load_boarding_actions_scenario(
             "Player A",
             "Player B",
@@ -1846,6 +1951,10 @@ mod tests {
             None,
             [0u8; 32],
             HashMap::new(),
+            None, // auto-generate rosters
+            None,
+            &faction_a,
+            &faction_b,
         );
 
         assert_eq!(state.game_mode, GameMode::BoardingActions);
@@ -1856,10 +1965,15 @@ mod tests {
         assert_eq!(state.players[1].name, "Player B");
         assert_eq!(state.battle_round, BattleRound::new(1));
         assert_eq!(state.current_phase, Phase::PreBattle);
+        // Now units should be auto-generated (not empty!)
+        assert!(!state.units.is_empty(), "Units should be auto-generated for BA");
     }
 
     #[test]
     fn test_boarding_scenario_with_hatchway_states() {
+        let faction_a = test_faction("Faction A");
+        let faction_b = test_faction("Faction B");
+
         let mut hatches = HashMap::new();
         hatches.insert(HatchwayId::new(0), HatchwayState::Closed);
         hatches.insert(HatchwayId::new(1), HatchwayState::Open);
@@ -1873,10 +1987,16 @@ mod tests {
             Some(MissionId::new(11)),
             [42u8; 32],
             hatches,
+            None,
+            None,
+            &faction_a,
+            &faction_b,
         );
 
         let ba = state.boarding_state().unwrap();
-        assert_eq!(ba.hatchway_states.len(), 3);
+        // Hatchway states include both caller-provided overrides and map defaults
+        assert!(ba.hatchway_states.len() >= 3);
+        // Caller-provided states should override map defaults
         assert_eq!(ba.hatchway_states[&HatchwayId::new(0)], HatchwayState::Closed);
         assert_eq!(ba.hatchway_states[&HatchwayId::new(1)], HatchwayState::Open);
         assert_eq!(ba.hatchway_states[&HatchwayId::new(2)], HatchwayState::Locked);

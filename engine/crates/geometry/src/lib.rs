@@ -37,6 +37,10 @@ pub struct Board {
     pub terrain: Vec<TerrainPiece>,
     /// Objective markers placed on the board.
     pub objectives: Vec<ObjectiveMarker>,
+    /// Boarding Actions map geometry (compartments, walls, hatchways, entry zones).
+    /// Only present for BoardingActions game mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub boarding_map: Option<boarding::BoardingMap>,
 }
 
 impl Board {
@@ -46,6 +50,7 @@ impl Board {
             dimensions: BoardDimensions::COMBAT_PATROL,
             terrain: Vec::new(),
             objectives: Vec::new(),
+            boarding_map: None,
         }
     }
 
@@ -55,6 +60,17 @@ impl Board {
             dimensions,
             terrain: Vec::new(),
             objectives: Vec::new(),
+            boarding_map: None,
+        }
+    }
+
+    /// Create a Boarding Actions board with attached map geometry.
+    pub fn boarding_actions(map: boarding::BoardingMap) -> Self {
+        Self {
+            dimensions: map.dimensions,
+            terrain: Vec::new(),
+            objectives: Vec::new(),
+            boarding_map: Some(map),
         }
     }
 

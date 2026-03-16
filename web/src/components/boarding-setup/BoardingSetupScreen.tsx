@@ -1005,7 +1005,8 @@ function ReadyStep() {
   const handleStartBattle = async () => {
     // Parse faction IDs from the faction data
     // The engine uses numeric faction IDs; we derive them from the faction index in the loaded list
-    const factions = useBoardingSetupStore.getState().factions;
+    const setupState = useBoardingSetupStore.getState();
+    const factions = setupState.factions;
     const playerFactionIndex = factions.findIndex(
       (f) => f.faction_name === playerFaction.faction_name &&
              f.detachments.some((d) => d.detachment_name === playerDetachment!.detachment_name)
@@ -1017,10 +1018,30 @@ function ReadyStep() {
 
     const missionIdNum = parseInt(selectedMission.mission_id.replace(/\D/g, ''), 10) || 1;
 
+    // Serialize the player's roster selections for the engine
+    const playerRoster = {
+      faction_name: playerFaction.faction_name,
+      faction_keyword: playerFaction.faction_keyword,
+      detachment_name: playerDetachment!.detachment_name,
+      units: setupState.selectedUnits.map((u) => ({
+        datasheet_name: u.datasheet_name,
+        model_count: u.model_count,
+        points: u.points,
+        wargear_selections: u.wargear_selections ?? [],
+      })),
+      warlord_index: setupState.warlordIndex,
+      enhancements: setupState.enhancements.map((e) => ({
+        enhancement_name: e.enhancement_name,
+        unit_index: e.unit_index,
+      })),
+      total_points: setupState.totalPoints,
+    };
+
     await createBoardingMatch({
       playerFactionId: playerFactionIndex >= 0 ? playerFactionIndex : 0,
       opponentFactionId: opponentFactionIndex >= 0 ? opponentFactionIndex : 1,
       missionId: missionIdNum,
+      playerRoster,
     });
   };
 

@@ -259,8 +259,56 @@ pub struct BoardView {
     pub terrain: Vec<TerrainView>,
     /// Objective markers.
     pub objectives: Vec<ObjectiveView>,
-    /// Deployment zones (one per player).
+    /// Deployment zones (one per player, for Combat Patrol).
     pub deployment_zones: Vec<DeploymentZoneView>,
+    /// Boarding Actions: wall segments (only present in BA mode).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub walls: Option<Vec<WallView>>,
+    /// Boarding Actions: compartment outlines (only present in BA mode).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compartments: Option<Vec<CompartmentView>>,
+    /// Boarding Actions: hatchway positions and geometry (only present in BA mode).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hatchways: Option<Vec<HatchwayView>>,
+    /// Boarding Actions: entry zones for deployment (only present in BA mode).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entry_zones: Option<Vec<EntryZoneView>>,
+}
+
+/// A wall segment on the Boarding Actions board.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WallView {
+    pub id: u32,
+    pub start: PositionView,
+    pub end: PositionView,
+}
+
+/// A compartment (room) on the Boarding Actions board.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompartmentView {
+    pub id: u32,
+    pub name: String,
+    pub vertices: Vec<PositionView>,
+}
+
+/// A hatchway (door) on the Boarding Actions board, with position and state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HatchwayView {
+    pub id: u32,
+    pub position: PositionView,
+    pub orientation: String,
+    pub width: f64,
+    pub state: String,
+}
+
+/// An entry zone for Boarding Actions deployment.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntryZoneView {
+    pub id: u32,
+    pub name: String,
+    pub role: String,
+    pub vertices: Vec<PositionView>,
+    pub player: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

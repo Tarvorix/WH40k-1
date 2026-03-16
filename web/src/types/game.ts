@@ -113,6 +113,39 @@ export interface BoardView {
   terrain: TerrainView[];
   objectives: ObjectiveView[];
   deployment_zones: DeploymentZoneView[];
+  // Boarding Actions map geometry (only present in BA mode)
+  walls?: WallView[];
+  compartments?: CompartmentView[];
+  hatchways?: HatchwayBoardView[];
+  entry_zones?: EntryZoneView[];
+}
+
+export interface WallView {
+  id: number;
+  start: PositionView;
+  end: PositionView;
+}
+
+export interface CompartmentView {
+  id: number;
+  name: string;
+  vertices: PositionView[];
+}
+
+export interface HatchwayBoardView {
+  id: number;
+  position: PositionView;
+  orientation: string;
+  width: number;
+  state: string;
+}
+
+export interface EntryZoneView {
+  id: number;
+  name: string;
+  role: string;
+  vertices: PositionView[];
+  player: number | null;
 }
 
 export interface TerrainView {

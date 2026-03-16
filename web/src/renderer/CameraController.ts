@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, MIN_ZOOM, MAX_ZOOM, ZOOM_SPEED, TAP_THRESHOLD_PX, TAP_THRESHOLD_MS } from './constants';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, MIN_ZOOM, MAX_ZOOM, ZOOM_SPEED, TAP_THRESHOLD_PX, TAP_THRESHOLD_MS, PX_PER_INCH, BOARD_WIDTH_INCHES, BOARD_HEIGHT_INCHES } from './constants';
 
 export class CameraController {
   private world: PIXI.Container;
@@ -7,6 +7,8 @@ export class CameraController {
   private zoom = 1;
   private dragging = false;
   private lastPointer = { x: 0, y: 0 };
+  private boardCanvasWidth: number = CANVAS_WIDTH;
+  private boardCanvasHeight: number = CANVAS_HEIGHT;
 
   // Touch state
   private touches: Map<number, { x: number; y: number }> = new Map();
@@ -39,16 +41,22 @@ export class CameraController {
     view.addEventListener('touchcancel', this.onTouchEnd);
   }
 
+  /** Set board dimensions from game state (in inches). */
+  setBoardDimensions(widthInches: number, heightInches: number): void {
+    this.boardCanvasWidth = widthInches * PX_PER_INCH;
+    this.boardCanvasHeight = heightInches * PX_PER_INCH;
+  }
+
   fitToBoard(): void {
     const viewWidth = this.app.screen.width;
     const viewHeight = this.app.screen.height;
-    const scaleX = viewWidth / CANVAS_WIDTH;
-    const scaleY = viewHeight / CANVAS_HEIGHT;
+    const scaleX = viewWidth / this.boardCanvasWidth;
+    const scaleY = viewHeight / this.boardCanvasHeight;
     this.zoom = Math.min(scaleX, scaleY, 1);
     this.world.scale.set(this.zoom);
     this.world.position.set(
-      (viewWidth - CANVAS_WIDTH * this.zoom) / 2,
-      (viewHeight - CANVAS_HEIGHT * this.zoom) / 2,
+      (viewWidth - this.boardCanvasWidth * this.zoom) / 2,
+      (viewHeight - this.boardCanvasHeight * this.zoom) / 2,
     );
   }
 

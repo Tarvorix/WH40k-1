@@ -16,6 +16,8 @@ pub mod phase;
 pub mod validator;
 pub mod executor;
 pub mod scenario;
+pub mod boarding_unit_builder;
+pub mod boarding_map_layouts;
 pub mod combat;
 pub mod stratagem;
 pub mod scoring;

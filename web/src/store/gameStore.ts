@@ -49,6 +49,15 @@ interface GameState {
     opponentFactionId: number;
     missionId?: number;
     seed?: number;
+    playerRoster?: {
+      faction_name: string;
+      faction_keyword: string;
+      detachment_name: string;
+      units: { datasheet_name: string; model_count: number; points: number; wargear_selections: number[] }[];
+      warlord_index: number | null;
+      enhancements: { enhancement_name: string; unit_index: number }[];
+      total_points: number;
+    };
   }) => Promise<void>;
   refreshState: () => Promise<void>;
   refreshDecisionSurface: () => Promise<void>;
@@ -208,6 +217,8 @@ export const useGameStore = create<GameState>()(
           player_b_faction_id: config.opponentFactionId,
           mission_id: config.missionId ?? null,
           seed_u64: seedValue,
+          player_a_roster: config.playerRoster ?? null,
+          player_b_roster: null, // AI auto-generates
         });
 
         console.log('[createBoardingMatch] Config:', configJson);

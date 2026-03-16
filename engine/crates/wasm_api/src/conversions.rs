@@ -38,7 +38,8 @@ pub fn game_state_to_view(state: &GameState) -> GameView {
         .map(|u| unit_to_view(u, &state.turn_flags))
         .collect();
 
-    let board = board_to_view_with_deployment(&state.board, state.deployment_config.as_ref());
+    let ba_hatchway_states = state.boarding_state().map(|ba| &ba.hatchway_states);
+    let board = board_to_view_with_deployment(&state.board, state.deployment_config.as_ref(), ba_hatchway_states);
 
     // Take the last 50 events from the event bus log.
     let log = state.event_bus.log();
@@ -297,7 +298,11 @@ pub fn weapon_to_view(weapon: &WeaponProfile) -> WeaponView {
 // ===========================================================================
 
 /// Convert a Board into a BoardView.
-pub fn board_to_view_with_deployment(board: &Board, deployment_config: Option<&wh40k_geometry::DeploymentConfig>) -> BoardView {
+pub fn board_to_view_with_deployment(
+    board: &Board,
+    deployment_config: Option<&wh40k_geometry::DeploymentConfig>,
+    ba_hatchway_states: Option<&std::collections::HashMap<wh40k_core_types::HatchwayId, wh40k_core_types::HatchwayState>>,
+) -> BoardView {
     let terrain: Vec<TerrainView> = board
         .terrain
         .iter()
@@ -305,7 +310,7 @@ pub fn board_to_view_with_deployment(board: &Board, deployment_config: Option<&w
         .map(|(i, t)| terrain_to_view(i, t))
         .collect();
 
-    let objectives: Vec<ObjectiveView> = board.objectives.iter().map(objective_to_view).collect();
+    let mut objectives: Vec<ObjectiveView> = board.objectives.iter().map(objective_to_view).collect();
 
     // Populate deployment zones from the deployment config
     let deployment_zones: Vec<DeploymentZoneView> = match deployment_config {
@@ -318,12 +323,94 @@ pub fn board_to_view_with_deployment(board: &Board, deployment_config: Option<&w
         None => Vec::new(),
     };
 
+    // Boarding Actions map geometry
+    let (walls, compartments, hatchways, entry_zones) = if let Some(bmap) = &board.boarding_map {
+        let walls_view: Vec<WallView> = bmap.walls.iter().map(|w| WallView {
+            id: w.id,
+            start: PositionView { x: w.start.x.as_f64(), y: w.start.y.as_f64() },
+            end: PositionView { x: w.end.x.as_f64(), y: w.end.y.as_f64() },
+        }).collect();
+
+        let comps_view: Vec<CompartmentView> = bmap.compartments.iter().map(|c| CompartmentView {
+            id: c.id.raw(),
+            name: c.name.clone(),
+            vertices: c.boundary.vertices.iter().map(|v| PositionView {
+                x: v.x.as_f64(),
+                y: v.y.as_f64(),
+            }).collect(),
+        }).collect();
+
+        let hatches_view: Vec<HatchwayView> = bmap.hatchways.iter().map(|h| {
+            // Get current state from BA mode state, falling back to initial state
+            let current_state = ba_hatchway_states
+                .and_then(|states| states.get(&h.id))
+                .copied()
+                .unwrap_or(h.initial_state);
+            let state_str = match current_state {
+                wh40k_core_types::HatchwayState::Open => "Open",
+                wh40k_core_types::HatchwayState::Closed => "Closed",
+                wh40k_core_types::HatchwayState::Locked => "Locked",
+                wh40k_core_types::HatchwayState::OneWayOpened => "OneWayOpened",
+            };
+            let orient_str = match h.orientation {
+                wh40k_core_types::HatchwayOrientation::Horizontal => "Horizontal",
+                wh40k_core_types::HatchwayOrientation::Vertical => "Vertical",
+            };
+            HatchwayView {
+                id: h.id.raw(),
+                position: PositionView { x: h.position.x.as_f64(), y: h.position.y.as_f64() },
+                orientation: orient_str.to_string(),
+                width: h.width.as_f64(),
+                state: state_str.to_string(),
+            }
+        }).collect();
+
+        let zones_view: Vec<EntryZoneView> = bmap.entry_zones.iter().map(|ez| {
+            let role_str = match ez.role {
+                wh40k_core_types::EntryZoneRole::Main => "Main",
+                wh40k_core_types::EntryZoneRole::Underdog => "Underdog",
+                wh40k_core_types::EntryZoneRole::Patrol => "Patrol",
+                wh40k_core_types::EntryZoneRole::Guard => "Guard",
+                wh40k_core_types::EntryZoneRole::Backup => "Backup",
+            };
+            EntryZoneView {
+                id: ez.id,
+                name: ez.name.clone(),
+                role: role_str.to_string(),
+                vertices: ez.boundary.vertices.iter().map(|v| PositionView {
+                    x: v.x.as_f64(),
+                    y: v.y.as_f64(),
+                }).collect(),
+                player: ez.player_assignment.map(|p| p.raw()),
+            }
+        }).collect();
+
+        // Also add boarding objectives to the objectives list
+        for bobj in &bmap.objectives {
+            objectives.push(ObjectiveView {
+                id: bobj.id.raw(),
+                position: PositionView { x: bobj.position.x.as_f64(), y: bobj.position.y.as_f64() },
+                label: bobj.label.clone(),
+                control_status: "Uncontrolled".to_string(),
+                controlling_player: None,
+            });
+        }
+
+        (Some(walls_view), Some(comps_view), Some(hatches_view), Some(zones_view))
+    } else {
+        (None, None, None, None)
+    };
+
     BoardView {
         width: board.dimensions.width.as_f64(),
         height: board.dimensions.height.as_f64(),
         terrain,
         objectives,
         deployment_zones,
+        walls,
+        compartments,
+        hatchways,
+        entry_zones,
     }
 }
 

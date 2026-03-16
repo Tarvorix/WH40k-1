@@ -12,6 +12,8 @@ import { MovementPreview } from './MovementPreview';
 import { AttackVisualization } from './AttackVisualization';
 import { CameraController } from './CameraController';
 import { InteractionLayer } from './InteractionLayer';
+import { WallRenderer } from './WallRenderer';
+import { HatchwayRenderer } from './HatchwayRenderer';
 
 export function BattlefieldCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -21,6 +23,8 @@ export function BattlefieldCanvas() {
   const renderersRef = useRef<{
     board: BoardRenderer;
     terrain: TerrainRenderer;
+    walls: WallRenderer;
+    hatchways: HatchwayRenderer;
     deployment: DeploymentOverlay;
     objectives: ObjectiveRenderer;
     units: UnitRenderer;
@@ -110,6 +114,8 @@ export function BattlefieldCanvas() {
     // Create layer containers
     const boardLayer = new PIXI.Container();
     const terrainLayer = new PIXI.Container();
+    const wallLayer = new PIXI.Container();
+    const hatchwayLayer = new PIXI.Container();
     const deploymentLayer = new PIXI.Container();
     const objectiveLayer = new PIXI.Container();
     const movementLayer = new PIXI.Container();
@@ -119,8 +125,10 @@ export function BattlefieldCanvas() {
 
     world.addChild(boardLayer);
     world.addChild(terrainLayer);
+    world.addChild(wallLayer);
     world.addChild(deploymentLayer);
     world.addChild(objectiveLayer);
+    world.addChild(hatchwayLayer);
     world.addChild(movementLayer);
     world.addChild(attackLayer);
     world.addChild(unitLayer);
@@ -130,6 +138,8 @@ export function BattlefieldCanvas() {
     const renderers = {
       board: new BoardRenderer(boardLayer),
       terrain: new TerrainRenderer(terrainLayer),
+      walls: new WallRenderer(wallLayer),
+      hatchways: new HatchwayRenderer(hatchwayLayer),
       deployment: new DeploymentOverlay(deploymentLayer),
       objectives: new ObjectiveRenderer(objectiveLayer),
       units: new UnitRenderer(unitLayer),
@@ -175,7 +185,20 @@ export function BattlefieldCanvas() {
     if (!renderersRef.current || !gameState) return;
 
     const r = renderersRef.current;
+
+    // Update board dimensions from game state (handles BA 48x28 vs CP 44x30)
+    if (gameState.board.width && gameState.board.height) {
+      r.board.setBoardDimensions(gameState.board.width, gameState.board.height);
+      if (cameraRef.current) {
+        cameraRef.current.setBoardDimensions(gameState.board.width, gameState.board.height);
+        cameraRef.current.fitToBoard();
+      }
+      r.board.draw(); // Redraw grid with new dimensions
+    }
+
     r.terrain.update(gameState.board);
+    r.walls.update(gameState.board);
+    r.hatchways.update(gameState.board);
     r.deployment.update(gameState.board, gameState.phase, gameState.decision_owner);
     r.objectives.update(gameState.board.objectives);
     r.units.update(

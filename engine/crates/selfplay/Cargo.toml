@@ -21,3 +21,4 @@ wh40k_eval_nnue = { workspace = true }
 wh40k_search_abstraction = { workspace = true }
 wh40k_command_system = { workspace = true }
 wh40k_event_system = { workspace = true }
+wh40k_boarding_content = { workspace = true }

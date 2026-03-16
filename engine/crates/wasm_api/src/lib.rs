@@ -833,15 +833,19 @@ pub fn validate_boarding_roster(roster_json: &str, faction_json: &str) -> Result
 /// * `config_json` - JSON with fields:
 ///   - `player_a_name: String`
 ///   - `player_b_name: String`
-///   - `player_a_faction_id: u32`
+///   - `player_a_faction_id: u32` (index into the factions array returned by get_boarding_factions)
 ///   - `player_b_faction_id: u32`
 ///   - `mission_id: Option<u32>` (null for random)
 ///   - `seed: [u8]` or `seed_u64: u64`
+///   - `player_a_roster: Option<PlayerRoster>` — player A's army selections
+///   - `player_b_roster: Option<PlayerRoster>` — player B's army selections (null = AI auto-build)
 ///
 /// # Returns
 /// JSON-encoded `GameView`.
 #[wasm_bindgen]
 pub fn create_boarding_match(config_json: &str) -> Result<String, JsValue> {
+    use wh40k_game_core::boarding_unit_builder::PlayerRoster;
+
     #[derive(serde::Deserialize)]
     struct BoardingMatchConfig {
         player_a_name: String,
@@ -853,6 +857,10 @@ pub fn create_boarding_match(config_json: &str) -> Result<String, JsValue> {
         seed: Option<Vec<u8>>,
         /// Convenience: a u64 that gets expanded to 32 bytes.
         seed_u64: Option<u64>,
+        /// Player A's roster selections (if provided).
+        player_a_roster: Option<PlayerRoster>,
+        /// Player B's roster selections (if null, AI auto-generates).
+        player_b_roster: Option<PlayerRoster>,
     }
 
     let config: BoardingMatchConfig =
@@ -880,6 +888,26 @@ pub fn create_boarding_match(config_json: &str) -> Result<String, JsValue> {
 
     let mission_id = config.mission_id.map(MissionId::new);
 
+    // Load faction definitions (same embedded data as get_boarding_factions)
+    let faction_jsons: &[&str] = &[
+        include_str!("../../../../content/boarding_actions/factions/space_marines_terminator_assault.json"),
+        include_str!("../../../../content/boarding_actions/factions/world_eaters_boarding_butchers.json"),
+        include_str!("../../../../content/boarding_actions/factions/world_eaters_skullsworn.json"),
+        include_str!("../../../../content/boarding_actions/factions/csm_champions_of_chaos.json"),
+        include_str!("../../../../content/boarding_actions/factions/csm_underdeck_uprising.json"),
+        include_str!("../../../../content/boarding_actions/factions/astra_militarum_tempestus.json"),
+    ];
+
+    let factions: Vec<wh40k_boarding_content::faction_data::BoardingFactionDef> = faction_jsons
+        .iter()
+        .map(|json| serde_json::from_str(json).expect("Failed to parse faction JSON"))
+        .collect();
+
+    let faction_a_idx = (config.player_a_faction_id as usize).min(factions.len() - 1);
+    let faction_b_idx = (config.player_b_faction_id as usize).min(factions.len() - 1);
+    let faction_a = &factions[faction_a_idx];
+    let faction_b = &factions[faction_b_idx];
+
     let state = ScenarioLoader::load_boarding_actions_scenario(
         &config.player_a_name,
         &config.player_b_name,
@@ -888,6 +916,10 @@ pub fn create_boarding_match(config_json: &str) -> Result<String, JsValue> {
         mission_id,
         seed,
         std::collections::HashMap::new(),
+        config.player_a_roster,
+        config.player_b_roster,
+        faction_a,
+        faction_b,
     );
 
     // Create a replay recorder from the initial state.
