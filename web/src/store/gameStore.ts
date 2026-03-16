@@ -44,6 +44,12 @@ interface GameState {
   setScreen: (screen: Screen) => void;
   initEngine: () => Promise<void>;
   createMatch: (factionA: number, factionB: number, mission: number, seed?: number) => Promise<void>;
+  createBoardingMatch: (config: {
+    playerFactionId: number;
+    opponentFactionId: number;
+    missionId?: number;
+    seed?: number;
+  }) => Promise<void>;
   refreshState: () => Promise<void>;
   refreshDecisionSurface: () => Promise<void>;
   selectUnit: (unitId: number | null) => void;
@@ -181,6 +187,61 @@ export const useGameStore = create<GameState>()(
         console.error('[createMatch] ERROR:', error);
         set((state) => {
           state.error = error instanceof Error ? error.message : 'Failed to create match';
+          state.loading = false;
+        });
+      }
+    },
+
+    createBoardingMatch: async (config) => {
+      try {
+        set((state) => {
+          state.loading = true;
+          state.error = null;
+          state.eventLog = [];
+        });
+
+        const seedValue = config.seed ?? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+        const configJson = JSON.stringify({
+          player_a_name: 'Player',
+          player_b_name: 'AI Opponent',
+          player_a_faction_id: config.playerFactionId,
+          player_b_faction_id: config.opponentFactionId,
+          mission_id: config.missionId ?? null,
+          seed_u64: seedValue,
+        });
+
+        console.log('[createBoardingMatch] Config:', configJson);
+        const gameView = await engineClient.createBoardingMatch(configJson);
+        console.log('[createBoardingMatch] Got gameView:', {
+          phase: gameView.phase,
+          subphase: gameView.subphase,
+          decision_owner: gameView.decision_owner,
+          in_progress: gameView.in_progress,
+          units: gameView.units.length,
+        });
+
+        set((state) => {
+          state.gameState = gameView;
+          state.loading = false;
+          state.screen = 'play';
+          state.selectedUnitId = null;
+          state.targetUnitId = null;
+          state.selectedActionIndex = null;
+        });
+
+        // Auto-fetch decision surface
+        await get().refreshDecisionSurface();
+
+        // If AI is the initial decision owner, auto-run AI turns
+        const gs = get().gameState;
+        const pc = get().playerControlled;
+        if (gs && !pc[gs.decision_owner] && get().autoPlayAi) {
+          await get().runAiTurn();
+        }
+      } catch (error) {
+        console.error('[createBoardingMatch] ERROR:', error);
+        set((state) => {
+          state.error = error instanceof Error ? error.message : 'Failed to create boarding match';
           state.loading = false;
         });
       }

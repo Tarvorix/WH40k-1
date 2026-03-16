@@ -329,12 +329,11 @@ impl BoardDimensions {
         height: Inches::from_inches(30),
     };
 
-    /// Boarding Actions battlefield: two boards side by side (~42" x 22").
-    /// Source: boarding_actions_complete_v3.md Section 2 - "TWO Boarding Actions boards placed side by side"
-    /// Each board is approximately 21" x 22". Exact geometry is defined per mission in the maps JSON.
+    /// Boarding Actions battlefield: two 24"x28" boards side by side = 48" x 28".
+    /// Source: Official Boarding Actions rulebook — each board is 24" x 28".
     pub const BOARDING_ACTIONS: BoardDimensions = BoardDimensions {
-        width: Inches::from_inches(42),
-        height: Inches::from_inches(22),
+        width: Inches::from_inches(48),
+        height: Inches::from_inches(28),
     };
 
     pub fn contains(&self, pos: Position) -> bool {

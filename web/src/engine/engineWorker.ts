@@ -107,6 +107,31 @@ async function handleMessage(request: WorkerRequest): Promise<void> {
         sendResponse({ type: 'direct_command_applied', data });
         break;
       }
+      case 'get_boarding_factions': {
+        const data = bridge.getBoardingFactions();
+        sendResponse({ type: 'boarding_factions', data });
+        break;
+      }
+      case 'get_boarding_missions': {
+        const data = bridge.getBoardingMissions();
+        sendResponse({ type: 'boarding_missions', data });
+        break;
+      }
+      case 'validate_boarding_roster': {
+        const data = bridge.validateBoardingRoster(request.roster_json, request.faction_json);
+        sendResponse({ type: 'boarding_roster_validation', data });
+        break;
+      }
+      case 'create_boarding_match': {
+        const data = bridge.createBoardingMatch(request.config_json);
+        sendResponse({ type: 'state', data });
+        break;
+      }
+      case 'get_game_mode': {
+        const data = bridge.getGameMode();
+        sendResponse({ type: 'game_mode', data });
+        break;
+      }
     }
   } catch (error) {
     sendError(request.type, error);

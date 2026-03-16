@@ -17,7 +17,12 @@ export type WorkerRequest =
   | { type: 'replay_step_backward'; count: number }
   | { type: 'replay_get_info' }
   | { type: 'submit_place_unit'; player: number; unit_id: number; x: number; y: number }
-  | { type: 'submit_normal_move'; unit_id: number; x: number; y: number };
+  | { type: 'submit_normal_move'; unit_id: number; x: number; y: number }
+  | { type: 'get_boarding_factions' }
+  | { type: 'get_boarding_missions' }
+  | { type: 'validate_boarding_roster'; roster_json: string; faction_json: string }
+  | { type: 'create_boarding_match'; config_json: string }
+  | { type: 'get_game_mode' };
 
 // Messages from worker to main thread
 export type WorkerResponse =
@@ -33,4 +38,8 @@ export type WorkerResponse =
   | { type: 'replay_stepped'; data: string }
   | { type: 'replay_info'; data: string }
   | { type: 'direct_command_applied'; data: string }
+  | { type: 'boarding_factions'; data: string }
+  | { type: 'boarding_missions'; data: string }
+  | { type: 'boarding_roster_validation'; data: string }
+  | { type: 'game_mode'; data: string }
   | { type: 'error'; message: string; request_type: string };

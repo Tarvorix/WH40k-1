@@ -1469,7 +1469,7 @@ impl ScenarioLoader {
         seed: [u8; 32],
         hatchway_initial_states: HashMap<HatchwayId, HatchwayState>,
     ) -> GameState {
-        // 1. Create the board with Boarding Actions dimensions (42" x 22")
+        // 1. Create the board with Boarding Actions dimensions (48" x 28")
         let board = Board::new(BoardDimensions::BOARDING_ACTIONS);
 
         // 2. Create dice roller from seed

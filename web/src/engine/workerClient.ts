@@ -8,6 +8,9 @@ import type {
   AiResultView,
   ReplayInfoView,
   AiDifficulty,
+  BoardingFaction,
+  BoardingMissionSummary,
+  BoardingRosterValidation,
 } from '@/types/game';
 
 type PendingRequest = {
@@ -202,6 +205,41 @@ class EngineWorkerClient {
     return this.sendRequest<GameView>(
       { type: 'submit_normal_move', unit_id: unitId, x, y },
       'direct_command_applied',
+    );
+  }
+
+  async getBoardingFactions(): Promise<BoardingFaction[]> {
+    return this.sendRequest<BoardingFaction[]>(
+      { type: 'get_boarding_factions' },
+      'boarding_factions',
+    );
+  }
+
+  async getBoardingMissions(): Promise<BoardingMissionSummary[]> {
+    return this.sendRequest<BoardingMissionSummary[]>(
+      { type: 'get_boarding_missions' },
+      'boarding_missions',
+    );
+  }
+
+  async validateBoardingRoster(rosterJson: string, factionJson: string): Promise<BoardingRosterValidation> {
+    return this.sendRequest<BoardingRosterValidation>(
+      { type: 'validate_boarding_roster', roster_json: rosterJson, faction_json: factionJson },
+      'boarding_roster_validation',
+    );
+  }
+
+  async createBoardingMatch(configJson: string): Promise<GameView> {
+    return this.sendRequest<GameView>(
+      { type: 'create_boarding_match', config_json: configJson },
+      'state',
+    );
+  }
+
+  async getGameMode(): Promise<string> {
+    return this.sendRequest<string>(
+      { type: 'get_game_mode' },
+      'game_mode',
     );
   }
 

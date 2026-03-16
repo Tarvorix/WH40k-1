@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { clsx } from 'clsx';
 import { useGameStore } from '@/store/gameStore';
 import { useBoardingSetupStore } from '@/store/boardingSetupStore';
@@ -12,299 +12,6 @@ import type {
   SelectedUnit,
 } from '@/types/game';
 import { Button } from '@/components/shared/Button';
-
-// ===== Placeholder faction data =====
-// In a full integration, this would come from the WASM engine via engineClient.
-// For now we provide static data matching the boarding actions content so the
-// UI renders and is fully navigable end-to-end.
-
-const BOARDING_FACTIONS: BoardingFaction[] = [
-  {
-    faction_name: 'Adeptus Custodes',
-    faction_keyword: 'ADEPTUS CUSTODES',
-    army_rule_name: 'Martial Ka\'tah',
-    army_rule_description: 'At the start of the Fight phase, select one Ka\'tah stance for all ADEPTUS CUSTODES units: Ka\'tah Assaulting (re-roll Wound rolls of 1 on the charge) or Ka\'tah Shielding (+1 to saving throws in melee).',
-    detachments: [
-      {
-        detachment_name: 'Shield Host',
-        detachment_rule_name: 'Aegis of the Emperor',
-        detachment_rule_description: 'Each time a ranged attack targets an ADEPTUS CUSTODES unit from this detachment, subtract 1 from the Hit roll.',
-        enhancements: [
-          { name: 'Watchman of Terra', description: 'While the bearer is within Engagement Range of one or more enemy units, its Objective Control characteristic is 4.' },
-          { name: 'Warrior Exemplar', description: 'Each time the bearer destroys an enemy unit, roll one D6. On a 3+, you gain 1CP.' },
-        ],
-        stratagems: [
-          { name: 'Arcane Genetic Alchemy', cp_cost: 1, timing: 'When an ADEPTUS CUSTODES unit is selected as the target of an attack', target: 'One ADEPTUS CUSTODES unit from your army', effect: 'Until the end of the phase, each time an attack is allocated to a model in that unit, subtract 1 from the Damage characteristic of that attack (minimum 1).' },
-          { name: 'Slayers of Nightmares', cp_cost: 1, timing: 'Fight phase, when an ADEPTUS CUSTODES unit is selected to fight', target: 'One ADEPTUS CUSTODES unit from your army', effect: 'Until the end of the phase, each time a model in that unit makes a melee attack, add 1 to the Wound roll.' },
-        ],
-        allowed_units: [
-          { datasheet_name: 'Custodian Guard', max_count: 2, allowed_sizes: [3, 5], conditional_limit: null },
-          { datasheet_name: 'Custodian Wardens', max_count: 2, allowed_sizes: [3], conditional_limit: null },
-          { datasheet_name: 'Allarus Custodians', max_count: 1, allowed_sizes: [2, 3], conditional_limit: null },
-          { datasheet_name: 'Shield-Captain', max_count: 1, allowed_sizes: [1], conditional_limit: null },
-          { datasheet_name: 'Blade Champion', max_count: 1, allowed_sizes: [1], conditional_limit: null },
-        ],
-        mustering_rules: [
-          { rule_type: 'points_limit', description: 'Maximum 500 points' },
-          { rule_type: 'unit_limit', description: 'Maximum 5 units per roster' },
-        ],
-      },
-    ],
-    datasheets: [
-      {
-        name: 'Shield-Captain',
-        points: [{ model_count: 1, points: 100 }],
-        is_epic_hero: false,
-        is_character: true,
-        is_battleline: false,
-        profile: { movement: '6"', toughness: 6, save: '2+', wounds: 6, leadership: '6+', oc: 2 },
-        ranged_weapons: [{ name: 'Guardian Spear (Shooting)', range: '24"', attacks: '2', skill: '2+', strength: 4, ap: '-1', damage: '2', abilities: [] }],
-        melee_weapons: [{ name: 'Guardian Spear (Melee)', range: 'Melee', attacks: '6', skill: '2+', strength: 7, ap: '-2', damage: '2', abilities: [] }],
-        abilities: [
-          { name: 'Strategic Mastermind', description: 'Once per battle, when you use a Stratagem, this model can reduce the CP cost by 1 (to a minimum of 0CP).', ability_type: 'core' },
-        ],
-        leader_info: { can_lead: ['Custodian Guard', 'Custodian Wardens'], leader_abilities: ['Strategic Mastermind'] },
-        keywords: ['INFANTRY', 'CHARACTER', 'IMPERIUM'],
-        faction_keywords: ['ADEPTUS CUSTODES'],
-        wargear_options: [{ description: 'Can replace Guardian Spear with Sentinel Blade and Praesidium Shield' }],
-        unit_composition: [{ model_name: 'Shield-Captain', count: '1' }],
-      },
-      {
-        name: 'Blade Champion',
-        points: [{ model_count: 1, points: 90 }],
-        is_epic_hero: false,
-        is_character: true,
-        is_battleline: false,
-        profile: { movement: '6"', toughness: 6, save: '2+', wounds: 5, leadership: '6+', oc: 2 },
-        ranged_weapons: [],
-        melee_weapons: [
-          { name: 'Vaultsword (Behemor)', range: 'Melee', attacks: '5', skill: '2+', strength: 8, ap: '-3', damage: '3', abilities: ['SUSTAINED HITS 1'] },
-          { name: 'Vaultsword (Hurricanis)', range: 'Melee', attacks: '9', skill: '2+', strength: 6, ap: '-2', damage: '1', abilities: [] },
-        ],
-        abilities: [
-          { name: 'Martial Mastery', description: 'At the start of the Fight phase, select either Behemor or Hurricanis stance for this model.', ability_type: 'core' },
-        ],
-        leader_info: { can_lead: ['Custodian Guard'], leader_abilities: ['Martial Mastery'] },
-        keywords: ['INFANTRY', 'CHARACTER', 'IMPERIUM'],
-        faction_keywords: ['ADEPTUS CUSTODES'],
-        wargear_options: [],
-        unit_composition: [{ model_name: 'Blade Champion', count: '1' }],
-      },
-      {
-        name: 'Custodian Guard',
-        points: [{ model_count: 3, points: 135 }, { model_count: 5, points: 225 }],
-        is_epic_hero: false,
-        is_character: false,
-        is_battleline: true,
-        profile: { movement: '6"', toughness: 6, save: '2+', wounds: 3, leadership: '6+', oc: 2 },
-        ranged_weapons: [{ name: 'Guardian Spear (Shooting)', range: '24"', attacks: '2', skill: '2+', strength: 4, ap: '-1', damage: '2', abilities: [] }],
-        melee_weapons: [{ name: 'Guardian Spear (Melee)', range: 'Melee', attacks: '4', skill: '2+', strength: 7, ap: '-2', damage: '2', abilities: [] }],
-        abilities: [
-          { name: 'Sentinel Storm', description: 'Each time a model in this unit makes a ranged attack that targets the closest eligible target, re-roll a Hit roll of 1.', ability_type: 'core' },
-        ],
-        leader_info: null,
-        keywords: ['INFANTRY', 'BATTLELINE', 'IMPERIUM'],
-        faction_keywords: ['ADEPTUS CUSTODES'],
-        wargear_options: [{ description: 'Any number of models can each have their guardian spear replaced with a sentinel blade and praesidium shield.' }],
-        unit_composition: [{ model_name: 'Custodian Guard', count: '3-5' }],
-      },
-      {
-        name: 'Custodian Wardens',
-        points: [{ model_count: 3, points: 150 }],
-        is_epic_hero: false,
-        is_character: false,
-        is_battleline: false,
-        profile: { movement: '6"', toughness: 6, save: '2+', wounds: 3, leadership: '6+', oc: 2 },
-        ranged_weapons: [{ name: 'Guardian Spear (Shooting)', range: '24"', attacks: '2', skill: '2+', strength: 4, ap: '-1', damage: '2', abilities: [] }],
-        melee_weapons: [{ name: 'Guardian Spear (Melee)', range: 'Melee', attacks: '4', skill: '2+', strength: 7, ap: '-2', damage: '2', abilities: [] }],
-        abilities: [
-          { name: 'Resolute Will', description: 'Each time a model in this unit would lose a wound, on a 6+, that wound is not lost.', ability_type: 'core' },
-        ],
-        leader_info: null,
-        keywords: ['INFANTRY', 'IMPERIUM'],
-        faction_keywords: ['ADEPTUS CUSTODES'],
-        wargear_options: [{ description: 'For every 3 models in this unit, 1 model that is not equipped with a Vexilla can have its guardian spear replaced with a castellan axe.' }],
-        unit_composition: [{ model_name: 'Custodian Warden', count: '3' }],
-      },
-      {
-        name: 'Allarus Custodians',
-        points: [{ model_count: 2, points: 130 }, { model_count: 3, points: 195 }],
-        is_epic_hero: false,
-        is_character: false,
-        is_battleline: false,
-        profile: { movement: '5"', toughness: 7, save: '2+', wounds: 4, leadership: '6+', oc: 2 },
-        ranged_weapons: [
-          { name: 'Balistus Grenade Launcher', range: '18"', attacks: 'D6', skill: '2+', strength: 4, ap: '-1', damage: '1', abilities: ['BLAST'] },
-          { name: 'Guardian Spear (Shooting)', range: '24"', attacks: '2', skill: '2+', strength: 4, ap: '-1', damage: '2', abilities: [] },
-        ],
-        melee_weapons: [{ name: 'Guardian Spear (Melee)', range: 'Melee', attacks: '4', skill: '2+', strength: 7, ap: '-2', damage: '2', abilities: [] }],
-        abilities: [
-          { name: 'From Golden Light', description: 'This unit can be set up in reserve. At the end of your opponent\'s Movement phase, it can arrive from reserves within 6" of any battlefield edge and more than 9" from all enemy units.', ability_type: 'core' },
-        ],
-        leader_info: null,
-        keywords: ['INFANTRY', 'TERMINATOR', 'IMPERIUM'],
-        faction_keywords: ['ADEPTUS CUSTODES'],
-        wargear_options: [{ description: 'Any number of models can each have their guardian spear replaced with a castellan axe.' }],
-        unit_composition: [{ model_name: 'Allarus Custodian', count: '2-3' }],
-      },
-    ],
-  },
-  {
-    faction_name: 'World Eaters',
-    faction_keyword: 'WORLD EATERS',
-    army_rule_name: 'Blessings of Khorne',
-    army_rule_description: 'At the start of your Command phase, roll 8 dice. Each 4+ generates a Blood Tithe point. Spend Blood Tithe on Blessings of Khorne abilities.',
-    detachments: [
-      {
-        detachment_name: 'Berzerker Warband',
-        detachment_rule_name: 'Blood Surge',
-        detachment_rule_description: 'Each time a WORLD EATERS unit from this detachment makes a Charge move, until the end of the turn, add 1 to the Strength of melee weapons equipped by models in that unit.',
-        enhancements: [
-          { name: 'Fearsome Presence', description: 'While the bearer is not Battle-shocked, it has an Objective Control characteristic of 5.' },
-          { name: 'Bane of the Craven', description: 'Each time an enemy unit within Engagement Range of the bearer Falls Back, all models in that unit must take a Desperate Escape test.' },
-        ],
-        stratagems: [
-          { name: 'Blood for the Blood God', cp_cost: 1, timing: 'Fight phase, when a WORLD EATERS unit is selected to fight', target: 'One WORLD EATERS unit from your army', effect: 'Until the end of the phase, each time a model in that unit makes a melee attack, an unmodified Hit roll of 5+ scores a Critical Hit.' },
-          { name: 'Skulls for the Skull Throne', cp_cost: 1, timing: 'Fight phase, after a WORLD EATERS unit destroys an enemy unit', target: 'The WORLD EATERS unit that destroyed the enemy unit', effect: 'That unit regains D3 lost wounds. If the destroyed enemy unit was a CHARACTER, regain D3+3 wounds instead.' },
-        ],
-        allowed_units: [
-          { datasheet_name: 'Khorne Berzerkers', max_count: 3, allowed_sizes: [5, 10], conditional_limit: null },
-          { datasheet_name: 'Jakhals', max_count: 2, allowed_sizes: [10], conditional_limit: null },
-          { datasheet_name: 'Exalted Eightbound', max_count: 1, allowed_sizes: [3], conditional_limit: null },
-          { datasheet_name: 'World Eaters Master of Executions', max_count: 1, allowed_sizes: [1], conditional_limit: null },
-          { datasheet_name: 'World Eaters Lord on Juggernaut', max_count: 1, allowed_sizes: [1], conditional_limit: null },
-        ],
-        mustering_rules: [
-          { rule_type: 'points_limit', description: 'Maximum 500 points' },
-          { rule_type: 'unit_limit', description: 'Maximum 5 units per roster' },
-        ],
-      },
-    ],
-    datasheets: [
-      {
-        name: 'World Eaters Master of Executions',
-        points: [{ model_count: 1, points: 80 }],
-        is_epic_hero: false,
-        is_character: true,
-        is_battleline: false,
-        profile: { movement: '6"', toughness: 4, save: '3+', wounds: 5, leadership: '6+', oc: 1 },
-        ranged_weapons: [],
-        melee_weapons: [{ name: 'Axe of Dismemberment', range: 'Melee', attacks: '5', skill: '2+', strength: 7, ap: '-2', damage: '2', abilities: ['DEVASTATING WOUNDS'] }],
-        abilities: [
-          { name: 'Trophy Taker', description: 'Each time this model destroys an enemy CHARACTER, you gain 1CP.', ability_type: 'core' },
-        ],
-        leader_info: { can_lead: ['Khorne Berzerkers'], leader_abilities: ['Trophy Taker'] },
-        keywords: ['INFANTRY', 'CHARACTER', 'CHAOS', 'KHORNE'],
-        faction_keywords: ['WORLD EATERS'],
-        wargear_options: [],
-        unit_composition: [{ model_name: 'Master of Executions', count: '1' }],
-      },
-      {
-        name: 'World Eaters Lord on Juggernaut',
-        points: [{ model_count: 1, points: 110 }],
-        is_epic_hero: false,
-        is_character: true,
-        is_battleline: false,
-        profile: { movement: '10"', toughness: 6, save: '3+', wounds: 7, leadership: '6+', oc: 2 },
-        ranged_weapons: [],
-        melee_weapons: [
-          { name: 'Exalted Chainblade', range: 'Melee', attacks: '7', skill: '2+', strength: 6, ap: '-2', damage: '2', abilities: ['LANCE'] },
-          { name: 'Juggernaut\'s Bladed Horn', range: 'Melee', attacks: '4', skill: '3+', strength: 6, ap: '-1', damage: '2', abilities: ['EXTRA ATTACKS', 'LANCE'] },
-        ],
-        abilities: [
-          { name: 'Devastating Charge', description: 'Each time this model makes a Charge move, until the end of the turn, melee attacks made by this model have the [DEVASTATING WOUNDS] ability.', ability_type: 'core' },
-        ],
-        leader_info: null,
-        keywords: ['MOUNTED', 'CHARACTER', 'CHAOS', 'KHORNE'],
-        faction_keywords: ['WORLD EATERS'],
-        wargear_options: [],
-        unit_composition: [{ model_name: 'Lord on Juggernaut', count: '1' }],
-      },
-      {
-        name: 'Khorne Berzerkers',
-        points: [{ model_count: 5, points: 90 }, { model_count: 10, points: 180 }],
-        is_epic_hero: false,
-        is_character: false,
-        is_battleline: true,
-        profile: { movement: '6"', toughness: 4, save: '3+', wounds: 2, leadership: '6+', oc: 2 },
-        ranged_weapons: [{ name: 'Bolt Pistol', range: '12"', attacks: '1', skill: '3+', strength: 4, ap: '0', damage: '1', abilities: ['PISTOL'] }],
-        melee_weapons: [{ name: 'Berzerker Chainblade', range: 'Melee', attacks: '4', skill: '3+', strength: 5, ap: '-1', damage: '1', abilities: [] }],
-        abilities: [
-          { name: 'Blood Surge', description: 'Each time this unit makes a Charge move, until the end of the turn, melee attacks made by models in this unit have the [SUSTAINED HITS 1] ability.', ability_type: 'core' },
-        ],
-        leader_info: null,
-        keywords: ['INFANTRY', 'BATTLELINE', 'CHAOS', 'KHORNE'],
-        faction_keywords: ['WORLD EATERS'],
-        wargear_options: [{ description: 'The Berzerker Champion can be equipped with a plasma pistol instead of a bolt pistol.' }],
-        unit_composition: [{ model_name: 'Khorne Berzerker', count: '5-10' }],
-      },
-      {
-        name: 'Jakhals',
-        points: [{ model_count: 10, points: 65 }],
-        is_epic_hero: false,
-        is_character: false,
-        is_battleline: false,
-        profile: { movement: '6"', toughness: 3, save: '6+', wounds: 1, leadership: '7+', oc: 1 },
-        ranged_weapons: [{ name: 'Autopistol', range: '12"', attacks: '1', skill: '4+', strength: 3, ap: '0', damage: '1', abilities: ['PISTOL'] }],
-        melee_weapons: [{ name: 'Jakhal Chainblades', range: 'Melee', attacks: '2', skill: '4+', strength: 4, ap: '0', damage: '1', abilities: [] }],
-        abilities: [
-          { name: 'Devoted of Khorne', description: 'Each time a model in this unit is destroyed by a melee attack, if that model has not fought this phase, roll one D6. On a 4+, do not remove it from play; that destroyed model can fight after the attacking model\'s unit has finished making its attacks.', ability_type: 'core' },
-        ],
-        leader_info: null,
-        keywords: ['INFANTRY', 'CHAOS', 'KHORNE'],
-        faction_keywords: ['WORLD EATERS'],
-        wargear_options: [],
-        unit_composition: [{ model_name: 'Jakhal', count: '10' }],
-      },
-      {
-        name: 'Exalted Eightbound',
-        points: [{ model_count: 3, points: 155 }],
-        is_epic_hero: false,
-        is_character: false,
-        is_battleline: false,
-        profile: { movement: '6"', toughness: 6, save: '3+', wounds: 4, leadership: '6+', oc: 1 },
-        ranged_weapons: [],
-        melee_weapons: [{ name: 'Eightbound Eviscerators', range: 'Melee', attacks: '6', skill: '2+', strength: 7, ap: '-2', damage: '2', abilities: [] }],
-        abilities: [
-          { name: 'Daemon-touched', description: 'This unit has a 4+ invulnerable save.', ability_type: 'core' },
-        ],
-        leader_info: null,
-        keywords: ['INFANTRY', 'CHAOS', 'DAEMON', 'KHORNE'],
-        faction_keywords: ['WORLD EATERS'],
-        wargear_options: [],
-        unit_composition: [{ model_name: 'Exalted Eightbound', count: '3' }],
-      },
-    ],
-  },
-];
-
-// Universal Boarding Actions enhancements (available to all factions)
-const UNIVERSAL_ENHANCEMENTS: BoardingEnhancement[] = [
-  { name: 'Master of Voidcraft', description: 'Once per battle round, when a friendly unit within 6" of the bearer is targeted by a Stratagem, reduce the CP cost by 1 (minimum 0).' },
-  { name: 'Bulkhead Breacher', description: 'The bearer can operate hatchways at 6" range instead of 1". In addition, when the bearer operates a hatchway, it can force it open on a 2+ even if it is locked.' },
-  { name: 'Void Hardened', description: 'The bearer has a 4+ Feel No Pain against mortal wounds caused by Environmental Hazards.' },
-  { name: 'Ship-Born Veteran', description: 'The bearer and their unit can move through hatchways even when they are Closed (but not Locked).' },
-  { name: 'Ruthless Taskmaster', description: 'Once per battle, at the start of your Command phase, select one friendly unit within 6" of the bearer. That unit can act as if it were not Battle-shocked until the end of the turn.' },
-  { name: 'Salvage Expert', description: 'Each time the bearer\'s unit controls an objective marker, add 1 to the VP scored from that objective.' },
-];
-
-const BOARDING_MISSIONS: BoardingMissionSummary[] = [
-  { mission_id: 'BA01', name: 'Search and Destroy', mission_type: 'symmetric', tags: ['action', 'progressive'] },
-  { mission_id: 'BA02', name: 'Breach and Control', mission_type: 'symmetric', tags: ['objective', 'progressive'] },
-  { mission_id: 'BA03', name: 'Purge the Enemy', mission_type: 'symmetric', tags: ['kill', 'progressive'] },
-  { mission_id: 'BA04', name: 'Running Battle', mission_type: 'symmetric', tags: ['action', 'kill'] },
-  { mission_id: 'BA05', name: 'Decapitation Strike', mission_type: 'asymmetric', tags: ['character', 'kill'] },
-  { mission_id: 'BA06', name: 'Hold the Line', mission_type: 'asymmetric', tags: ['objective', 'endgame'] },
-  { mission_id: 'BA07', name: 'Sabotage', mission_type: 'asymmetric', tags: ['action', 'objective'] },
-  { mission_id: 'BA08', name: 'Extraction', mission_type: 'asymmetric', tags: ['action', 'progressive'] },
-  { mission_id: 'BA09', name: 'Vital Intelligence', mission_type: 'symmetric', tags: ['objective', 'action'] },
-  { mission_id: 'BA10', name: 'Power Struggle', mission_type: 'symmetric', tags: ['objective', 'progressive'] },
-  { mission_id: 'BA11', name: 'Sweep and Clear', mission_type: 'symmetric', tags: ['action', 'progressive'] },
-  { mission_id: 'BA12', name: 'Last Stand', mission_type: 'asymmetric', tags: ['kill', 'endgame'] },
-  { mission_id: 'BA13', name: 'Secure the Armoury', mission_type: 'symmetric', tags: ['objective', 'action'] },
-  { mission_id: 'BA14', name: 'Void Ambush', mission_type: 'asymmetric', tags: ['kill', 'progressive'] },
-  { mission_id: 'BA15', name: 'Boarding Assault', mission_type: 'asymmetric', tags: ['objective', 'endgame'] },
-];
 
 // ===== Step indicator component =====
 
@@ -372,6 +79,7 @@ function PointsBar({ current, max }: { current: number; max: number }) {
 // ===== Select Faction Step =====
 
 function SelectFactionStep() {
+  const factions = useBoardingSetupStore((s) => s.factions);
   const selectFaction = useBoardingSetupStore((s) => s.selectFaction);
   const setScreen = useGameStore((s) => s.setScreen);
 
@@ -384,7 +92,7 @@ function SelectFactionStep() {
         Select a faction for Boarding Actions
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {BOARDING_FACTIONS.map((faction) => (
+        {factions.map((faction) => (
           <button
             key={faction.faction_keyword}
             onClick={() => selectFaction(faction)}
@@ -779,9 +487,8 @@ function SelectEnhancementsStep() {
 
   const MAX_ENHANCEMENTS = 2;
 
-  // All available enhancements: universal + detachment-specific
+  // All available enhancements from the detachment (engine provides the full set including universal)
   const allEnhancements: BoardingEnhancement[] = [
-    ...UNIVERSAL_ENHANCEMENTS,
     ...playerDetachment.enhancements,
   ];
 
@@ -1003,6 +710,7 @@ function DesignateWarlordStep() {
 // ===== Opponent Setup Step =====
 
 function OpponentSetupStep() {
+  const factions = useBoardingSetupStore((s) => s.factions);
   const playerFaction = useBoardingSetupStore((s) => s.playerFaction);
   const opponentFaction = useBoardingSetupStore((s) => s.opponentFaction);
   const opponentDetachment = useBoardingSetupStore((s) => s.opponentDetachment);
@@ -1013,14 +721,14 @@ function OpponentSetupStep() {
   useEffect(() => {
     if (!opponentFaction && playerFaction) {
       // Pick the other faction by default
-      const other = BOARDING_FACTIONS.find(
+      const other = factions.find(
         (f) => f.faction_keyword !== playerFaction.faction_keyword,
       );
       if (other && other.detachments.length > 0) {
         setOpponent(other, other.detachments[0]);
       }
     }
-  }, [opponentFaction, playerFaction, setOpponent]);
+  }, [opponentFaction, playerFaction, factions, setOpponent]);
 
   const handleSelectOpponent = (faction: BoardingFaction) => {
     if (faction.detachments.length > 0) {
@@ -1038,7 +746,7 @@ function OpponentSetupStep() {
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto mb-6">
-        {BOARDING_FACTIONS.map((faction) => {
+        {factions.map((faction) => {
           const isSelected =
             opponentFaction?.faction_keyword === faction.faction_keyword;
           return (
@@ -1124,6 +832,7 @@ function OpponentSetupStep() {
 // ===== Select Mission Step =====
 
 function SelectMissionStep() {
+  const missions = useBoardingSetupStore((s) => s.missions);
   const selectMission = useBoardingSetupStore((s) => s.selectMission);
   const selectedMission = useBoardingSetupStore((s) => s.selectedMission);
   const setStep = useBoardingSetupStore((s) => s.setStep);
@@ -1133,11 +842,11 @@ function SelectMissionStep() {
 
   // Collect all unique tags
   const allTags = Array.from(
-    new Set(BOARDING_MISSIONS.flatMap((m) => m.tags)),
+    new Set(missions.flatMap((m) => m.tags)),
   ).sort();
 
   // Filter missions
-  const filteredMissions = BOARDING_MISSIONS.filter((m) => {
+  const filteredMissions = missions.filter((m) => {
     if (filterType && m.mission_type !== filterType) return false;
     if (filterTag && !m.tags.includes(filterTag)) return false;
     return true;
@@ -1287,29 +996,32 @@ function ReadyStep() {
   const setStep = useBoardingSetupStore((s) => s.setStep);
   const reset = useBoardingSetupStore((s) => s.reset);
 
-  const setScreen = useGameStore((s) => s.setScreen);
   const engineReady = useGameStore((s) => s.engineReady);
   const loading = useGameStore((s) => s.loading);
+  const createBoardingMatch = useGameStore((s) => s.createBoardingMatch);
 
   if (!playerFaction || !playerDetachment || !selectedMission) return null;
 
-  const handleStartBattle = () => {
-    // In a future integration, this would call createBoardingMatch on the game store
-    // For now, transition to the play screen
-    console.log('[BoardingSetup] Starting battle with config:', {
-      playerFaction: playerFaction.faction_name,
-      playerDetachment: playerDetachment.detachment_name,
-      units: selectedUnits,
-      enhancements,
-      warlordIndex,
-      opponentFaction: opponentFaction?.faction_name,
-      opponentDetachment: opponentDetachment?.detachment_name,
-      mission: selectedMission,
-      totalPoints,
+  const handleStartBattle = async () => {
+    // Parse faction IDs from the faction data
+    // The engine uses numeric faction IDs; we derive them from the faction index in the loaded list
+    const factions = useBoardingSetupStore.getState().factions;
+    const playerFactionIndex = factions.findIndex(
+      (f) => f.faction_name === playerFaction.faction_name &&
+             f.detachments.some((d) => d.detachment_name === playerDetachment!.detachment_name)
+    );
+    const opponentFactionIndex = factions.findIndex(
+      (f) => f.faction_name === opponentFaction?.faction_name &&
+             f.detachments.some((d) => d.detachment_name === opponentDetachment?.detachment_name)
+    );
+
+    const missionIdNum = parseInt(selectedMission.mission_id.replace(/\D/g, ''), 10) || 1;
+
+    await createBoardingMatch({
+      playerFactionId: playerFactionIndex >= 0 ? playerFactionIndex : 0,
+      opponentFactionId: opponentFactionIndex >= 0 ? opponentFactionIndex : 1,
+      missionId: missionIdNum,
     });
-    // TODO: Hook into actual game engine boarding match creation
-    // For now this logs the config; engine integration is Phase 16.7
-    setScreen('play');
   };
 
   return (
@@ -1413,11 +1125,42 @@ export function BoardingSetupScreen() {
   const setFactions = useBoardingSetupStore((s) => s.setFactions);
   const setMissions = useBoardingSetupStore((s) => s.setMissions);
 
-  // Load faction and mission data on mount
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const engineReady = useGameStore((s) => s.engineReady);
+
   useEffect(() => {
-    setFactions(BOARDING_FACTIONS);
-    setMissions(BOARDING_MISSIONS);
-  }, [setFactions, setMissions]);
+    if (!engineReady) return;
+
+    const loadData = async () => {
+      try {
+        setDataLoading(true);
+        setDataError(null);
+
+        const { engineClient } = await import('@/engine/workerClient');
+        const factions = await engineClient.getBoardingFactions();
+        const missions = await engineClient.getBoardingMissions();
+
+        // Map mission packages to summaries for the UI
+        const missionSummaries: BoardingMissionSummary[] = missions.map((m: any) => ({
+          mission_id: m.mission_id ?? m.id ?? '',
+          name: m.name ?? m.mission_name ?? '',
+          mission_type: m.mission_type ?? 'symmetric',
+          tags: m.tags ?? [],
+        }));
+
+        setFactions(factions);
+        setMissions(missionSummaries);
+        setDataLoading(false);
+      } catch (err) {
+        console.error('[BoardingSetup] Failed to load data from engine:', err);
+        setDataError(err instanceof Error ? err.message : 'Failed to load boarding data');
+        setDataLoading(false);
+      }
+    };
+
+    loadData();
+  }, [engineReady, setFactions, setMissions]);
 
   return (
     <div className="flex-1 flex flex-col items-center justify-start p-8 overflow-y-auto">
@@ -1431,14 +1174,24 @@ export function BoardingSetupScreen() {
 
         <StepIndicator currentStep={step} />
 
-        {step === 'select_faction' && <SelectFactionStep />}
-        {step === 'select_detachment' && <SelectDetachmentStep />}
-        {step === 'build_army' && <BuildArmyStep />}
-        {step === 'select_enhancements' && <SelectEnhancementsStep />}
-        {step === 'designate_warlord' && <DesignateWarlordStep />}
-        {step === 'opponent_setup' && <OpponentSetupStep />}
-        {step === 'select_mission' && <SelectMissionStep />}
-        {step === 'ready' && <ReadyStep />}
+        {dataLoading && (
+          <div className="text-center text-gray-400 py-12">Loading boarding actions data from engine...</div>
+        )}
+        {dataError && (
+          <div className="text-center text-red-400 py-12">Error: {dataError}</div>
+        )}
+        {!dataLoading && !dataError && (
+          <>
+            {step === 'select_faction' && <SelectFactionStep />}
+            {step === 'select_detachment' && <SelectDetachmentStep />}
+            {step === 'build_army' && <BuildArmyStep />}
+            {step === 'select_enhancements' && <SelectEnhancementsStep />}
+            {step === 'designate_warlord' && <DesignateWarlordStep />}
+            {step === 'opponent_setup' && <OpponentSetupStep />}
+            {step === 'select_mission' && <SelectMissionStep />}
+            {step === 'ready' && <ReadyStep />}
+          </>
+        )}
       </div>
     </div>
   );

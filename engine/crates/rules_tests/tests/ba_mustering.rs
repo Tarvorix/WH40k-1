@@ -3,7 +3,7 @@
 //!
 //! Tests roster validation rules:
 //! - 500 points limit
-//! - BA board dimensions: 42" x 22" (BoardDimensions::BOARDING_ACTIONS)
+//! - BA board dimensions: 48" x 28" (BoardDimensions::BOARDING_ACTIONS)
 //! - Warlord must be CHARACTER
 //! - Up to 2 enhancements, no duplicates
 //! - No EPIC HERO enhancements
@@ -69,23 +69,23 @@ fn ba_mustering_points_cap_is_500() {
 }
 
 // ===========================================================================
-// Test 2: BA board dimensions are 42" x 22"
+// Test 2: BA board dimensions are 48" x 28"
 // ===========================================================================
 
-/// Source: boarding_actions_complete_v3.md Section 2
-/// "TWO Boarding Actions boards placed side by side" => 42" x 22"
+/// Source: Official Boarding Actions rulebook
+/// Two 24"x28" boards side by side => 48" x 28"
 #[test]
-fn ba_board_dimensions_42x22() {
+fn ba_board_dimensions_48x28() {
     let ba = BoardDimensions::BOARDING_ACTIONS;
     assert_eq!(
         ba.width,
-        Inches::from_inches(42),
-        "BA board width should be 42\""
+        Inches::from_inches(48),
+        "BA board width should be 48\""
     );
     assert_eq!(
         ba.height,
-        Inches::from_inches(22),
-        "BA board height should be 22\""
+        Inches::from_inches(28),
+        "BA board height should be 28\""
     );
 
     // Compare to Combat Patrol dimensions to ensure they are different

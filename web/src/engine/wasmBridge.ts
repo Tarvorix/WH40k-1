@@ -86,3 +86,25 @@ export function submitPlaceUnit(player: number, unitId: number, x: number, y: nu
 export function submitNormalMove(unitId: number, x: number, y: number): string {
   return wasmModule.submit_normal_move(unitId, x, y);
 }
+
+// Boarding Actions WASM functions
+
+export function getBoardingFactions(): string {
+  return wasmModule.get_boarding_factions();
+}
+
+export function getBoardingMissions(): string {
+  return wasmModule.get_boarding_missions();
+}
+
+export function validateBoardingRoster(rosterJson: string, factionJson: string): string {
+  return wasmModule.validate_boarding_roster(rosterJson, factionJson);
+}
+
+export function createBoardingMatch(configJson: string): string {
+  return wasmModule.create_boarding_match(configJson);
+}
+
+export function getGameMode(): string {
+  return wasmModule.get_game_mode();
+}
