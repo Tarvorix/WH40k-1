@@ -492,14 +492,14 @@ pub enum PrisonBreakResult {
 
 /// Check if a prison break attempt succeeds.
 ///
-/// The imprisoned unit rolls a D6; if the result equals or exceeds the
-/// highest Toughness characteristic of models in the unit, the Prison Cells
-/// hatchway opens (and can never be closed).
+/// The imprisoned unit rolls a D6; if the result is >= Toughness, the attempt
+/// FAILS (the unit is too tough to break free). If the result is less than
+/// Toughness, the Prison Cells hatchway opens (and can never be closed).
 pub fn prison_break_test(roll: u8, unit_toughness: u8) -> PrisonBreakResult {
     if roll >= unit_toughness {
-        PrisonBreakResult::Success
-    } else {
         PrisonBreakResult::Failure
+    } else {
+        PrisonBreakResult::Success
     }
 }
 
@@ -1031,16 +1031,16 @@ mod tests {
 
     #[test]
     fn test_prison_break_test() {
-        // Toughness 4 unit
-        assert_eq!(prison_break_test(4, 4), PrisonBreakResult::Success);
-        assert_eq!(prison_break_test(5, 4), PrisonBreakResult::Success);
-        assert_eq!(prison_break_test(6, 4), PrisonBreakResult::Success);
-        assert_eq!(prison_break_test(3, 4), PrisonBreakResult::Failure);
-        assert_eq!(prison_break_test(1, 4), PrisonBreakResult::Failure);
+        // Toughness 4 unit: roll >= T fails, roll < T succeeds
+        assert_eq!(prison_break_test(4, 4), PrisonBreakResult::Failure);
+        assert_eq!(prison_break_test(5, 4), PrisonBreakResult::Failure);
+        assert_eq!(prison_break_test(6, 4), PrisonBreakResult::Failure);
+        assert_eq!(prison_break_test(3, 4), PrisonBreakResult::Success);
+        assert_eq!(prison_break_test(1, 4), PrisonBreakResult::Success);
 
         // Toughness 5 unit
-        assert_eq!(prison_break_test(5, 5), PrisonBreakResult::Success);
-        assert_eq!(prison_break_test(4, 5), PrisonBreakResult::Failure);
+        assert_eq!(prison_break_test(5, 5), PrisonBreakResult::Failure);
+        assert_eq!(prison_break_test(4, 5), PrisonBreakResult::Success);
     }
 
     // --- Silent infiltration tests ---

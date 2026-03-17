@@ -87,6 +87,8 @@ def train_epoch(
             total_score_loss += score_loss.item()
 
         loss.backward()
+        # Gradient clipping per AI_Primer §13.1: max_norm=1.0
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
         total_loss += loss.item()
@@ -155,7 +157,7 @@ def run_training(
     epochs: int = 50,
     batch_size: int = 256,
     learning_rate: float = 1e-3,
-    weight_decay: float = 1e-5,
+    weight_decay: float = 1e-4,
     search_score_weight: float = 0.0,
     val_split: float = 0.1,
     checkpoint_every: int = 10,
@@ -236,15 +238,17 @@ def run_training(
         weight_decay=weight_decay,
     )
 
-    # Learning rate scheduler: reduce on plateau
+    # Learning rate scheduler: reduce on plateau (AI_Primer §13.1: patience=10, min_lr=1e-6)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=5,
+        optimizer, mode='min', factor=0.5, patience=10, min_lr=1e-6,
     )
 
     # Training loop
     best_val_loss = float('inf')
     training_log = []
     start_time = time.time()
+    warmup_epochs = 5  # AI_Primer §13.1: warmup over 5 epochs
+    warmup_start_lr = learning_rate / 10.0
 
     print(f"\n{'='*60}")
     print(f"  PERTURABO TRAINING — Gen {generation}")
@@ -260,6 +264,12 @@ def run_training(
 
     for epoch in range(1, epochs + 1):
         epoch_start = time.time()
+
+        # Warmup: linearly increase LR from warmup_start_lr to learning_rate
+        if epoch <= warmup_epochs:
+            warmup_lr = warmup_start_lr + (learning_rate - warmup_start_lr) * (epoch / warmup_epochs)
+            for pg in optimizer.param_groups:
+                pg['lr'] = warmup_lr
 
         # Train
         train_metrics = train_epoch(
@@ -427,6 +437,15 @@ def main():
     gen_parser = subparsers.add_parser('generate', help='Generate self-play training data')
     gen_parser.add_argument('--num-games', type=int, default=100, help='Number of games')
     gen_parser.add_argument('--output-dir', type=str, default='training_data', help='Output directory')
+    gen_parser.add_argument('--ai-type', type=str, default='iterative_deepening',
+                            choices=['greedy', 'one_ply', 'negamax', 'iterative_deepening'],
+                            help='AI type for self-play (default: iterative_deepening)')
+    gen_parser.add_argument('--max-depth', type=int, default=4, help='Search depth (default 4)')
+    gen_parser.add_argument('--game-mode', type=str, default='CombatPatrol',
+                            choices=['CombatPatrol', 'BoardingActions'],
+                            help='Game mode (default: CombatPatrol)')
+    gen_parser.add_argument('--model-path', type=str, default=None,
+                            help='Path to .nnue model for NNUE-based search')
 
     # Train
     train_parser = subparsers.add_parser('train', help='Train NNUE model')
@@ -463,11 +482,24 @@ def main():
     pipeline_parser.add_argument('--gate-games', type=int, default=100, help='Gating games')
     pipeline_parser.add_argument('--generation', type=int, default=0, help='Generation number')
     pipeline_parser.add_argument('--output-dir', type=str, default='pipeline_output', help='Base output dir')
+    pipeline_parser.add_argument('--ai-type', type=str, default='iterative_deepening',
+                                choices=['greedy', 'one_ply', 'negamax', 'iterative_deepening'],
+                                help='AI type for self-play (default: iterative_deepening)')
+    pipeline_parser.add_argument('--max-depth', type=int, default=4, help='Search depth (default 4)')
+    pipeline_parser.add_argument('--game-mode', type=str, default='CombatPatrol',
+                                choices=['CombatPatrol', 'BoardingActions'],
+                                help='Game mode (default: CombatPatrol)')
+    pipeline_parser.add_argument('--model-path', type=str, default=None,
+                                help='Path to .nnue model for NNUE-based search')
 
     args = parser.parse_args()
 
     if args.command == 'generate':
-        generate_training_data(args.num_games, args.output_dir)
+        generate_training_data(
+            args.num_games, args.output_dir,
+            ai_type=args.ai_type, max_depth=args.max_depth,
+            game_mode=args.game_mode, model_path=args.model_path,
+        )
 
     elif args.command == 'train':
         run_training(
@@ -521,7 +553,12 @@ def main():
         print(f"  Games: {args.num_games}")
         print(f"  Output: {data_dir}")
         print()
-        generate_training_data(args.num_games, str(data_dir))
+        generate_training_data(
+            args.num_games, str(data_dir),
+            ai_type=args.ai_type, max_depth=args.max_depth,
+            game_mode=args.game_mode, model_path=args.model_path,
+            model_generation=gen,
+        )
 
         # Step 2: Train
         print("\n" + "=" * 60)

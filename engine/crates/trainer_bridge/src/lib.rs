@@ -1107,18 +1107,60 @@ fn play_game(
 /// Args:
 ///     num_games: Number of games to play.
 ///     output_dir: Directory to write training shards to.
+///     ai_type: AI type string — "greedy", "one_ply", "negamax", "iterative_deepening" (default).
+///     max_depth: Search depth (default 4). Only used for negamax/iterative_deepening.
+///     game_mode: "CombatPatrol" (default) or "BoardingActions".
+///     model_path: Path to .nnue model file for NNUE-based search evaluation.
+///     model_generation: Generation number for shard metadata (default 0).
 ///
 /// Returns:
 ///     Dict with batch statistics.
 #[pyfunction]
-#[pyo3(signature = (num_games, output_dir))]
+#[pyo3(signature = (num_games, output_dir, ai_type=None, max_depth=None, game_mode=None, model_path=None, model_generation=None))]
 fn run_selfplay_batch(
     py: Python,
     num_games: usize,
     output_dir: &str,
+    ai_type: Option<&str>,
+    max_depth: Option<u8>,
+    game_mode: Option<&str>,
+    model_path: Option<&str>,
+    model_generation: Option<u32>,
 ) -> PyResult<PyObject> {
-    let report = collect_training_data(num_games, output_dir.into())
-        .map_err(|e| PyRuntimeError::new_err(format!("Self-play error: {:?}", e)))?;
+    // Convert ai_type string to AiType enum
+    let resolved_ai = match ai_type {
+        Some("greedy") => Some(AiType::Greedy),
+        Some("one_ply") => Some(AiType::OnePly),
+        Some("negamax") => Some(AiType::Negamax(max_depth.unwrap_or(3))),
+        Some("iterative_deepening") => Some(AiType::IterativeDeepening(max_depth.unwrap_or(4))),
+        Some(other) => return Err(PyRuntimeError::new_err(format!(
+            "Unknown ai_type '{}'. Valid: greedy, one_ply, negamax, iterative_deepening", other
+        ))),
+        None => None, // collect_training_data defaults to IterativeDeepening(4)
+    };
+
+    // Convert game_mode string
+    let resolved_mode = match game_mode {
+        Some("BoardingActions") | Some("boarding_actions") | Some("ba") =>
+            Some(GameMode::BoardingActions),
+        Some("CombatPatrol") | Some("combat_patrol") | Some("cp") =>
+            Some(GameMode::CombatPatrol),
+        Some(other) => return Err(PyRuntimeError::new_err(format!(
+            "Unknown game_mode '{}'. Valid: CombatPatrol, BoardingActions", other
+        ))),
+        None => None, // defaults to CombatPatrol
+    };
+
+    let resolved_model_path = model_path.map(std::path::PathBuf::from);
+
+    let report = collect_training_data(
+        num_games,
+        output_dir.into(),
+        resolved_ai,
+        resolved_mode,
+        resolved_model_path,
+        model_generation,
+    ).map_err(|e| PyRuntimeError::new_err(format!("Self-play error: {:?}", e)))?;
 
     let result = PyDict::new(py);
     result.set_item("total_games", report.total_games)?;

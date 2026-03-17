@@ -42,7 +42,11 @@ export function GameEndScreen() {
 
   const handlePlayAgain = () => {
     resetSetup();
-    setScreen('setup');
+    if (gameState.game_mode === 'BoardingActions') {
+      setScreen('boarding_setup');
+    } else {
+      setScreen('setup');
+    }
   };
 
   const handleExportReplay = async () => {

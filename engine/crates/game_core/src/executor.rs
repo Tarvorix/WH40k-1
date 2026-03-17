@@ -1969,14 +1969,8 @@ impl CommandExecutor {
                     },
                 );
                 if roll == 6 {
-                    // Roll D3 for mortal wound count (Deadly Demise D3)
-                    let (mw_roll, _) = state.dice_roller.roll_d3(
-                        wh40k_dice::RollPurpose::DamageRoll {
-                            weapon_id: 0,
-                            damage_type: "Deadly Demise D3".to_string(),
-                        },
-                    );
-                    let mortal_wounds = mw_roll;
+                    // Use the datasheet Deadly Demise value as the mortal wound count
+                    let mortal_wounds = deadly_demise_value;
                     // Apply mortal wounds to all units within 6"
                     let range = wh40k_core_types::Inches::from_inches(6);
                     for unit in &mut state.units {

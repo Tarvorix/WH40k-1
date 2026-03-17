@@ -2,6 +2,12 @@
 export const FACTION_COLORS = {
   0: { primary: 0xC8A951, dark: 0x8B6914, light: 0xE5D48B }, // Custodes
   1: { primary: 0x8B0000, dark: 0x5C0000, light: 0xCC3333 }, // World Eaters
+  2: { primary: 0x3366AA, dark: 0x224488, light: 0x5588CC }, // SM Terminator Assault
+  3: { primary: 0xAA0000, dark: 0x770000, light: 0xCC2222 }, // WE Boarding Butchers
+  4: { primary: 0x990000, dark: 0x660000, light: 0xBB1111 }, // WE Skullsworn
+  5: { primary: 0x444444, dark: 0x222222, light: 0x666666 }, // CSM Champions of Chaos
+  6: { primary: 0x555533, dark: 0x333311, light: 0x777755 }, // CSM Underdeck Uprising
+  7: { primary: 0x4A7A2E, dark: 0x335A1E, light: 0x6A9A4E }, // AM Tempestus
 } as const;
 
 // Phase colors for PixiJS

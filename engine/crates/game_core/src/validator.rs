@@ -1501,29 +1501,26 @@ impl CommandValidator {
             );
         }
 
-        // Must end within engagement range of at least one declared target
-        let mut in_er_of_any_target = false;
+        // Must end within engagement range of ALL declared charge targets
         for target_id in &charge_targets {
+            let mut in_er_of_this_target = false;
             if let Some(target) = state.unit(*target_id) {
                 for target_model in target.models.iter().filter(|m| m.alive) {
                     if wh40k_geometry::within_engagement_range_2d(
                         destination, unit_base,
                         target_model.position, target_model.base_size,
                     ) {
-                        in_er_of_any_target = true;
+                        in_er_of_this_target = true;
                         break;
                     }
                 }
-                if in_er_of_any_target {
-                    break;
-                }
             }
-        }
-        if !in_er_of_any_target {
-            return CommandValidationResult::illegal_with_ref(
-                "Charge move must end within Engagement Range of at least one declared charge target",
-                "40k_revised.md §9.4 - Charge Move: must end in ER of target",
-            );
+            if !in_er_of_this_target {
+                return CommandValidationResult::illegal_with_ref(
+                    "Charge move must end within Engagement Range of ALL declared charge targets",
+                    "40k_revised.md §9.4 - Charge Move: must end in ER of all targets",
+                );
+            }
         }
 
         // Cannot end within engagement range of enemy units that were NOT declared

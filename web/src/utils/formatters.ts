@@ -53,20 +53,50 @@ export function phaseBgColor(phase: string): string {
   return colors[phase] ?? 'bg-gray-600';
 }
 
+const FACTION_TEXT_COLORS: Record<number, string> = {
+  0: 'text-custodes-gold',
+  1: 'text-worldeaters-red',
+  2: 'text-blue-400',
+  3: 'text-red-600',
+  4: 'text-red-700',
+  5: 'text-gray-400',
+  6: 'text-yellow-700',
+  7: 'text-green-500',
+};
+
+const FACTION_BG_COLORS: Record<number, string> = {
+  0: 'bg-custodes-gold',
+  1: 'bg-worldeaters-red',
+  2: 'bg-blue-600',
+  3: 'bg-red-700',
+  4: 'bg-red-800',
+  5: 'bg-gray-600',
+  6: 'bg-yellow-800',
+  7: 'bg-green-700',
+};
+
+const FACTION_NAMES: Record<number, string> = {
+  0: 'Adeptus Custodes',
+  1: 'World Eaters',
+  2: 'Space Marines - Terminator Assault',
+  3: 'World Eaters - Boarding Butchers',
+  4: 'World Eaters - Skullsworn',
+  5: 'Chaos Space Marines - Champions of Chaos',
+  6: 'Chaos Space Marines - Underdeck Uprising',
+  7: 'Astra Militarum - Tempestus Regiment',
+};
+
 export function factionColor(factionId: number | null): string {
-  if (factionId === 0) return 'text-custodes-gold';
-  if (factionId === 1) return 'text-worldeaters-red';
-  return 'text-gray-400';
+  if (factionId == null) return 'text-gray-400';
+  return FACTION_TEXT_COLORS[factionId] ?? 'text-gray-400';
 }
 
 export function factionBgColor(factionId: number | null): string {
-  if (factionId === 0) return 'bg-custodes-gold';
-  if (factionId === 1) return 'bg-worldeaters-red';
-  return 'bg-gray-600';
+  if (factionId == null) return 'bg-gray-600';
+  return FACTION_BG_COLORS[factionId] ?? 'bg-gray-600';
 }
 
 export function factionName(factionId: number | null): string {
-  if (factionId === 0) return 'Adeptus Custodes';
-  if (factionId === 1) return 'World Eaters';
-  return 'Unknown';
+  if (factionId == null) return 'Unknown';
+  return FACTION_NAMES[factionId] ?? 'Unknown';
 }

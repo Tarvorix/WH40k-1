@@ -62,6 +62,14 @@ export const MIN_ZOOM = 0.5;
 export const MAX_ZOOM = 4.0;
 export const ZOOM_SPEED = 0.1;
 
+// Board dimensions helper (supports multiple game modes)
+export function getBoardDimensions(gameMode?: string): { widthInches: number; heightInches: number } {
+  if (gameMode === 'BoardingActions') {
+    return { widthInches: 48, heightInches: 28 };
+  }
+  return { widthInches: BOARD_WIDTH_INCHES, heightInches: BOARD_HEIGHT_INCHES };
+}
+
 // Per-model rendering
 /** Convert a model's base size in mm to a pixel radius on the board. */
 export function baseRadiusPx(baseSizeMm: number): number {

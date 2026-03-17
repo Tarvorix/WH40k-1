@@ -14,6 +14,7 @@ export interface GameView {
   in_progress: boolean;
   content_version: string;
   scenario_id: number | null;
+  game_mode: string;
 }
 
 export interface PlayerView {

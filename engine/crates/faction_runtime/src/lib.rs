@@ -160,11 +160,11 @@ impl BlessingValidator {
         for alloc in allocations {
             let valid = match alloc.blessing {
                 BlessingOfKhorne::RageFuelledInvigoration => {
-                    // Requires Double (2+): two dice showing same value, both 2+
+                    // Requires Double (2+): two dice both showing 2+
                     Self::check_double_two_plus(dice, &alloc.dice_indices)
                 }
                 BlessingOfKhorne::TotalCarnage => {
-                    // Requires Double (2+): two dice showing same value, both 2+
+                    // Requires Double (2+): two dice both showing 2+
                     Self::check_double_two_plus(dice, &alloc.dice_indices)
                 }
                 BlessingOfKhorne::MartialExcellence => {
@@ -185,8 +185,8 @@ impl BlessingValidator {
         Ok(())
     }
 
-    /// Check if the selected dice form a Double (2+): two dice showing the same
-    /// value, both 2 or higher.
+    /// Check if the selected dice form a Double (2+): two dice both showing
+    /// 2 or higher (they do NOT need to match).
     pub fn check_double_two_plus(dice: &[u8], indices: &[usize]) -> bool {
         if indices.len() != 2 {
             return false;
@@ -195,11 +195,11 @@ impl BlessingValidator {
         let a = dice[indices[0]];
         let b = dice[indices[1]];
 
-        a == b && a >= 2
+        a >= 2 && b >= 2
     }
 
-    /// Check if the selected dice form a Double (4+): two dice showing the same
-    /// value, both 4 or higher.
+    /// Check if the selected dice form a Double (4+): two dice both showing
+    /// 4 or higher (they do NOT need to match).
     pub fn check_double_four_plus(dice: &[u8], indices: &[usize]) -> bool {
         if indices.len() != 2 {
             return false;
@@ -208,7 +208,7 @@ impl BlessingValidator {
         let a = dice[indices[0]];
         let b = dice[indices[1]];
 
-        a == b && a >= 4
+        a >= 4 && b >= 4
     }
 
     /// Check if the selected dice form a Triple (any): three dice showing the
@@ -785,9 +785,10 @@ mod tests {
     #[test]
     fn test_blessing_validator_double_two_plus() {
         let dice = vec![3, 3, 5, 2, 1];
-        assert!(BlessingValidator::check_double_two_plus(&dice, &[0, 1])); // 3,3
-        assert!(!BlessingValidator::check_double_two_plus(&dice, &[0, 2])); // 3,5 different
-        assert!(!BlessingValidator::check_double_two_plus(&dice, &[4, 4])); // need 2 different indices
+        assert!(BlessingValidator::check_double_two_plus(&dice, &[0, 1])); // 3,3 both 2+
+        assert!(BlessingValidator::check_double_two_plus(&dice, &[0, 2])); // 3,5 both 2+
+        assert!(BlessingValidator::check_double_two_plus(&dice, &[0, 3])); // 3,2 both 2+
+        assert!(!BlessingValidator::check_double_two_plus(&dice, &[0, 4])); // 3,1 — 1 is not 2+
     }
 
     #[test]
@@ -800,8 +801,10 @@ mod tests {
     #[test]
     fn test_blessing_validator_double_four_plus() {
         let dice = vec![4, 4, 2, 2, 6];
-        assert!(BlessingValidator::check_double_four_plus(&dice, &[0, 1])); // 4,4
+        assert!(BlessingValidator::check_double_four_plus(&dice, &[0, 1])); // 4,4 both 4+
+        assert!(BlessingValidator::check_double_four_plus(&dice, &[0, 4])); // 4,6 both 4+
         assert!(!BlessingValidator::check_double_four_plus(&dice, &[2, 3])); // 2,2 - too low
+        assert!(!BlessingValidator::check_double_four_plus(&dice, &[0, 2])); // 4,2 — 2 is not 4+
     }
 
     #[test]
@@ -905,10 +908,10 @@ mod tests {
 
     #[test]
     fn test_validate_allocation_requirement_not_met() {
-        let dice = vec![3, 5, 2, 1, 4];
+        let dice = vec![3, 1, 2, 1, 4];
         let allocations = vec![BlessingAllocation {
             blessing: BlessingOfKhorne::RageFuelledInvigoration,
-            dice_indices: vec![0, 1], // 3 and 5 - not a pair!
+            dice_indices: vec![0, 1], // 3 and 1 — 1 is not 2+, fails Double (2+)
         }];
         let result = BlessingValidator::validate_allocation(&dice, &allocations);
         assert!(result.is_err());

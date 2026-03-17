@@ -56,7 +56,7 @@ class ShardDataset(Dataset):
             sparse = s.sparse_features if hasattr(s, 'sparse_features') else s['sparse_features']
             for idx, val in sparse:
                 if idx < TOTAL_FEATURES:
-                    dense[idx] = float(val)
+                    dense[idx] = float(val) / 127.0  # Normalize i16 features to ~[-1, 1]
 
             self.features_list.append(dense)
 
@@ -154,12 +154,25 @@ def create_dataloader(
 def generate_training_data(
     num_games: int = 100,
     output_dir: str = "training_data",
+    ai_type: str = "iterative_deepening",
+    max_depth: int = 4,
+    game_mode: str = "CombatPatrol",
+    model_path: str | None = None,
+    model_generation: int = 0,
 ) -> int:
     """Generate training data by running self-play games.
+
+    Defaults to Perturabo-style iterative deepening search at depth 4
+    per AI_Primer.md §12-13. Use ai_type="greedy" for fast testing only.
 
     Args:
         num_games: Number of self-play games to run.
         output_dir: Directory to write training shards to.
+        ai_type: AI type — "greedy", "one_ply", "negamax", "iterative_deepening" (default).
+        max_depth: Search depth for negamax/iterative_deepening (default 4).
+        game_mode: "CombatPatrol" (default) or "BoardingActions".
+        model_path: Path to .nnue model for NNUE-based search evaluation.
+        model_generation: Generation number for shard metadata (default 0).
 
     Returns:
         Total number of training samples generated.
@@ -172,10 +185,20 @@ def generate_training_data(
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    report = wtb.run_selfplay_batch(num_games, output_dir)
+    print(f"Self-play config: ai={ai_type}, depth={max_depth}, mode={game_mode}, model={model_path or 'none'}")
+    report = wtb.run_selfplay_batch(
+        num_games,
+        output_dir,
+        ai_type=ai_type,
+        max_depth=max_depth,
+        game_mode=game_mode,
+        model_path=model_path,
+        model_generation=model_generation,
+    )
     print(f"Self-play complete:")
     print(f"  Games: {report['total_games']}")
     print(f"  P1 wins: {report['player1_wins']}, P2 wins: {report['player2_wins']}, Draws: {report['draws']}")
+    print(f"  Avg rounds: {report['avg_rounds']:.1f}, Avg commands: {report['avg_commands']:.1f}")
     print(f"  Total samples: {report['total_samples']}")
     print(f"  Throughput: {report['games_per_hour']:.0f} games/hour")
 

@@ -402,16 +402,17 @@ impl PhaseStateMachine {
     /// Start the Fight Phase.
     ///
     /// Initializes fight alternation tracking:
-    /// - Fights First step: active player picks first (CP_Rules.md §8.1)
-    /// - After Fights First completes, Remaining Combats starts with non-active player
+    /// - Fights First step: non-active player picks first (40k_revised.md §10.1)
+    /// - After Fights First completes, Remaining Combats starts with active player
     ///
-    /// Source: CP_Rules.md §8.1 - Fight Phase Sequence
     /// Source: 40k_revised.md §10.1 - Fight Phase Structure
+    /// Source: CP_Rules.md §8.1 - Fight Phase Sequence
     pub fn start_fight_phase(state: &mut GameState) -> Vec<GameEvent> {
         state.current_subphase = SubPhase::FightsFirst;
-        // Fights First step: active player picks first
-        // Source: CP_Rules.md §8.1 - "Players alternate, starting with player whose turn it is"
-        state.turn_flags.init_fight_alternation(state.active_player);
+        // Fights First step: non-active player picks first
+        // Source: 40k_revised.md §10.1 - "starting with the player whose turn is NOT taking place"
+        let opponent = state.opponent_id(state.active_player);
+        state.turn_flags.init_fight_alternation(opponent);
         vec![GameEvent::PhaseStarted {
             phase: Phase::Fight,
             player: state.active_player,

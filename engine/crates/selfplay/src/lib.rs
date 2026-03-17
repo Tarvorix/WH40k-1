@@ -2839,12 +2839,79 @@ pub fn run_test_game() -> Result<MatchResult, SelfPlayError> {
     play_single_game(&match_config, &p1, &p2, false, false)
 }
 
-/// Collect training data from N self-play games using greedy AI.
+/// Collect training data from N self-play games.
+///
+/// Defaults to IterativeDeepening search at depth 4 (Perturabo-style) per AI_Primer.md §12-13.
+/// Pass `ai_type` to override (e.g. Some(AiType::Greedy) for fast testing).
+/// Pass `game_mode` to generate data for BoardingActions instead of CombatPatrol.
+/// Pass `model_path` to load NNUE weights for the search evaluator.
 pub fn collect_training_data(
     num_games: usize,
     output_dir: PathBuf,
+    ai_type: Option<AiType>,
+    game_mode: Option<GameMode>,
+    model_path: Option<PathBuf>,
+    model_generation: Option<u32>,
 ) -> Result<SelfPlayReport, SelfPlayError> {
-    let config = SelfPlayConfig::default_greedy(num_games).with_output_dir(output_dir);
+    let resolved_ai = ai_type.unwrap_or(AiType::IterativeDeepening(4));
+    let resolved_mode = game_mode.unwrap_or(GameMode::CombatPatrol);
+
+    // Build player configs with the resolved AI type
+    let mut p1 = PlayerConfig {
+        name: "Perturabo-1".to_string(),
+        ai_type: resolved_ai.clone(),
+        weights: None,
+        model_artifact: None,
+        search_config: None,
+    };
+    let mut p2 = PlayerConfig {
+        name: "Perturabo-2".to_string(),
+        ai_type: resolved_ai,
+        weights: None,
+        model_artifact: None,
+        search_config: None,
+    };
+
+    // Load NNUE model if path provided
+    if let Some(ref path) = model_path {
+        let artifact = NnueModelArtifact::load_from_file(path)
+            .map_err(|e| SelfPlayError::ConfigError(format!(
+                "Failed to load NNUE model from {:?}: {:?}", path, e
+            )))?;
+        p1.model_artifact = Some(artifact.clone());
+        p2.model_artifact = Some(artifact);
+    }
+
+    // Select missions based on game mode
+    let missions = if resolved_mode == GameMode::BoardingActions {
+        vec![
+            Some(MissionId::new(11)), Some(MissionId::new(12)), Some(MissionId::new(13)),
+            Some(MissionId::new(21)), Some(MissionId::new(22)), Some(MissionId::new(23)),
+            Some(MissionId::new(31)), Some(MissionId::new(32)), Some(MissionId::new(33)),
+        ]
+    } else {
+        vec![
+            Some(MissionId::new(0)), Some(MissionId::new(1)), Some(MissionId::new(2)),
+            Some(MissionId::new(3)), Some(MissionId::new(4)), Some(MissionId::new(5)),
+        ]
+    };
+
+    let config = SelfPlayConfig {
+        player1: p1,
+        player2: p2,
+        game_mode: resolved_mode,
+        num_games,
+        seed_base: 42,
+        missions,
+        output_dir: Some(output_dir),
+        shard_size: DEFAULT_SHARD_SIZE,
+        collect_training_data: true,
+        collect_replays: false,
+        log_interval: 10,
+        alternate_factions: true,
+        model_generation: model_generation.unwrap_or(0),
+    };
+
     let runner = SelfPlayRunner::new(config);
     runner.run()
 }

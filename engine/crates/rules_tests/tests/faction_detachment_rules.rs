@@ -464,17 +464,17 @@ fn world_eaters_blessings_valid_allocation_two_blessings() {
 /// Allocations that don't meet blessing requirements are rejected.
 #[test]
 fn world_eaters_blessings_invalid_requirement_rejected() {
-    // Roll: [2, 3, 4, 5, 6] — no matching pair for Double requirement
-    let dice = vec![2, 3, 4, 5, 6];
+    // Roll: [1, 3, 4, 5, 6] — index 0 is a 1, which is below the 2+ threshold
+    let dice = vec![1, 3, 4, 5, 6];
     let allocations = vec![BlessingAllocation {
         blessing: BlessingOfKhorne::RageFuelledInvigoration,
-        dice_indices: vec![0, 1], // 2, 3 — not a matching pair
+        dice_indices: vec![0, 1], // 1, 3 — 1 is not 2+, fails Double (2+)
     }];
 
     let result = BlessingValidator::validate_allocation(&dice, &allocations);
     assert!(
         result.is_err(),
-        "Mismatched dice should not satisfy Double requirement"
+        "A die showing 1 should not satisfy Double (2+) requirement"
     );
 }
 
