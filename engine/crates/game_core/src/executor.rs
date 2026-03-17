@@ -365,6 +365,9 @@ impl CommandExecutor {
                 Ok(events)
             }
             Command::ResolveMeleeAttack { attacker_id, target_id, weapon_id } => {
+                // TODO (R-25): Extra Attacks weapons — bearer should attack with BOTH the Extra Attacks
+                // weapon AND one other melee weapon. The number of attacks from Extra Attacks weapons
+                // cannot be modified. Source: 40k_revised.md §11.18
                 Self::apply_resolve_attack(
                     state, *attacker_id, *target_id, *weapon_id, true,
                 )

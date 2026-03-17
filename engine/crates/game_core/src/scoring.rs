@@ -92,7 +92,7 @@ pub fn apply_enhancement(
                 source: EffectSource::Enhancement(enhancement_id),
                 target: EffectTarget::Unit(warlord_unit_id),
                 effect_type: EffectType::Custom(
-                    "Bane of the Craven: enemies must Desperate Escape on Fall Back".to_string(),
+                    "Bane of the Craven: non-MONSTER/VEHICLE enemies within ER must Desperate Escape on Fall Back; -1 to tests if Battle-shocked".to_string(),
                 ),
                 duration: EffectDuration::Persistent,
                 stacking: StackingBehavior::Unique,
@@ -1437,14 +1437,18 @@ fn score_display_of_might(
             categories_met.push("consecutive claim");
         }
 
-        if total_vp > 0 {
-            let vp = VictoryPoints::new(total_vp as i16);
+        // Cap at 20VP per scoring round (4 categories × 5VP max)
+        // Source: CP_Rules.md §13, Mission 6
+        let capped_vp = total_vp.min(20);
+
+        if capped_vp > 0 {
+            let vp = VictoryPoints::new(capped_vp as i16);
             results.push((
                 player,
                 vp,
                 GameEvent::VictoryPointsScored {
                     player,
-                    amount: total_vp,
+                    amount: capped_vp,
                     source: VpSource::MissionRule(format!(
                         "Display of Might: {} (round {})",
                         categories_met.join(", "), round

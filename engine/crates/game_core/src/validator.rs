@@ -1110,6 +1110,13 @@ impl CommandValidator {
                 }
             }
 
+            // TODO (R-31): Psychic weapon PSYKER restriction — when WeaponAbility::Psychic
+            // is added to the WeaponAbility enum, add a check here: if the weapon has the
+            // Psychic ability, the shooting unit must have the Keyword::Psyker keyword.
+            // If not, block the attack with:
+            //   "Psychic weapons can only be used by units with the PSYKER keyword"
+            // Source: 40k_revised.md §11.19 - "PSYCHIC" weapon ability
+
             // Engagement range shooting restrictions
             // Source: 40k_revised.md - Pistol, Big Guns Never Tire
             if is_engaged {
@@ -1837,6 +1844,9 @@ impl CommandValidator {
         // Max move distance: 3" for Pile-In, 3" for Consolidate
         let max_move = wh40k_core_types::Inches::from_inches(3);
 
+        // Tolerance for base-to-base contact check (sub-millimeter precision)
+        let b2b_tolerance = wh40k_core_types::Inches::from_mils(50); // ~1.27mm
+
         for (model_id, new_pos) in positions {
             // Find the model in this unit
             let model = match unit.models.iter().find(|m| m.id == *model_id) {
@@ -1851,6 +1861,43 @@ impl CommandValidator {
 
             if !model.alive {
                 continue; // Skip dead models
+            }
+
+            // Skip models already in base-to-base contact with any enemy model.
+            // Models in b2b are already as close as possible and should not move
+            // during Pile-In or Consolidation.
+            // Source: 40k_revised.md §10.4 - only models NOT in base contact move
+            let already_in_b2b = state.units.iter().any(|enemy_unit| {
+                if enemy_unit.owner == unit.owner
+                    || enemy_unit.is_destroyed()
+                    || !enemy_unit.is_on_battlefield()
+                {
+                    return false;
+                }
+                enemy_unit.models.iter().filter(|m| m.alive).any(|enemy_model| {
+                    let gap = wh40k_geometry::distance_between_models(
+                        model.position,
+                        model.base_size,
+                        enemy_model.position,
+                        enemy_model.base_size,
+                    );
+                    gap <= b2b_tolerance
+                })
+            });
+
+            if already_in_b2b {
+                // Model is already in base-to-base contact; it should not move.
+                // If the command specifies a different position for this model, reject it.
+                if *new_pos != model.position {
+                    return CommandValidationResult::illegal_with_ref(
+                        format!(
+                            "{}: model {} is already in base-to-base contact with an enemy model and cannot move",
+                            move_name, model_id
+                        ),
+                        "40k_revised.md §10.4 - Pile-In/Consolidate: only models NOT in base contact move",
+                    );
+                }
+                continue;
             }
 
             let old_pos = model.position;
