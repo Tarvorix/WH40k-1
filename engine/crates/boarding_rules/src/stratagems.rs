@@ -84,11 +84,61 @@ pub const UNIVERSAL_BA_STRATAGEMS: &[BoardingStratagem] = &[
 pub const UNIVERSAL_BA_ENHANCEMENT_NAMES: &[&str] = &[
     "Superior Boarding Tactics",
     "Close-Quarters Killer",
-    "Peerless Leader",
     "Expert Breacher",
-    "Personal Teleporter",
     "Trademark Weapon",
+    "Armour of Contempt",
+    "Brutal Combatant",
 ];
+
+// ---------------------------------------------------------------------------
+// BA Universal Enhancement Effects
+// ---------------------------------------------------------------------------
+
+/// BA universal enhancement effects.
+/// Source: boarding_actions_complete_v3.md §5
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum BaEnhancementEffect {
+    /// +2 CP at start of battle
+    SuperiorBoardingTactics,
+    /// Re-roll wound rolls for bearer's melee attacks
+    CloseQuartersKiller,
+    /// Can operate hatchway at START or END of move (not just end)
+    ExpertBreacher,
+    /// One ranged weapon gets +1S and +1D
+    TrademarkWeapon,
+    /// 4+ FNP against mortal wounds
+    ArmourOfContempt,
+    /// +1 Attack for melee weapons
+    BrutalCombatant,
+}
+
+/// Get the enhancement effect for a given enhancement name.
+pub fn enhancement_effect(name: &str) -> Option<BaEnhancementEffect> {
+    match name {
+        "Superior Boarding Tactics" => Some(BaEnhancementEffect::SuperiorBoardingTactics),
+        "Close-Quarters Killer" => Some(BaEnhancementEffect::CloseQuartersKiller),
+        "Expert Breacher" => Some(BaEnhancementEffect::ExpertBreacher),
+        "Trademark Weapon" => Some(BaEnhancementEffect::TrademarkWeapon),
+        "Armour of Contempt" => Some(BaEnhancementEffect::ArmourOfContempt),
+        "Brutal Combatant" => Some(BaEnhancementEffect::BrutalCombatant),
+        _ => None,
+    }
+}
+
+/// Get the CP bonus for an enhancement (only Superior Boarding Tactics grants +2 CP).
+pub fn enhancement_cp_bonus(name: &str) -> u8 {
+    if name == "Superior Boarding Tactics" { 2 } else { 0 }
+}
+
+/// Get the melee attack bonus for an enhancement.
+pub fn enhancement_melee_attack_bonus(name: &str) -> u8 {
+    if name == "Brutal Combatant" { 1 } else { 0 }
+}
+
+/// Get the FNP value against mortal wounds for an enhancement (0 = no FNP).
+pub fn enhancement_mortal_wound_fnp(name: &str) -> u8 {
+    if name == "Armour of Contempt" { 4 } else { 0 }
+}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -226,10 +276,63 @@ mod tests {
     fn test_enhancement_names_content() {
         assert!(UNIVERSAL_BA_ENHANCEMENT_NAMES.contains(&"Superior Boarding Tactics"));
         assert!(UNIVERSAL_BA_ENHANCEMENT_NAMES.contains(&"Close-Quarters Killer"));
-        assert!(UNIVERSAL_BA_ENHANCEMENT_NAMES.contains(&"Peerless Leader"));
         assert!(UNIVERSAL_BA_ENHANCEMENT_NAMES.contains(&"Expert Breacher"));
-        assert!(UNIVERSAL_BA_ENHANCEMENT_NAMES.contains(&"Personal Teleporter"));
         assert!(UNIVERSAL_BA_ENHANCEMENT_NAMES.contains(&"Trademark Weapon"));
+        assert!(UNIVERSAL_BA_ENHANCEMENT_NAMES.contains(&"Armour of Contempt"));
+        assert!(UNIVERSAL_BA_ENHANCEMENT_NAMES.contains(&"Brutal Combatant"));
+    }
+
+    #[test]
+    fn test_enhancement_effect_lookup() {
+        assert_eq!(
+            enhancement_effect("Superior Boarding Tactics"),
+            Some(BaEnhancementEffect::SuperiorBoardingTactics)
+        );
+        assert_eq!(
+            enhancement_effect("Close-Quarters Killer"),
+            Some(BaEnhancementEffect::CloseQuartersKiller)
+        );
+        assert_eq!(
+            enhancement_effect("Expert Breacher"),
+            Some(BaEnhancementEffect::ExpertBreacher)
+        );
+        assert_eq!(
+            enhancement_effect("Trademark Weapon"),
+            Some(BaEnhancementEffect::TrademarkWeapon)
+        );
+        assert_eq!(
+            enhancement_effect("Armour of Contempt"),
+            Some(BaEnhancementEffect::ArmourOfContempt)
+        );
+        assert_eq!(
+            enhancement_effect("Brutal Combatant"),
+            Some(BaEnhancementEffect::BrutalCombatant)
+        );
+        assert_eq!(enhancement_effect("Nonexistent Enhancement"), None);
+    }
+
+    #[test]
+    fn test_enhancement_cp_bonus() {
+        assert_eq!(enhancement_cp_bonus("Superior Boarding Tactics"), 2);
+        assert_eq!(enhancement_cp_bonus("Close-Quarters Killer"), 0);
+        assert_eq!(enhancement_cp_bonus("Expert Breacher"), 0);
+        assert_eq!(enhancement_cp_bonus("Trademark Weapon"), 0);
+        assert_eq!(enhancement_cp_bonus("Armour of Contempt"), 0);
+        assert_eq!(enhancement_cp_bonus("Brutal Combatant"), 0);
+    }
+
+    #[test]
+    fn test_enhancement_melee_attack_bonus() {
+        assert_eq!(enhancement_melee_attack_bonus("Brutal Combatant"), 1);
+        assert_eq!(enhancement_melee_attack_bonus("Superior Boarding Tactics"), 0);
+        assert_eq!(enhancement_melee_attack_bonus("Close-Quarters Killer"), 0);
+    }
+
+    #[test]
+    fn test_enhancement_mortal_wound_fnp() {
+        assert_eq!(enhancement_mortal_wound_fnp("Armour of Contempt"), 4);
+        assert_eq!(enhancement_mortal_wound_fnp("Superior Boarding Tactics"), 0);
+        assert_eq!(enhancement_mortal_wound_fnp("Brutal Combatant"), 0);
     }
 
     #[test]

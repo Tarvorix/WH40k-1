@@ -56,7 +56,7 @@ The AI subsystem is a layered system combining classical game-tree search with n
 │  │                   Evaluation                        │  │
 │  │  ┌─────────────────┐   ┌────────────────────────┐  │  │
 │  │  │HeuristicEvaluator│   │NnueEvaluator           │  │  │
-│  │  │(15 weighted terms│   │(1203→128→32→32→1)      │  │  │
+│  │  │(15 weighted terms│   │(1209→128→32→32→1)      │  │  │
 │  │  │ hand-tuned)      │   │ quantized i16/i8/i32   │  │  │
 │  │  └─────────┬───────┘   │ incremental accumulator │  │  │
 │  │            │            └────────────┬───────────┘  │  │
@@ -67,7 +67,7 @@ The AI subsystem is a layered system combining classical game-tree search with n
 │                           │                               │
 │  ┌────────────────────────┴───────────────────────────┐  │
 │  │              Feature Extraction                     │  │
-│  │  GameState → 1203 sparse features                   │  │
+│  │  GameState → 1209 sparse features                   │  │
 │  │  31 global + 180 objective (6×30) + 992 unit (16×62)│  │
 │  └────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────┘
@@ -133,7 +133,7 @@ pub struct SearchResult {
 
 **Crate:** `wh40k_eval_features` — Converts raw `GameState` into a fixed-size numeric representation for both heuristic evaluation and neural network input.
 
-### Feature Space Layout (1203 total)
+### Feature Space Layout (1209 total)
 
 ```
 Offset    Count   Description
@@ -144,7 +144,7 @@ Offset    Count   Description
 31-210    180     Objective features (6 objectives × 30 features)
 211-1202  992     Unit features (16 units × 62 features)
 ──────    ─────
-Total    1203
+Total    1209  (1203 base + 6 BA features at indices 1203-1208)
 ```
 
 ### Global Features (31)
@@ -328,7 +328,7 @@ Used by `OnePlySearch` and for static candidate ranking when full evaluation is 
 ### Network Architecture
 
 ```
-Input Layer: 1203 sparse features
+Input Layer: 1209 sparse features
       │
       ▼
 Feature Transformer + Accumulator (128 neurons)
@@ -345,7 +345,7 @@ Output Layer (1 neuron → Score)
 
 **Total parameters:** ~159K
 ```
-Feature transformer:  1203 × 128 weights + 128 biases  = 154,112
+Feature transformer:  1209 × 128 weights + 128 biases  = 154,880
 Hidden 1:               128 × 32  weights + 32  biases  =   4,128
 Hidden 2:                32 × 32  weights + 32  biases  =   1,056
 Output:                  32 × 1   weights + 1   bias    =      33
@@ -421,7 +421,7 @@ For changed features:
 Then forward from updated accumulator (skip step 1).
 ```
 
-This reduces leaf evaluation from O(1203 × 128) to O(Δ × 128) where Δ is the number of changed features — typically 5-20 for a single move.
+This reduces leaf evaluation from O(1209 × 128) to O(Δ × 128) where Δ is the number of changed features — typically 5-20 for a single move.
 
 ### Model Artifact Format
 
@@ -571,7 +571,7 @@ candidates.candidates.retain(|action| {
 });
 ```
 
-### Action Vocabulary (528 = 33 × 16)
+### Action Vocabulary (640 = 40 × 16)
 
 For training data encoding, each macro-action maps to a vocabulary index:
 
@@ -579,7 +579,7 @@ For training data encoding, each macro-action maps to a vocabulary index:
 vocab_index = intent_index × 16 + unit_slot_index
 ```
 
-- **33 intents** × **16 unit slots** (max units per player) = **528 possible actions**
+- **40 intents** × **16 unit slots** (max units per player) = **640 possible actions** (33 base + 7 BA intents)
 - Used as the policy head output dimension in the PolicyValueModel
 
 ---
@@ -1224,7 +1224,7 @@ priors = softmax(scores)       // Higher score → higher prior
 ```
 
 **Neural (from PolicyValueModel):**
-Policy head outputs logits over 528-action vocabulary, masked to legal actions and softmax-normalized.
+Policy head outputs logits over 640-action vocabulary, masked to legal actions and softmax-normalized.
 
 ### Dirichlet Noise
 
@@ -1262,17 +1262,17 @@ The AlphaZero-style dual-head network that produces both a policy (action probab
 ### Architecture
 
 ```
-Input (1203 sparse features)
+Input (1209 sparse features)
         │
         ▼
-  Shared Trunk: Linear(1203 → 128) + ReLU
+  Shared Trunk: Linear(1209 → 128) + ReLU
         │
         ├──────────────────┐
         ▼                  ▼
    Policy Head         Value Head
    Linear(128→64)      Linear(128→64)
    + ReLU              + ReLU
-   Linear(64→528)      Linear(64→1)
+   Linear(64→640)      Linear(64→1)
    → logits            + tanh → [-1, 1]
 ```
 
@@ -1280,10 +1280,10 @@ Input (1203 sparse features)
 
 ```rust
 pub const DEFAULT: PolicyValueDimensions = {
-    input_size: 1203,           // Same feature space as NNUE
+    input_size: 1209,           // Same feature space as NNUE
     trunk_size: 128,            // Shared representation
     policy_hidden_size: 64,     // Policy head hidden layer
-    policy_output_size: 528,    // ACTION_VOCAB_SIZE (33 intents × 16 slots)
+    policy_output_size: 640,    // ACTION_VOCAB_SIZE (40 intents × 16 slots)
     value_hidden_size: 64,      // Value head hidden layer
     value_output_size: 1,       // Scalar evaluation
 };
@@ -1298,7 +1298,7 @@ def forward(x, legal_mask=None):
 
     # Policy head
     policy_hidden = relu(policy_fc1(trunk))  # [batch, 64]
-    policy_logits = policy_fc2(policy_hidden) # [batch, 528]
+    policy_logits = policy_fc2(policy_hidden) # [batch, 640]
 
     # Mask illegal actions to -∞
     if legal_mask is not None:
@@ -1347,10 +1347,11 @@ Illegal actions are masked before computing the policy loss — only legal actio
 ### Constants
 
 ```rust
-const ACTION_VOCAB_SIZE: usize = 528;       // 33 intents × 16 slots
-const INTENT_COUNT: usize = 33;
+const ACTION_VOCAB_SIZE: usize = 640;       // 40 intents × 16 slots (updated for BA)
+const INTENT_COUNT: usize = 40;             // 33 base + 7 BA intents
 const MAX_UNIT_SLOTS: usize = 16;
-const TOTAL_FEATURES: usize = 1203;
+const TOTAL_FEATURES: usize = 1209;         // 1203 base + 6 BA features
+const FEATURE_SCHEMA_VERSION: u32 = 2;      // v2 includes BA features
 const SHARD_FORMAT_VERSION: u32 = 1;
 const DEFAULT_SHARD_SIZE: usize = 4096;     // Samples per shard file
 const MAX_COMMANDS_PER_GAME: usize = 10_000;
@@ -1391,8 +1392,8 @@ pub struct ShardHeader {
     pub game_count: usize,
     pub model_generation: u32,         // Which model generated this data
     pub created_at: u64,               // Unix timestamp
-    pub total_features: usize,         // 1203
-    pub action_vocab_size: usize,      // 528
+    pub total_features: usize,         // 1209
+    pub action_vocab_size: usize,      // 640
 }
 ```
 
@@ -1412,7 +1413,7 @@ File naming: `shard_XXXXXX.bin` (bincode) / `shard_XXXXXX.json` (debug).
    d. Repeated action detection: break if same action chosen 5x consecutively
    e. If collecting training data:
       - Extract sparse features for current state
-      - Encode legal action mask (528 bools)
+      - Encode legal action mask (640 bools)
       - Record chosen action's vocab index
       - Store search score
    f. Execute each command in the macro-action
@@ -1450,7 +1451,7 @@ This flattened representation allows the policy network to output a fixed-size v
 
 ```rust
 pub struct LegalMask {
-    pub mask: [bool; 528],              // true = legal
+    pub mask: Vec<bool>,                // length = ACTION_VOCAB_SIZE (640), true = legal
     pub num_legal: usize,
     pub vocab_to_candidate: HashMap<u32, usize>,  // Vocab index → candidate list index
 }
@@ -1489,9 +1490,9 @@ game.player2_vp            # i16
 game.state_hash            # u64
 
 # Feature extraction
-game.encode_state_dense(perspective=None)    # → List[float], length 1203
+game.encode_state_dense(perspective=None)    # → List[float], length 1209
 game.encode_state_sparse(perspective=None)   # → List[(u16, i16)]
-game.encode_legal_mask(perspective=None)     # → List[bool], length 528
+game.encode_legal_mask(perspective=None)     # → List[bool], length 640
 
 # Action interface
 game.num_legal_actions()                     # → int
@@ -1508,20 +1509,22 @@ result = game.step(action_index)             # → {"reward": float, "done": boo
 import wh40k_trainer_bridge as wtb
 
 # Constants
-wtb.TOTAL_FEATURES          # 1203
-wtb.ACTION_VOCAB_SIZE       # 528
+wtb.TOTAL_FEATURES          # 1209
+wtb.ACTION_VOCAB_SIZE       # 640
 
 # Shard loading
 samples = wtb.load_all_shards("path/to/shard_dir")     # Load all .bin shards
 samples = wtb.load_shard_json("path/to/shard.json")     # Load single JSON shard
 
-# Self-play
-wtb.collect_training_data(
+# Self-play (defaults to iterative_deepening depth 4)
+wtb.run_selfplay_batch(
     num_games=100,
     output_dir="path/to/shards",
-    ai_type="iterative_deepening",
-    max_depth=3,
-    model_generation=0
+    ai_type="iterative_deepening",    # greedy, one_ply, negamax, iterative_deepening
+    max_depth=4,                       # search depth (default 4)
+    game_mode="CombatPatrol",          # CombatPatrol or BoardingActions
+    model_path="path/to/model.nnue",   # optional NNUE weights for search evaluator
+    model_generation=0,                # shard metadata
 )
 
 # Gating
@@ -1551,7 +1554,7 @@ wtb.benchmark(num_games=10)
 
 **Script:** `python/train_nnue/train.py`
 
-Trains the scalar evaluation network (1203→128→32→32→1) on self-play data.
+Trains the scalar evaluation network (1209→128→32→32→1) on self-play data.
 
 ```
 ┌───────────┐     ┌──────────────┐     ┌───────────┐     ┌──────────┐
@@ -1975,9 +1978,9 @@ Used via `SearchRoot::new(level)` for simplified API access.
 
 | Crate | Lines | Purpose |
 |-------|-------|---------|
-| `wh40k_eval_features` | ~2,800 | Feature extraction (1203-dim sparse vectors) |
+| `wh40k_eval_features` | ~2,800 | Feature extraction (1209-dim sparse vectors) |
 | `wh40k_eval_heuristic` | ~1,600 | Handcrafted 15-term weighted evaluator |
-| `wh40k_eval_nnue` | ~3,400 | NNUE (1203→128→32→32→1) + PolicyValueModel + Registry |
+| `wh40k_eval_nnue` | ~3,400 | NNUE (1209→128→32→32→1) + PolicyValueModel + Registry |
 | `wh40k_search_abstraction` | ~3,200 | MacroAction, TacticalIntent, ActionGenerator, CandidateSet |
 | `wh40k_search_ordering` | ~800 | Killer moves, history heuristic, move ordering |
 | `wh40k_transposition` | ~600 | Transposition table (always-replace, generation aging) |
