@@ -279,6 +279,23 @@ pub fn model_within_objective_range(
 }
 
 // ---------------------------------------------------------------------------
+// Inaccessible Area restriction (BA-14)
+// ---------------------------------------------------------------------------
+
+/// Check if a position is within an inaccessible area (e.g., BA-01 Void the Ship).
+/// Models cannot enter the Inaccessible Area for any reason.
+/// Source: boarding_actions_missions_complete_v3.md §4.1
+pub fn is_in_inaccessible_area(
+    position: wh40k_core_types::Position,
+    inaccessible_regions: &[wh40k_geometry::boarding::SpecialRegion],
+) -> bool {
+    inaccessible_regions.iter().any(|region| {
+        region.tags.contains(&"inaccessible".to_string())
+            && region.boundary.contains(position)
+    })
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 

@@ -345,6 +345,31 @@ pub fn get_corruption_consequences() -> Vec<CorruptionConsequence> {
     ]
 }
 
+/// Functional effects of corruption consequences.
+/// Source: boarding_actions_missions_complete_v3.md §4.6
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum CorruptionConsequenceEffect {
+    /// Door Controls: Attacker may open or close up to 3 hatchways
+    DoorControls { max_hatchways: u8 },
+    /// Steam Venting Overrides: All ranged attacks limited to 6" range
+    SteamVentingOverrides { max_range_inches: u8 },
+    /// Gravitational Systems: Set to Defend and Overwatch actions disabled
+    GravitationalSystems,
+    /// Communications Network: Defender cannot gain CP
+    CommunicationsNetwork,
+}
+
+/// Get the functional effect for a corruption consequence by ID.
+pub fn corruption_consequence_effect(consequence_id: &str) -> Option<CorruptionConsequenceEffect> {
+    match consequence_id {
+        "door_controls" => Some(CorruptionConsequenceEffect::DoorControls { max_hatchways: 3 }),
+        "steam_venting" => Some(CorruptionConsequenceEffect::SteamVentingOverrides { max_range_inches: 6 }),
+        "gravitational" => Some(CorruptionConsequenceEffect::GravitationalSystems),
+        "communications" => Some(CorruptionConsequenceEffect::CommunicationsNetwork),
+        _ => None,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Destroyed points threshold scoring (canonical definition in scoring.rs)
 // ---------------------------------------------------------------------------
@@ -674,6 +699,24 @@ pub fn unlock_overrides_fires(
     has_non_engaged_in_range: bool,
 ) -> bool {
     controls_objective_b && has_non_battleshocked_in_range && has_non_engaged_in_range
+}
+
+// ---------------------------------------------------------------------------
+// Prison Cells placement restrictions (BA-15)
+// ---------------------------------------------------------------------------
+
+/// Check if a unit can be placed inside the Prison Cells.
+/// Only the imprisoned unit can be inside Prison Cells.
+/// Source: boarding_actions_missions_complete_v3.md §4.4
+pub fn can_place_in_prison_cells(is_imprisoned_unit: bool) -> bool {
+    is_imprisoned_unit
+}
+
+/// Check if a player can operate the Prison Cells hatchway.
+/// Defender units cannot attempt to operate it.
+/// Source: boarding_actions_missions_complete_v3.md §4.4
+pub fn can_operate_prison_hatchway(is_defender: bool) -> bool {
+    !is_defender
 }
 
 // ---------------------------------------------------------------------------

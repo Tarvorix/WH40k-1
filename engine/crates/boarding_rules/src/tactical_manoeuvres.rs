@@ -222,6 +222,55 @@ pub fn apply_set_overwatch(unit_id: UnitId) -> SetOverwatchEffect {
 }
 
 // ---------------------------------------------------------------------------
+// Secured Objective State Machine (BA-13)
+// ---------------------------------------------------------------------------
+
+/// Mark an objective as Secured by a player's army.
+/// Once Secured, it remains controlled even without models nearby.
+/// Source: boarding_actions_complete_v3.md §3.4
+pub fn secure_objective(
+    secured_objectives: &mut std::collections::HashMap<ObjectiveId, PlayerId>,
+    objective_id: ObjectiveId,
+    player: PlayerId,
+) {
+    secured_objectives.insert(objective_id, player);
+}
+
+/// Check if an objective's Secured status should be lost.
+/// Secured status is lost when the opponent controls the objective at the start or end of any turn.
+/// Source: boarding_actions_complete_v3.md §3.4
+pub fn check_secured_status_loss(
+    secured_objectives: &mut std::collections::HashMap<ObjectiveId, PlayerId>,
+    objective_id: ObjectiveId,
+    current_controller: Option<PlayerId>,
+) {
+    if let Some(&secured_by) = secured_objectives.get(&objective_id) {
+        if let Some(controller) = current_controller {
+            if controller != secured_by {
+                // Opponent controls it — lose Secured status
+                secured_objectives.remove(&objective_id);
+            }
+        }
+    }
+}
+
+/// Get the effective controller of an objective, considering Secured status.
+/// If Secured by a player and no one else controls it, the Securing player controls it.
+/// Source: boarding_actions_complete_v3.md §3.4
+pub fn effective_objective_controller(
+    secured_objectives: &std::collections::HashMap<ObjectiveId, PlayerId>,
+    objective_id: ObjectiveId,
+    proximity_controller: Option<PlayerId>,
+) -> Option<PlayerId> {
+    // If someone controls it by proximity, they control it
+    if proximity_controller.is_some() {
+        return proximity_controller;
+    }
+    // Otherwise, if it's Secured, the Securing player still controls it
+    secured_objectives.get(&objective_id).copied()
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 

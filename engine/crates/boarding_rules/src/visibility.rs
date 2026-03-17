@@ -189,6 +189,25 @@ pub fn charge_target_must_be_visible() -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// Multi-level cross-board visibility block (BA-16)
+// ---------------------------------------------------------------------------
+
+/// Check if two positions are on different board levels (BA-05 Power the Generators).
+/// Units on different levels cannot see each other.
+/// Source: boarding_actions_missions_complete_v3.md §4.5
+pub fn are_on_different_levels(
+    pos_a: wh40k_core_types::Position,
+    pos_b: wh40k_core_types::Position,
+    board_seam_x: i32,
+) -> bool {
+    // Board 1 is x < seam, Board 2 is x >= seam
+    // In multi-level missions, each board is a different level
+    let a_board = if pos_a.x.whole_inches() < board_seam_x { 0 } else { 1 };
+    let b_board = if pos_b.x.whole_inches() < board_seam_x { 0 } else { 1 };
+    a_board != b_board
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
