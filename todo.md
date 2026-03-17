@@ -1,11 +1,33 @@
 # WH40K Engine - Implementation TODO
 
-**Status: 9 real mission-specific BA map layouts implemented + full pipeline wired**
-**All tests pass (0 failures) | 713 rules tests + 1,571 inline tests | Workspace compiles clean**
+**Status: BA map layouts corrected — all tests pass**
 
 ---
 
-## Mission Map Layouts (2026-03-16) — DONE
+## BA Map Layout Corrections (2026-03-16) — DONE
+
+### Problem
+All 9 symmetric BA maps had wrong deployment zones and room layouts.
+8 of 9 maps had deployment on the WRONG AXIS.
+
+### Deployment Direction Fixes
+| Map | Was | Now | Status |
+|-----|-----|-----|--------|
+| BA-11 Access Junction Primus | x-axis | x-axis | KEPT |
+| BA-12 Deck Sweepers | x-axis | y-axis | FIXED |
+| BA-13 The Pipeline | x-axis | y-axis | FIXED |
+| BA-21 Power Struggle | x-axis | y-axis | FIXED |
+| BA-22 Death in the Dark | y-axis | x-axis | FIXED |
+| BA-23 Hull Breach | x-axis | y-axis (compartments) | FIXED |
+| BA-31 Control Centre | x-axis | y-axis | FIXED |
+| BA-32 The Furnace | x-axis | y-axis | FIXED |
+| BA-33 Rad Leak | x-axis | y-axis | FIXED |
+
+All 14 boarding_map_layouts tests pass. Full workspace tests pass (0 failures).
+
+---
+
+## Previous: Mission Map Layouts (2026-03-16) — NEEDS CORRECTION
 
 ### What was broken
 Previous session claimed "Map Pipeline (fully wired)" but 8 of 9 symmetric missions

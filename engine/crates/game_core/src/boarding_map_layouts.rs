@@ -329,12 +329,19 @@ fn build_generic_symmetric() -> BoardingMap {
 // ---------------------------------------------------------------------------
 // BA-12: Deck Sweepers (Symmetric, 3 objectives, underdog entry zone)
 // ---------------------------------------------------------------------------
-// Layout: Central enclosed chamber with rooms branching on each side.
-// Three objectives spread across the central band. Underdog entry zone
-// at the board center bottom edge.
+// Layout: Y-AXIS deployment (Player A from top/high-y, Player B from bottom/low-y).
+// Board 1 (x=0-24) contains a fortified strongroom in its center.
+// Board 2 (x=24-48) has a standard 2x2 room grid with 3 objectives.
+// Underdog entry zone on the left x-edge (alternate entry for underdog player).
 //
 // Source: DECK_SWEEPERS.PNG mission map
 // Source: boarding_actions_maps_complete_v3.json (BA-12)
+//
+// Coordinate reference (image portrait orientation):
+//   image-top = x=0, image-bottom = x=48
+//   image-left = y=28, image-right = y=0
+//   Green shields (Player A) on image-left = y=22-28 side
+//   Red X marks (Player B) on image-right = y=0-6 side
 
 fn build_ba_12() -> BoardingMap {
     use HatchwayOrientation::*;
@@ -343,50 +350,64 @@ fn build_ba_12() -> BoardingMap {
     let mut map = BoardingMap::new(BoardDimensions::BOARDING_ACTIONS);
 
     // --- Compartments ---
-    map.compartments.push(compartment(0, "Left Entry", 0, 0, 6, 28));
-    map.compartments.push(compartment(1, "Upper Left Room", 6, 18, 16, 28));
-    map.compartments.push(compartment(2, "Lower Left Room", 6, 0, 16, 10));
-    map.compartments.push(compartment(3, "Left Corridor", 6, 10, 16, 18));
-    map.compartments.push(compartment(4, "Central Chamber", 16, 10, 32, 18));
-    map.compartments.push(compartment(5, "Upper Passage", 16, 18, 32, 28));
-    map.compartments.push(compartment(6, "Lower Passage", 16, 0, 32, 10));
-    map.compartments.push(compartment(7, "Upper Right Room", 32, 18, 42, 28));
-    map.compartments.push(compartment(8, "Lower Right Room", 32, 0, 42, 10));
-    map.compartments.push(compartment(9, "Right Corridor", 32, 10, 42, 18));
-    map.compartments.push(compartment(10, "Right Entry", 42, 0, 48, 28));
+    // Board 1 (x=0-24): Strongroom layout
+    map.compartments.push(compartment(0, "Board1 Upper Band", 0, 18, 24, 22));
+    map.compartments.push(compartment(1, "Board1 Left Wing", 0, 10, 8, 18));
+    map.compartments.push(compartment(2, "Strongroom", 8, 10, 16, 18));
+    map.compartments.push(compartment(3, "Board1 Right Wing", 16, 10, 24, 18));
+    map.compartments.push(compartment(4, "Board1 Lower Band", 0, 6, 24, 10));
+
+    // Board 2 (x=24-48): Standard 2x2 grid
+    map.compartments.push(compartment(5, "Board2 Upper Left", 24, 14, 36, 22));
+    map.compartments.push(compartment(6, "Board2 Upper Right", 36, 14, 48, 22));
+    map.compartments.push(compartment(7, "Board2 Lower Left", 24, 6, 36, 14));
+    map.compartments.push(compartment(8, "Board2 Lower Right", 36, 6, 48, 14));
 
     // --- Walls ---
     let mut wid = 0u32;
 
-    // Left entry boundary (x=6)
-    map.walls.push(wall(wid, 6, 0, 6, 9)); wid += 1;
-    map.walls.push(wall(wid, 6, 11, 6, 17)); wid += 1;
-    map.walls.push(wall(wid, 6, 19, 6, 28)); wid += 1;
+    // Entry zone boundaries (y=22 and y=6, horizontal walls spanning full x)
+    // y=22 wall (below Player A entry) with hatchway gaps
+    map.walls.push(wall(wid, 0, 22, 4, 22)); wid += 1;
+    map.walls.push(wall(wid, 8, 22, 20, 22)); wid += 1;
+    map.walls.push(wall(wid, 24, 22, 32, 22)); wid += 1;
+    map.walls.push(wall(wid, 36, 22, 44, 22)); wid += 1;
 
-    // Left rooms to central (x=16)
-    map.walls.push(wall(wid, 16, 0, 16, 8)); wid += 1;
-    map.walls.push(wall(wid, 16, 12, 16, 16)); wid += 1;
-    map.walls.push(wall(wid, 16, 20, 16, 28)); wid += 1;
+    // y=6 wall (above Player B entry) with hatchway gaps
+    map.walls.push(wall(wid, 0, 6, 4, 6)); wid += 1;
+    map.walls.push(wall(wid, 8, 6, 20, 6)); wid += 1;
+    map.walls.push(wall(wid, 24, 6, 32, 6)); wid += 1;
+    map.walls.push(wall(wid, 36, 6, 44, 6)); wid += 1;
 
-    // Central chamber walls
-    map.walls.push(wall(wid, 16, 10, 32, 10)); wid += 1;   // bottom of chamber
-    map.walls.push(wall(wid, 16, 18, 32, 18)); wid += 1;   // top of chamber
+    // Strongroom walls (enclosed box at x=8-16, y=10-18)
+    map.walls.push(wall(wid, 8, 18, 11, 18)); wid += 1;   // top of strongroom (left segment)
+    map.walls.push(wall(wid, 13, 18, 16, 18)); wid += 1;   // top of strongroom (right segment)
+    map.walls.push(wall(wid, 8, 10, 11, 10)); wid += 1;    // bottom of strongroom (left segment)
+    map.walls.push(wall(wid, 13, 10, 16, 10)); wid += 1;   // bottom of strongroom (right segment)
+    map.walls.push(wall(wid, 8, 10, 8, 13)); wid += 1;     // left of strongroom (bottom segment)
+    map.walls.push(wall(wid, 8, 15, 8, 18)); wid += 1;     // left of strongroom (top segment)
+    map.walls.push(wall(wid, 16, 10, 16, 13)); wid += 1;   // right of strongroom (bottom segment)
+    map.walls.push(wall(wid, 16, 15, 16, 18)); wid += 1;   // right of strongroom (top segment)
 
-    // Central to right rooms (x=32)
-    map.walls.push(wall(wid, 32, 0, 32, 8)); wid += 1;
-    map.walls.push(wall(wid, 32, 12, 32, 16)); wid += 1;
-    map.walls.push(wall(wid, 32, 20, 32, 28)); wid += 1;
+    // Board1 horizontal dividers (y=18 and y=10 outside strongroom)
+    map.walls.push(wall(wid, 0, 18, 8, 18)); wid += 1;     // left of strongroom top
+    map.walls.push(wall(wid, 16, 18, 24, 18)); wid += 1;   // right of strongroom top
+    map.walls.push(wall(wid, 0, 10, 8, 10)); wid += 1;     // left of strongroom bottom
+    map.walls.push(wall(wid, 16, 10, 24, 10)); wid += 1;   // right of strongroom bottom
 
-    // Right entry boundary (x=42)
-    map.walls.push(wall(wid, 42, 0, 42, 9)); wid += 1;
-    map.walls.push(wall(wid, 42, 11, 42, 17)); wid += 1;
-    map.walls.push(wall(wid, 42, 19, 42, 28)); wid += 1;
+    // Board seam (x=24) with hatchway gaps
+    map.walls.push(wall(wid, 24, 6, 24, 12)); wid += 1;
+    map.walls.push(wall(wid, 24, 16, 24, 22)); wid += 1;
 
-    // Horizontal room dividers
-    map.walls.push(wall(wid, 6, 10, 16, 10)); wid += 1;
-    map.walls.push(wall(wid, 6, 18, 16, 18)); wid += 1;
-    map.walls.push(wall(wid, 32, 10, 42, 10)); wid += 1;
-    map.walls.push(wall(wid, 32, 18, 42, 18)); wid += 1;
+    // Board 2 vertical wall (x=36) with hatchway gaps
+    map.walls.push(wall(wid, 36, 6, 36, 12)); wid += 1;
+    map.walls.push(wall(wid, 36, 16, 36, 22)); wid += 1;
+
+    // Board 2 horizontal divider (y=14) with hatchway gaps
+    map.walls.push(wall(wid, 24, 14, 30, 14)); wid += 1;
+    map.walls.push(wall(wid, 32, 14, 36, 14)); wid += 1;
+    map.walls.push(wall(wid, 36, 14, 42, 14)); wid += 1;
+    map.walls.push(wall(wid, 44, 14, 48, 14)); wid += 1;
 
     // Perimeter
     map.walls.push(wall(wid, 0, 0, 48, 0)); wid += 1;
@@ -395,44 +416,53 @@ fn build_ba_12() -> BoardingMap {
     map.walls.push(wall(wid, 48, 0, 48, 28));
 
     // --- Hatchways ---
-    // Left entry to rooms
-    map.hatchways.push(hatch(0, 6, 10, Vertical, 2, 0, 2, Open));
-    map.hatchways.push(hatch(1, 6, 18, Vertical, 2, 0, 1, Open));
+    // Entry A (y=22) to upper rooms
+    map.hatchways.push(hatch(0, 6, 22, Horizontal, 2, 0, 0, Open));    // to Board1 upper
+    map.hatchways.push(hatch(1, 22, 22, Horizontal, 2, 0, 0, Open));   // to Board1 upper
+    map.hatchways.push(hatch(2, 34, 22, Horizontal, 2, 0, 5, Open));   // to Board2 UL
+    map.hatchways.push(hatch(3, 46, 22, Horizontal, 2, 0, 6, Open));   // to Board2 UR
 
-    // Left corridor to central chamber
-    map.hatchways.push(hatch(2, 16, 14, Vertical, 2, 3, 4, Closed));
+    // Entry B (y=6) to lower rooms
+    map.hatchways.push(hatch(4, 6, 6, Horizontal, 2, 4, 4, Open));     // to Board1 lower
+    map.hatchways.push(hatch(5, 22, 6, Horizontal, 2, 4, 4, Open));    // to Board1 lower
+    map.hatchways.push(hatch(6, 34, 6, Horizontal, 2, 7, 7, Open));    // to Board2 LL
+    map.hatchways.push(hatch(7, 46, 6, Horizontal, 2, 8, 8, Open));    // to Board2 LR
 
-    // Left rooms to passages
-    map.hatchways.push(hatch(3, 16, 9, Vertical, 2, 2, 6, Closed));
-    map.hatchways.push(hatch(4, 16, 19, Vertical, 2, 1, 5, Closed));
+    // Strongroom hatchways (all closed - must be breached)
+    map.hatchways.push(hatch(8, 12, 18, Horizontal, 2, 0, 2, Closed)); // strongroom top
+    map.hatchways.push(hatch(9, 12, 10, Horizontal, 2, 4, 2, Closed)); // strongroom bottom
+    map.hatchways.push(hatch(10, 8, 14, Vertical, 2, 1, 2, Closed));   // strongroom left
+    map.hatchways.push(hatch(11, 16, 14, Vertical, 2, 2, 3, Closed));  // strongroom right
 
-    // Right corridor to central chamber
-    map.hatchways.push(hatch(5, 32, 14, Vertical, 2, 4, 9, Closed));
+    // Board seam hatchways (x=24)
+    map.hatchways.push(hatch(12, 24, 14, Vertical, 2, 3, 5, Closed));  // upper half
+    map.hatchways.push(hatch(13, 24, 8, Vertical, 2, 4, 7, Closed));   // lower half
 
-    // Right rooms to passages
-    map.hatchways.push(hatch(6, 32, 9, Vertical, 2, 6, 8, Closed));
-    map.hatchways.push(hatch(7, 32, 19, Vertical, 2, 5, 7, Closed));
-
-    // Right rooms to entry
-    map.hatchways.push(hatch(8, 42, 10, Vertical, 2, 8, 10, Open));
-    map.hatchways.push(hatch(9, 42, 18, Vertical, 2, 7, 10, Open));
+    // Board 2 interior hatchways
+    map.hatchways.push(hatch(14, 36, 14, Vertical, 2, 5, 6, Closed));  // between UL and UR
+    map.hatchways.push(hatch(15, 36, 8, Vertical, 2, 7, 8, Closed));   // between LL and LR
+    map.hatchways.push(hatch(16, 31, 14, Horizontal, 2, 5, 7, Closed)); // UL to LL
+    map.hatchways.push(hatch(17, 43, 14, Horizontal, 2, 6, 8, Closed)); // UR to LR
 
     // --- Entry Zones ---
+    // Player A (green) deploys from high-y edge (top of board)
     map.entry_zones.push(entry_zone(
-        0, "Player A Entry", EntryZoneRole::Main, 0, 0, 6, 28, Some(0),
+        0, "Player A Entry", EntryZoneRole::Main, 0, 22, 48, 28, Some(0),
     ));
+    // Player B (red) deploys from low-y edge (bottom of board)
     map.entry_zones.push(entry_zone(
-        1, "Player B Entry", EntryZoneRole::Main, 42, 0, 48, 28, Some(1),
+        1, "Player B Entry", EntryZoneRole::Main, 0, 0, 48, 6, Some(1),
     ));
-    // Underdog entry zone — center bottom edge, available during Deploy Armies only
+    // Underdog entry zone — left x-edge, available during Deploy Armies only
     map.entry_zones.push(entry_zone(
-        2, "Underdog Entry Zone", EntryZoneRole::Underdog, 20, 0, 28, 6, None,
+        2, "Underdog Entry Zone", EntryZoneRole::Underdog, 0, 6, 6, 22, None,
     ));
 
     // --- Objectives ---
-    map.objectives.push(objective(0, 16, 14, "Objective A"));
-    map.objectives.push(objective(1, 24, 14, "Objective B"));
-    map.objectives.push(objective(2, 32, 14, "Objective C"));
+    // Three objectives on Board 2 (visible in lower half of mission map image)
+    map.objectives.push(objective(0, 30, 18, "Objective A"));
+    map.objectives.push(objective(1, 30, 10, "Objective B"));
+    map.objectives.push(objective(2, 42, 14, "Objective C"));
 
     map
 }
@@ -440,12 +470,16 @@ fn build_ba_12() -> BoardingMap {
 // ---------------------------------------------------------------------------
 // BA-13: The Pipeline (Symmetric, 4 objectives, power lines)
 // ---------------------------------------------------------------------------
-// Layout: Staggered rooms creating a winding pipeline corridor. Objectives
-// placed along the pipeline in a zigzag pattern. Two "A" markers and two "B"
-// markers connected by Power Lines for linked scoring.
+// Layout: Y-AXIS deployment (Player A from low-y/right-in-image,
+// Player B from high-y/left-in-image). Staggered rooms creating a winding
+// pipeline corridor. Objectives placed along the pipeline in a zigzag pattern.
+// Two "A" markers and two "B" markers connected by Power Lines.
 //
 // Source: THE_PIPELINE.PNG mission map
 // Source: boarding_actions_maps_complete_v3.json (BA-13)
+//
+// The pipeline zigzags through rooms, alternating between upper (high-y)
+// and lower (low-y) positions across the 4 column sections.
 
 fn build_ba_13() -> BoardingMap {
     use HatchwayOrientation::*;
@@ -454,57 +488,52 @@ fn build_ba_13() -> BoardingMap {
     let mut map = BoardingMap::new(BoardDimensions::BOARDING_ACTIONS);
 
     // --- Compartments ---
-    // The Pipeline has a zigzag layout: rooms alternate between upper and lower
-    // sections, creating a winding corridor through the board.
-    map.compartments.push(compartment(0, "Left Entry", 0, 0, 6, 28));
-    map.compartments.push(compartment(1, "Upper Left Room", 6, 16, 14, 28));
-    map.compartments.push(compartment(2, "Lower Left Room", 6, 0, 14, 12));
-    map.compartments.push(compartment(3, "Left Mid Upper", 14, 14, 24, 28));
-    map.compartments.push(compartment(4, "Left Mid Lower", 14, 0, 24, 14));
-    map.compartments.push(compartment(5, "Right Mid Upper", 24, 14, 34, 28));
-    map.compartments.push(compartment(6, "Right Mid Lower", 24, 0, 34, 14));
-    map.compartments.push(compartment(7, "Upper Right Room", 34, 16, 42, 28));
-    map.compartments.push(compartment(8, "Lower Right Room", 34, 0, 42, 12));
-    map.compartments.push(compartment(9, "Right Entry", 42, 0, 48, 28));
+    // The Pipeline uses a zigzag layout where rooms alternate between
+    // upper and lower rows. Each column section is 12" wide.
+    // Player A enters from low-y side, Player B from high-y side.
+    map.compartments.push(compartment(0, "Section 1 Upper", 0, 14, 12, 22));
+    map.compartments.push(compartment(1, "Section 1 Lower", 0, 6, 12, 14));
+    map.compartments.push(compartment(2, "Section 2 Upper", 12, 14, 24, 22));
+    map.compartments.push(compartment(3, "Section 2 Lower", 12, 6, 24, 14));
+    map.compartments.push(compartment(4, "Section 3 Upper", 24, 14, 36, 22));
+    map.compartments.push(compartment(5, "Section 3 Lower", 24, 6, 36, 14));
+    map.compartments.push(compartment(6, "Section 4 Upper", 36, 14, 48, 22));
+    map.compartments.push(compartment(7, "Section 4 Lower", 36, 6, 48, 14));
 
     // --- Walls ---
     let mut wid = 0u32;
 
-    // Left entry boundary (x=6)
-    map.walls.push(wall(wid, 6, 0, 6, 10)); wid += 1;
-    map.walls.push(wall(wid, 6, 14, 6, 16)); wid += 1;
-    map.walls.push(wall(wid, 6, 18, 6, 28)); wid += 1;
+    // Entry zone boundaries
+    // y=22 wall (below Player B entry on high-y side)
+    map.walls.push(wall(wid, 0, 22, 4, 22)); wid += 1;
+    map.walls.push(wall(wid, 8, 22, 16, 22)); wid += 1;
+    map.walls.push(wall(wid, 20, 22, 28, 22)); wid += 1;
+    map.walls.push(wall(wid, 32, 22, 40, 22)); wid += 1;
+    map.walls.push(wall(wid, 44, 22, 48, 22)); wid += 1;
 
-    // Left rooms to mid sections (x=14)
-    map.walls.push(wall(wid, 14, 0, 14, 6)); wid += 1;
-    map.walls.push(wall(wid, 14, 8, 14, 12)); wid += 1;
-    map.walls.push(wall(wid, 14, 16, 14, 22)); wid += 1;
-    map.walls.push(wall(wid, 14, 24, 14, 28)); wid += 1;
+    // y=6 wall (above Player A entry on low-y side)
+    map.walls.push(wall(wid, 0, 6, 4, 6)); wid += 1;
+    map.walls.push(wall(wid, 8, 6, 16, 6)); wid += 1;
+    map.walls.push(wall(wid, 20, 6, 28, 6)); wid += 1;
+    map.walls.push(wall(wid, 32, 6, 40, 6)); wid += 1;
+    map.walls.push(wall(wid, 44, 6, 48, 6)); wid += 1;
 
-    // Board center seam (x=24)
-    map.walls.push(wall(wid, 24, 0, 24, 6)); wid += 1;
-    map.walls.push(wall(wid, 24, 8, 24, 12)); wid += 1;
+    // Vertical section dividers (x=12, 24, 36) with hatchway gaps
+    // The zigzag pattern means hatchways alternate between upper and lower rooms
+    map.walls.push(wall(wid, 12, 6, 12, 12)); wid += 1;
+    map.walls.push(wall(wid, 12, 16, 12, 22)); wid += 1;
+    map.walls.push(wall(wid, 24, 6, 24, 12)); wid += 1;
     map.walls.push(wall(wid, 24, 16, 24, 22)); wid += 1;
-    map.walls.push(wall(wid, 24, 24, 24, 28)); wid += 1;
+    map.walls.push(wall(wid, 36, 6, 36, 12)); wid += 1;
+    map.walls.push(wall(wid, 36, 16, 36, 22)); wid += 1;
 
-    // Right mid to rooms (x=34)
-    map.walls.push(wall(wid, 34, 0, 34, 6)); wid += 1;
-    map.walls.push(wall(wid, 34, 8, 34, 12)); wid += 1;
-    map.walls.push(wall(wid, 34, 16, 34, 22)); wid += 1;
-    map.walls.push(wall(wid, 34, 24, 34, 28)); wid += 1;
-
-    // Right rooms to entry (x=42)
-    map.walls.push(wall(wid, 42, 0, 42, 10)); wid += 1;
-    map.walls.push(wall(wid, 42, 14, 42, 16)); wid += 1;
-    map.walls.push(wall(wid, 42, 18, 42, 28)); wid += 1;
-
-    // Horizontal dividers
-    map.walls.push(wall(wid, 6, 12, 14, 12)); wid += 1;
-    map.walls.push(wall(wid, 6, 16, 14, 16)); wid += 1;
-    map.walls.push(wall(wid, 14, 14, 24, 14)); wid += 1;
-    map.walls.push(wall(wid, 24, 14, 34, 14)); wid += 1;
-    map.walls.push(wall(wid, 34, 12, 42, 12)); wid += 1;
-    map.walls.push(wall(wid, 34, 16, 42, 16)); wid += 1;
+    // Horizontal row divider (y=14) — the zigzag wall
+    // Offset gaps create the pipeline path
+    map.walls.push(wall(wid, 0, 14, 4, 14)); wid += 1;
+    map.walls.push(wall(wid, 8, 14, 16, 14)); wid += 1;
+    map.walls.push(wall(wid, 20, 14, 28, 14)); wid += 1;
+    map.walls.push(wall(wid, 32, 14, 40, 14)); wid += 1;
+    map.walls.push(wall(wid, 44, 14, 48, 14)); wid += 1;
 
     // Perimeter
     map.walls.push(wall(wid, 0, 0, 48, 0)); wid += 1;
@@ -513,43 +542,51 @@ fn build_ba_13() -> BoardingMap {
     map.walls.push(wall(wid, 48, 0, 48, 28));
 
     // --- Hatchways ---
-    // Left entry to rooms
-    map.hatchways.push(hatch(0, 6, 11, Vertical, 2, 0, 2, Open));
-    map.hatchways.push(hatch(1, 6, 17, Vertical, 2, 0, 1, Open));
+    // Entry A (low-y, y=6) to lower rooms
+    map.hatchways.push(hatch(0, 6, 6, Horizontal, 2, 1, 1, Open));
+    map.hatchways.push(hatch(1, 46, 6, Horizontal, 2, 7, 7, Open));
 
-    // Pipeline zigzag hatchways
-    map.hatchways.push(hatch(2, 14, 7, Vertical, 2, 2, 4, Closed));
-    map.hatchways.push(hatch(3, 14, 23, Vertical, 2, 1, 3, Closed));
-    map.hatchways.push(hatch(4, 24, 7, Vertical, 2, 4, 6, Closed));
-    map.hatchways.push(hatch(5, 24, 23, Vertical, 2, 3, 5, Closed));
-    map.hatchways.push(hatch(6, 34, 7, Vertical, 2, 6, 8, Closed));
-    map.hatchways.push(hatch(7, 34, 23, Vertical, 2, 5, 7, Closed));
+    // Entry B (high-y, y=22) to upper rooms
+    map.hatchways.push(hatch(2, 6, 22, Horizontal, 2, 0, 0, Open));
+    map.hatchways.push(hatch(3, 46, 22, Horizontal, 2, 6, 6, Open));
 
-    // Right rooms to entry
-    map.hatchways.push(hatch(8, 42, 11, Vertical, 2, 8, 9, Open));
-    map.hatchways.push(hatch(9, 42, 17, Vertical, 2, 7, 9, Open));
+    // Pipeline zigzag hatchways (alternating upper/lower at section boundaries)
+    // Section 1→2: lower passage (pipeline goes from S1-Lower to S2-Lower)
+    map.hatchways.push(hatch(4, 12, 14, Vertical, 2, 1, 3, Closed));  // S1L to S2L
+    // Section 2→3: upper passage (pipeline zigzags up)
+    map.hatchways.push(hatch(5, 24, 14, Vertical, 2, 2, 4, Closed));  // S2U to S3U
+    // Section 3→4: lower passage (pipeline zigzags down)
+    map.hatchways.push(hatch(6, 36, 14, Vertical, 2, 5, 7, Closed));  // S3L to S4L
+
+    // Cross-row hatchways within sections (connecting upper to lower)
+    map.hatchways.push(hatch(7, 6, 14, Horizontal, 2, 0, 1, Closed));   // S1 upper-lower
+    map.hatchways.push(hatch(8, 18, 14, Horizontal, 2, 2, 3, Closed));  // S2 upper-lower
+    map.hatchways.push(hatch(9, 30, 14, Horizontal, 2, 4, 5, Closed));  // S3 upper-lower
+    map.hatchways.push(hatch(10, 42, 14, Horizontal, 2, 6, 7, Closed)); // S4 upper-lower
 
     // --- Entry Zones ---
+    // Player A (green) deploys from low-y edge (bottom of board)
     map.entry_zones.push(entry_zone(
-        0, "Player A Entry", EntryZoneRole::Main, 0, 0, 6, 28, Some(0),
+        0, "Player A Entry", EntryZoneRole::Main, 0, 0, 48, 6, Some(0),
     ));
+    // Player B (red) deploys from high-y edge (top of board)
     map.entry_zones.push(entry_zone(
-        1, "Player B Entry", EntryZoneRole::Main, 42, 0, 48, 28, Some(1),
+        1, "Player B Entry", EntryZoneRole::Main, 0, 22, 48, 28, Some(1),
     ));
 
     // --- Objectives ---
-    // Pipeline objectives in zigzag: A markers at upper positions, B markers at lower
-    map.objectives.push(objective(0, 10, 22, "Pipeline Marker A1"));
-    map.objectives.push(objective(1, 19, 7, "Pipeline Marker B1"));
-    map.objectives.push(objective(2, 29, 21, "Pipeline Marker A2"));
-    map.objectives.push(objective(3, 38, 7, "Pipeline Marker B2"));
+    // Pipeline objectives in zigzag: A markers in upper rooms, B markers in lower rooms
+    map.objectives.push(objective(0, 6, 18, "Pipeline Marker A1"));
+    map.objectives.push(objective(1, 18, 10, "Pipeline Marker B1"));
+    map.objectives.push(objective(2, 30, 18, "Pipeline Marker A2"));
+    map.objectives.push(objective(3, 42, 10, "Pipeline Marker B2"));
 
     // --- Special Regions ---
     // Power Line network connecting all four objectives
     map.special_regions.push(SpecialRegion {
         id: RegionId::new(0),
         name: "Power Line Network".to_string(),
-        boundary: rect_poly(6, 0, 42, 28),
+        boundary: rect_poly(0, 6, 48, 22),
         tags: vec!["power_lines".to_string()],
     });
 
@@ -559,8 +596,10 @@ fn build_ba_13() -> BoardingMap {
 // ---------------------------------------------------------------------------
 // BA-21: Power Struggle (Symmetric, 4 objectives, power lines, warlord kill)
 // ---------------------------------------------------------------------------
-// Layout: Central power line corridor (highlighted blue in the mission map)
-// connecting 4 objectives. Rooms flank the corridor on both sides.
+// Layout: Y-AXIS deployment (Player A from high-y/image-left,
+// Player B from low-y/image-right). Central power line corridor
+// (highlighted blue in the mission map) connecting 4 objectives.
+// Rooms flank the corridor. A fortified room on Board 1.
 //
 // Source: POWER_STRUGGLE.PNG mission map
 // Source: boarding_actions_maps_complete_v3.json (BA-21)
@@ -572,52 +611,47 @@ fn build_ba_21() -> BoardingMap {
     let mut map = BoardingMap::new(BoardDimensions::BOARDING_ACTIONS);
 
     // --- Compartments ---
-    map.compartments.push(compartment(0, "Left Entry", 0, 0, 6, 28));
-    map.compartments.push(compartment(1, "Upper Left Room", 6, 18, 16, 28));
-    map.compartments.push(compartment(2, "Lower Left Room", 6, 0, 16, 10));
-    map.compartments.push(compartment(3, "Left Side Corridor", 6, 10, 16, 18));
-    map.compartments.push(compartment(4, "Power Line Corridor", 16, 6, 32, 22));
-    map.compartments.push(compartment(5, "Upper Central Passage", 16, 22, 32, 28));
-    map.compartments.push(compartment(6, "Lower Central Passage", 16, 0, 32, 6));
-    map.compartments.push(compartment(7, "Upper Right Room", 32, 18, 42, 28));
-    map.compartments.push(compartment(8, "Lower Right Room", 32, 0, 42, 10));
-    map.compartments.push(compartment(9, "Right Side Corridor", 32, 10, 42, 18));
-    map.compartments.push(compartment(10, "Right Entry", 42, 0, 48, 28));
+    // Y-axis deployment with a power line corridor through the center.
+    // Board 1 has a fortified room, Board 2 has flanking rooms.
+    map.compartments.push(compartment(0, "Board1 Upper Left", 0, 14, 12, 22));
+    map.compartments.push(compartment(1, "Board1 Upper Right", 12, 14, 24, 22));
+    map.compartments.push(compartment(2, "Board1 Lower Left", 0, 6, 12, 14));
+    map.compartments.push(compartment(3, "Board1 Lower Right", 12, 6, 24, 14));
+    map.compartments.push(compartment(4, "Board2 Upper Left", 24, 14, 36, 22));
+    map.compartments.push(compartment(5, "Board2 Upper Right", 36, 14, 48, 22));
+    map.compartments.push(compartment(6, "Board2 Lower Left", 24, 6, 36, 14));
+    map.compartments.push(compartment(7, "Board2 Lower Right", 36, 6, 48, 14));
 
     // --- Walls ---
     let mut wid = 0u32;
 
-    // Left entry boundary (x=6)
-    map.walls.push(wall(wid, 6, 0, 6, 9)); wid += 1;
-    map.walls.push(wall(wid, 6, 11, 6, 17)); wid += 1;
-    map.walls.push(wall(wid, 6, 19, 6, 28)); wid += 1;
+    // Entry zone boundaries
+    // y=22 wall (below Player A entry)
+    map.walls.push(wall(wid, 0, 22, 4, 22)); wid += 1;
+    map.walls.push(wall(wid, 8, 22, 20, 22)); wid += 1;
+    map.walls.push(wall(wid, 24, 22, 32, 22)); wid += 1;
+    map.walls.push(wall(wid, 36, 22, 44, 22)); wid += 1;
 
-    // Left to power line corridor (x=16)
-    map.walls.push(wall(wid, 16, 0, 16, 4)); wid += 1;
-    map.walls.push(wall(wid, 16, 8, 16, 12)); wid += 1;
-    map.walls.push(wall(wid, 16, 16, 16, 20)); wid += 1;
-    map.walls.push(wall(wid, 16, 24, 16, 28)); wid += 1;
+    // y=6 wall (above Player B entry)
+    map.walls.push(wall(wid, 0, 6, 4, 6)); wid += 1;
+    map.walls.push(wall(wid, 8, 6, 20, 6)); wid += 1;
+    map.walls.push(wall(wid, 24, 6, 32, 6)); wid += 1;
+    map.walls.push(wall(wid, 36, 6, 44, 6)); wid += 1;
 
-    // Power line corridor boundaries
-    map.walls.push(wall(wid, 16, 6, 32, 6)); wid += 1;     // bottom of corridor
-    map.walls.push(wall(wid, 16, 22, 32, 22)); wid += 1;   // top of corridor
+    // Vertical section dividers
+    map.walls.push(wall(wid, 12, 6, 12, 12)); wid += 1;
+    map.walls.push(wall(wid, 12, 16, 12, 22)); wid += 1;
+    map.walls.push(wall(wid, 24, 6, 24, 12)); wid += 1;
+    map.walls.push(wall(wid, 24, 16, 24, 22)); wid += 1;
+    map.walls.push(wall(wid, 36, 6, 36, 12)); wid += 1;
+    map.walls.push(wall(wid, 36, 16, 36, 22)); wid += 1;
 
-    // Right side of corridor (x=32)
-    map.walls.push(wall(wid, 32, 0, 32, 4)); wid += 1;
-    map.walls.push(wall(wid, 32, 8, 32, 12)); wid += 1;
-    map.walls.push(wall(wid, 32, 16, 32, 20)); wid += 1;
-    map.walls.push(wall(wid, 32, 24, 32, 28)); wid += 1;
-
-    // Right entry boundary (x=42)
-    map.walls.push(wall(wid, 42, 0, 42, 9)); wid += 1;
-    map.walls.push(wall(wid, 42, 11, 42, 17)); wid += 1;
-    map.walls.push(wall(wid, 42, 19, 42, 28)); wid += 1;
-
-    // Horizontal room dividers
-    map.walls.push(wall(wid, 6, 10, 16, 10)); wid += 1;
-    map.walls.push(wall(wid, 6, 18, 16, 18)); wid += 1;
-    map.walls.push(wall(wid, 32, 10, 42, 10)); wid += 1;
-    map.walls.push(wall(wid, 32, 18, 42, 18)); wid += 1;
+    // Horizontal row divider (y=14)
+    map.walls.push(wall(wid, 0, 14, 4, 14)); wid += 1;
+    map.walls.push(wall(wid, 8, 14, 16, 14)); wid += 1;
+    map.walls.push(wall(wid, 20, 14, 28, 14)); wid += 1;
+    map.walls.push(wall(wid, 32, 14, 40, 14)); wid += 1;
+    map.walls.push(wall(wid, 44, 14, 48, 14)); wid += 1;
 
     // Perimeter
     map.walls.push(wall(wid, 0, 0, 48, 0)); wid += 1;
@@ -626,42 +660,52 @@ fn build_ba_21() -> BoardingMap {
     map.walls.push(wall(wid, 48, 0, 48, 28));
 
     // --- Hatchways ---
-    map.hatchways.push(hatch(0, 6, 10, Vertical, 2, 0, 2, Open));
-    map.hatchways.push(hatch(1, 6, 18, Vertical, 2, 0, 1, Open));
+    // Entry A (y=22) to upper rooms
+    map.hatchways.push(hatch(0, 6, 22, Horizontal, 2, 0, 0, Open));
+    map.hatchways.push(hatch(1, 22, 22, Horizontal, 2, 1, 1, Open));
+    map.hatchways.push(hatch(2, 34, 22, Horizontal, 2, 4, 4, Open));
+    map.hatchways.push(hatch(3, 46, 22, Horizontal, 2, 5, 5, Open));
 
-    // Into power line corridor
-    map.hatchways.push(hatch(2, 16, 5, Vertical, 2, 6, 4, Closed));
-    map.hatchways.push(hatch(3, 16, 14, Vertical, 2, 3, 4, Closed));
-    map.hatchways.push(hatch(4, 16, 23, Vertical, 2, 5, 4, Closed));
+    // Entry B (y=6) to lower rooms
+    map.hatchways.push(hatch(4, 6, 6, Horizontal, 2, 2, 2, Open));
+    map.hatchways.push(hatch(5, 22, 6, Horizontal, 2, 3, 3, Open));
+    map.hatchways.push(hatch(6, 34, 6, Horizontal, 2, 6, 6, Open));
+    map.hatchways.push(hatch(7, 46, 6, Horizontal, 2, 7, 7, Open));
 
-    // Out of power line corridor
-    map.hatchways.push(hatch(5, 32, 5, Vertical, 2, 4, 6, Closed));
-    map.hatchways.push(hatch(6, 32, 14, Vertical, 2, 4, 9, Closed));
-    map.hatchways.push(hatch(7, 32, 23, Vertical, 2, 4, 5, Closed));
+    // Interior hatchways
+    map.hatchways.push(hatch(8, 6, 14, Horizontal, 2, 0, 2, Closed));
+    map.hatchways.push(hatch(9, 18, 14, Horizontal, 2, 1, 3, Closed));
+    map.hatchways.push(hatch(10, 30, 14, Horizontal, 2, 4, 6, Closed));
+    map.hatchways.push(hatch(11, 42, 14, Horizontal, 2, 5, 7, Closed));
 
-    map.hatchways.push(hatch(8, 42, 10, Vertical, 2, 8, 10, Open));
-    map.hatchways.push(hatch(9, 42, 18, Vertical, 2, 7, 10, Open));
+    // Section boundary hatchways
+    map.hatchways.push(hatch(12, 12, 18, Vertical, 2, 0, 1, Closed));
+    map.hatchways.push(hatch(13, 12, 10, Vertical, 2, 2, 3, Closed));
+    map.hatchways.push(hatch(14, 24, 18, Vertical, 2, 1, 4, Closed));
+    map.hatchways.push(hatch(15, 24, 10, Vertical, 2, 3, 6, Closed));
+    map.hatchways.push(hatch(16, 36, 18, Vertical, 2, 4, 5, Closed));
+    map.hatchways.push(hatch(17, 36, 10, Vertical, 2, 6, 7, Closed));
 
     // --- Entry Zones ---
     map.entry_zones.push(entry_zone(
-        0, "Player A Entry", EntryZoneRole::Main, 0, 0, 6, 28, Some(0),
+        0, "Player A Entry", EntryZoneRole::Main, 0, 22, 48, 28, Some(0),
     ));
     map.entry_zones.push(entry_zone(
-        1, "Player B Entry", EntryZoneRole::Main, 42, 0, 48, 28, Some(1),
+        1, "Player B Entry", EntryZoneRole::Main, 0, 0, 48, 6, Some(1),
     ));
 
     // --- Objectives ---
-    // Four objectives along the Power Line corridor
-    map.objectives.push(objective(0, 18, 14, "Objective A"));
-    map.objectives.push(objective(1, 22, 14, "Objective B"));
-    map.objectives.push(objective(2, 26, 14, "Objective C"));
-    map.objectives.push(objective(3, 30, 14, "Objective D"));
+    // Four objectives along the Power Line corridor (centered vertically)
+    map.objectives.push(objective(0, 6, 14, "Objective A"));
+    map.objectives.push(objective(1, 18, 14, "Objective B"));
+    map.objectives.push(objective(2, 30, 14, "Objective C"));
+    map.objectives.push(objective(3, 42, 14, "Objective D"));
 
     // --- Special Regions ---
     map.special_regions.push(SpecialRegion {
         id: RegionId::new(0),
         name: "Power Lines".to_string(),
-        boundary: rect_poly(16, 6, 32, 22),
+        boundary: rect_poly(0, 6, 48, 22),
         tags: vec!["power_lines".to_string(), "power_network".to_string()],
     });
 
@@ -671,9 +715,11 @@ fn build_ba_21() -> BoardingMap {
 // ---------------------------------------------------------------------------
 // BA-22: Death in the Dark (Symmetric, 4 objectives, 2 lighting areas)
 // ---------------------------------------------------------------------------
-// Layout: Entry zones on the SHORT edges of the board (y=0 and y=28 sides),
-// not the long edges. Two Lighting Areas divide the board into left and right
-// halves, each containing 2 objectives. Lighting state rolls per area.
+// Layout: X-AXIS deployment (Player B from left x=0-6, Player A from right x=42-48).
+// 8 rooms in a 4×2 grid in the playing area (x=6-42, y=0-28, divided at y=14
+// and at x=15, 24, 33). Central enclosed room at approximately x=18-30, y=8-20.
+// Two Lighting Areas divide the board into left and right halves, each containing
+// 2 objectives. Lighting state rolls per area.
 //
 // Source: DEATH_IN_THE_DARK.PNG mission map
 // Source: boarding_actions_maps_complete_v3.json (BA-22)
@@ -685,47 +731,73 @@ fn build_ba_22() -> BoardingMap {
     let mut map = BoardingMap::new(BoardDimensions::BOARDING_ACTIONS);
 
     // --- Compartments ---
-    // Entry zones run along the short edges (full width, 6" deep)
-    map.compartments.push(compartment(0, "Entry Zone A", 0, 22, 48, 28));
-    map.compartments.push(compartment(1, "Upper Left Room", 0, 14, 12, 22));
-    map.compartments.push(compartment(2, "Upper Center-Left", 12, 14, 24, 22));
-    map.compartments.push(compartment(3, "Upper Center-Right", 24, 14, 36, 22));
-    map.compartments.push(compartment(4, "Upper Right Room", 36, 14, 48, 22));
-    map.compartments.push(compartment(5, "Lower Left Room", 0, 6, 12, 14));
-    map.compartments.push(compartment(6, "Lower Center-Left", 12, 6, 24, 14));
-    map.compartments.push(compartment(7, "Lower Center-Right", 24, 6, 36, 14));
-    map.compartments.push(compartment(8, "Lower Right Room", 36, 6, 48, 14));
-    map.compartments.push(compartment(9, "Entry Zone B", 0, 0, 48, 6));
+    // C0: Player B entry (left strip)
+    map.compartments.push(compartment(0, "Player B Entry Area", 0, 0, 6, 28));
+    // C1-C8: 4×2 grid rooms in playing area (columns at x=6,15,24,33,42; rows at y=0,14,28)
+    map.compartments.push(compartment(1, "Upper Left Room", 6, 14, 15, 28));
+    map.compartments.push(compartment(2, "Lower Left Room", 6, 0, 15, 14));
+    map.compartments.push(compartment(3, "Upper Center-Left", 15, 14, 24, 28));
+    map.compartments.push(compartment(4, "Lower Center-Left", 15, 0, 24, 14));
+    map.compartments.push(compartment(5, "Upper Center-Right", 24, 14, 33, 28));
+    map.compartments.push(compartment(6, "Lower Center-Right", 24, 0, 33, 14));
+    map.compartments.push(compartment(7, "Upper Right Room", 33, 14, 42, 28));
+    map.compartments.push(compartment(8, "Lower Right Room", 33, 0, 42, 14));
+    // C9: Player A entry (right strip)
+    map.compartments.push(compartment(9, "Player A Entry Area", 42, 0, 48, 28));
+    // C10: Central enclosed room (overlaps center of the grid)
+    map.compartments.push(compartment(10, "Central Room", 18, 8, 30, 20));
 
     // --- Walls ---
     let mut wid = 0u32;
 
-    // Entry zone boundaries (horizontal walls)
-    // Top entry zone boundary (y=22)
-    map.walls.push(wall(wid, 0, 22, 10, 22)); wid += 1;
-    map.walls.push(wall(wid, 14, 22, 22, 22)); wid += 1;
-    map.walls.push(wall(wid, 26, 22, 34, 22)); wid += 1;
-    map.walls.push(wall(wid, 38, 22, 48, 22)); wid += 1;
+    // Player B entry boundary (x=6) with hatchway gaps
+    map.walls.push(wall(wid, 6, 0, 6, 6)); wid += 1;
+    map.walls.push(wall(wid, 6, 8, 6, 12)); wid += 1;
+    map.walls.push(wall(wid, 6, 16, 6, 20)); wid += 1;
+    map.walls.push(wall(wid, 6, 22, 6, 28)); wid += 1;
 
-    // Bottom entry zone boundary (y=6)
-    map.walls.push(wall(wid, 0, 6, 10, 6)); wid += 1;
-    map.walls.push(wall(wid, 14, 6, 22, 6)); wid += 1;
-    map.walls.push(wall(wid, 26, 6, 34, 6)); wid += 1;
-    map.walls.push(wall(wid, 38, 6, 48, 6)); wid += 1;
+    // Column divider at x=15 with hatchway gaps
+    map.walls.push(wall(wid, 15, 0, 15, 6)); wid += 1;
+    map.walls.push(wall(wid, 15, 8, 15, 12)); wid += 1;
+    map.walls.push(wall(wid, 15, 16, 15, 20)); wid += 1;
+    map.walls.push(wall(wid, 15, 22, 15, 28)); wid += 1;
 
-    // Vertical room dividers
-    map.walls.push(wall(wid, 12, 6, 12, 12)); wid += 1;
-    map.walls.push(wall(wid, 12, 16, 12, 22)); wid += 1;
-    map.walls.push(wall(wid, 24, 6, 24, 12)); wid += 1;
-    map.walls.push(wall(wid, 24, 16, 24, 22)); wid += 1;
-    map.walls.push(wall(wid, 36, 6, 36, 12)); wid += 1;
-    map.walls.push(wall(wid, 36, 16, 36, 22)); wid += 1;
+    // Board seam at x=24 with hatchway gaps
+    map.walls.push(wall(wid, 24, 0, 24, 6)); wid += 1;
+    map.walls.push(wall(wid, 24, 8, 24, 12)); wid += 1;
+    map.walls.push(wall(wid, 24, 16, 24, 20)); wid += 1;
+    map.walls.push(wall(wid, 24, 22, 24, 28)); wid += 1;
 
-    // Horizontal middle divider (y=14)
-    map.walls.push(wall(wid, 0, 14, 10, 14)); wid += 1;
-    map.walls.push(wall(wid, 14, 14, 22, 14)); wid += 1;
-    map.walls.push(wall(wid, 26, 14, 34, 14)); wid += 1;
-    map.walls.push(wall(wid, 38, 14, 48, 14)); wid += 1;
+    // Column divider at x=33 with hatchway gaps
+    map.walls.push(wall(wid, 33, 0, 33, 6)); wid += 1;
+    map.walls.push(wall(wid, 33, 8, 33, 12)); wid += 1;
+    map.walls.push(wall(wid, 33, 16, 33, 20)); wid += 1;
+    map.walls.push(wall(wid, 33, 22, 33, 28)); wid += 1;
+
+    // Player A entry boundary (x=42) with hatchway gaps
+    map.walls.push(wall(wid, 42, 0, 42, 6)); wid += 1;
+    map.walls.push(wall(wid, 42, 8, 42, 12)); wid += 1;
+    map.walls.push(wall(wid, 42, 16, 42, 20)); wid += 1;
+    map.walls.push(wall(wid, 42, 22, 42, 28)); wid += 1;
+
+    // Horizontal row divider at y=14 with hatchway gaps
+    map.walls.push(wall(wid, 6, 14, 9, 14)); wid += 1;
+    map.walls.push(wall(wid, 13, 14, 15, 14)); wid += 1;
+    map.walls.push(wall(wid, 15, 14, 18, 14)); wid += 1;
+    map.walls.push(wall(wid, 22, 14, 26, 14)); wid += 1;
+    map.walls.push(wall(wid, 30, 14, 33, 14)); wid += 1;
+    map.walls.push(wall(wid, 33, 14, 35, 14)); wid += 1;
+    map.walls.push(wall(wid, 39, 14, 42, 14)); wid += 1;
+
+    // Central enclosed room walls (x=18-30, y=8-20)
+    map.walls.push(wall(wid, 18, 20, 23, 20)); wid += 1;   // top-left segment
+    map.walls.push(wall(wid, 25, 20, 30, 20)); wid += 1;   // top-right segment
+    map.walls.push(wall(wid, 18, 8, 23, 8)); wid += 1;     // bottom-left segment
+    map.walls.push(wall(wid, 25, 8, 30, 8)); wid += 1;     // bottom-right segment
+    map.walls.push(wall(wid, 18, 8, 18, 13)); wid += 1;    // left-bottom segment
+    map.walls.push(wall(wid, 18, 15, 18, 20)); wid += 1;   // left-top segment
+    map.walls.push(wall(wid, 30, 8, 30, 13)); wid += 1;    // right-bottom segment
+    map.walls.push(wall(wid, 30, 15, 30, 20)); wid += 1;   // right-top segment
 
     // Perimeter
     map.walls.push(wall(wid, 0, 0, 48, 0)); wid += 1;
@@ -734,55 +806,65 @@ fn build_ba_22() -> BoardingMap {
     map.walls.push(wall(wid, 48, 0, 48, 28));
 
     // --- Hatchways ---
-    // Entry zone A (top) to upper rooms
-    map.hatchways.push(hatch(0, 12, 22, Horizontal, 2, 0, 1, Open));
-    map.hatchways.push(hatch(1, 24, 22, Horizontal, 2, 0, 2, Open));
-    map.hatchways.push(hatch(2, 36, 22, Horizontal, 2, 0, 4, Open));
+    // Player B entry (x=6) to left rooms
+    map.hatchways.push(hatch(0, 6, 7, Vertical, 2, 0, 2, Open));     // to lower-left
+    map.hatchways.push(hatch(1, 6, 13, Vertical, 2, 0, 2, Open));    // to lower-left (upper gap)
+    map.hatchways.push(hatch(2, 6, 21, Vertical, 2, 0, 1, Open));    // to upper-left
 
-    // Upper to lower rooms (y=14 horizontal hatchways)
-    map.hatchways.push(hatch(3, 6, 14, Horizontal, 2, 1, 5, Closed));
-    map.hatchways.push(hatch(4, 18, 14, Horizontal, 2, 2, 6, Closed));
-    map.hatchways.push(hatch(5, 30, 14, Horizontal, 2, 3, 7, Closed));
-    map.hatchways.push(hatch(6, 42, 14, Horizontal, 2, 4, 8, Closed));
+    // Player A entry (x=42) to right rooms
+    map.hatchways.push(hatch(3, 42, 7, Vertical, 2, 8, 9, Open));    // to lower-right
+    map.hatchways.push(hatch(4, 42, 13, Vertical, 2, 8, 9, Open));   // to lower-right (upper gap)
+    map.hatchways.push(hatch(5, 42, 21, Vertical, 2, 7, 9, Open));   // to upper-right
 
-    // Vertical hatchways between rooms
-    map.hatchways.push(hatch(7, 12, 14, Vertical, 2, 1, 2, Closed));
-    map.hatchways.push(hatch(8, 24, 14, Vertical, 2, 6, 7, Closed));
-    map.hatchways.push(hatch(9, 36, 14, Vertical, 2, 3, 4, Closed));
+    // Column dividers (vertical hatchways between rooms)
+    map.hatchways.push(hatch(6, 15, 7, Vertical, 2, 2, 4, Closed));
+    map.hatchways.push(hatch(7, 15, 21, Vertical, 2, 1, 3, Closed));
+    map.hatchways.push(hatch(8, 24, 7, Vertical, 2, 4, 6, Closed));
+    map.hatchways.push(hatch(9, 24, 21, Vertical, 2, 3, 5, Closed));
+    map.hatchways.push(hatch(10, 33, 7, Vertical, 2, 6, 8, Closed));
+    map.hatchways.push(hatch(11, 33, 21, Vertical, 2, 5, 7, Closed));
 
-    // Entry zone B (bottom) to lower rooms
-    map.hatchways.push(hatch(10, 12, 6, Horizontal, 2, 9, 5, Open));
-    map.hatchways.push(hatch(11, 24, 6, Horizontal, 2, 9, 7, Open));
-    map.hatchways.push(hatch(12, 36, 6, Horizontal, 2, 9, 8, Open));
+    // Row divider (horizontal hatchways at y=14 between upper/lower rooms)
+    map.hatchways.push(hatch(12, 11, 14, Horizontal, 2, 1, 2, Closed));
+    map.hatchways.push(hatch(13, 20, 14, Horizontal, 2, 3, 4, Closed));
+    map.hatchways.push(hatch(14, 37, 14, Horizontal, 2, 7, 8, Closed));
+
+    // Central room hatchways (connecting to adjacent grid rooms)
+    map.hatchways.push(hatch(15, 24, 20, Horizontal, 2, 10, 10, Closed)); // central top
+    map.hatchways.push(hatch(16, 24, 8, Horizontal, 2, 10, 10, Closed));  // central bottom
+    map.hatchways.push(hatch(17, 18, 14, Vertical, 2, 4, 10, Closed));    // central left
+    map.hatchways.push(hatch(18, 30, 14, Vertical, 2, 10, 6, Closed));    // central right
 
     // --- Entry Zones ---
+    // Player B (red) entry at left (x=0-6)
     map.entry_zones.push(entry_zone(
-        0, "Player A Entry", EntryZoneRole::Main, 0, 22, 48, 28, Some(0),
+        0, "Player B Entry", EntryZoneRole::Main, 0, 0, 6, 28, Some(1),
     ));
+    // Player A (green) entry at right (x=42-48)
     map.entry_zones.push(entry_zone(
-        1, "Player B Entry", EntryZoneRole::Main, 0, 0, 48, 6, Some(1),
+        1, "Player A Entry", EntryZoneRole::Main, 42, 0, 48, 28, Some(0),
     ));
 
     // --- Objectives ---
-    // 4 objectives split between two Lighting Areas (2 per area)
-    map.objectives.push(objective(0, 8, 18, "Objective A1"));
-    map.objectives.push(objective(1, 8, 10, "Objective A2"));
-    map.objectives.push(objective(2, 40, 18, "Objective B1"));
-    map.objectives.push(objective(3, 40, 10, "Objective B2"));
+    // 4 objectives: 2 in each lighting area
+    map.objectives.push(objective(0, 12, 18, "Objective A1"));
+    map.objectives.push(objective(1, 12, 10, "Objective A2"));
+    map.objectives.push(objective(2, 36, 18, "Objective B1"));
+    map.objectives.push(objective(3, 36, 10, "Objective B2"));
 
     // --- Special Regions ---
-    // Lighting Area 1 (left half)
+    // Lighting Area 1 (left half of full board)
     map.special_regions.push(SpecialRegion {
         id: RegionId::new(0),
         name: "Lighting Area 1".to_string(),
-        boundary: rect_poly(0, 6, 24, 22),
+        boundary: rect_poly(0, 0, 24, 28),
         tags: vec!["lighting_area".to_string()],
     });
-    // Lighting Area 2 (right half)
+    // Lighting Area 2 (right half of full board)
     map.special_regions.push(SpecialRegion {
         id: RegionId::new(1),
         name: "Lighting Area 2".to_string(),
-        boundary: rect_poly(24, 6, 48, 22),
+        boundary: rect_poly(24, 0, 48, 28),
         tags: vec!["lighting_area".to_string()],
     });
 
@@ -792,9 +874,11 @@ fn build_ba_22() -> BoardingMap {
 // ---------------------------------------------------------------------------
 // BA-23: Hull Breach (Symmetric, 3 objectives, numbered compartments, venting)
 // ---------------------------------------------------------------------------
-// Layout: Five explicitly numbered compartments used for venting mechanics.
-// Three datacore objective markers. Compartments 1, 2, 4, 5 are the venting
-// targets; the defender chooses which compartment to vent when triggered.
+// Layout: Y-AXIS deployment in specific compartments.
+// Player A (green) deploys in Compartment 1 (lower-left) and Compartment 3 (lower-right).
+// Player B (red) deploys in Compartment 4 (upper-left) and Compartment 6 (upper-right).
+// 6 numbered compartments in a 3×2 grid with connecting passages.
+// Compartments 1, 2, 4, 5 are ventable targets.
 //
 // Source: HULL_BREACH.PNG mission map
 // Source: boarding_actions_maps_complete_v3.json (BA-23)
@@ -806,48 +890,66 @@ fn build_ba_23() -> BoardingMap {
     let mut map = BoardingMap::new(BoardDimensions::BOARDING_ACTIONS);
 
     // --- Compartments ---
-    // Numbered compartments are crucial for venting mechanics
-    map.compartments.push(compartment(0, "Left Entry", 0, 0, 6, 28));
-    map.compartments.push(compartment(1, "Compartment 4", 6, 16, 18, 28));
-    map.compartments.push(compartment(2, "Compartment 1", 6, 0, 18, 12));
-    map.compartments.push(compartment(3, "Compartment 5", 18, 8, 30, 20));
-    map.compartments.push(compartment(4, "Compartment 2", 18, 0, 30, 8));
-    map.compartments.push(compartment(5, "Upper Passage", 18, 20, 30, 28));
-    map.compartments.push(compartment(6, "Compartment 3", 30, 16, 42, 28));
-    map.compartments.push(compartment(7, "Lower Right", 30, 0, 42, 12));
-    map.compartments.push(compartment(8, "Right Corridor", 30, 12, 42, 16));
-    map.compartments.push(compartment(9, "Right Entry", 42, 0, 48, 28));
+    // 6 numbered compartments in a 3×2 grid plus connecting passages
+    // C0: Compartment 1 — lower-left (Player A deploy)
+    map.compartments.push(compartment(0, "Compartment 1", 0, 0, 12, 14));
+    // C1: Compartment 4 — upper-left (Player B deploy)
+    map.compartments.push(compartment(1, "Compartment 4", 0, 14, 12, 28));
+    // C2: Compartment 5 — Board 1 center
+    map.compartments.push(compartment(2, "Compartment 5", 12, 6, 24, 22));
+    // C3: Upper Passage (Board 1)
+    map.compartments.push(compartment(3, "Upper Passage 1", 12, 22, 24, 28));
+    // C4: Lower Passage (Board 1)
+    map.compartments.push(compartment(4, "Lower Passage 1", 12, 0, 24, 6));
+    // C5: Compartment 2 — Board 2 center
+    map.compartments.push(compartment(5, "Compartment 2", 24, 6, 36, 22));
+    // C6: Upper Passage (Board 2)
+    map.compartments.push(compartment(6, "Upper Passage 2", 24, 22, 36, 28));
+    // C7: Lower Passage (Board 2)
+    map.compartments.push(compartment(7, "Lower Passage 2", 24, 0, 36, 6));
+    // C8: Compartment 6 — upper-right (Player B deploy)
+    map.compartments.push(compartment(8, "Compartment 6", 36, 14, 48, 28));
+    // C9: Compartment 3 — lower-right (Player A deploy)
+    map.compartments.push(compartment(9, "Compartment 3", 36, 0, 48, 14));
 
     // --- Walls ---
     let mut wid = 0u32;
 
-    // Left entry boundary (x=6)
-    map.walls.push(wall(wid, 6, 0, 6, 10)); wid += 1;
-    map.walls.push(wall(wid, 6, 14, 6, 16)); wid += 1;
-    map.walls.push(wall(wid, 6, 18, 6, 28)); wid += 1;
+    // Left column boundary (x=12) with hatchway gaps
+    map.walls.push(wall(wid, 12, 0, 12, 4)); wid += 1;
+    map.walls.push(wall(wid, 12, 8, 12, 12)); wid += 1;
+    map.walls.push(wall(wid, 12, 16, 12, 20)); wid += 1;
+    map.walls.push(wall(wid, 12, 24, 12, 28)); wid += 1;
 
-    // Compartments 4,1 to center (x=18)
-    map.walls.push(wall(wid, 18, 0, 18, 6)); wid += 1;
-    map.walls.push(wall(wid, 18, 10, 18, 16)); wid += 1;
-    map.walls.push(wall(wid, 18, 22, 18, 28)); wid += 1;
+    // Board seam (x=24) with hatchway gaps
+    map.walls.push(wall(wid, 24, 0, 24, 4)); wid += 1;
+    map.walls.push(wall(wid, 24, 8, 24, 12)); wid += 1;
+    map.walls.push(wall(wid, 24, 16, 24, 20)); wid += 1;
+    map.walls.push(wall(wid, 24, 24, 24, 28)); wid += 1;
 
-    // Center to right compartments (x=30)
-    map.walls.push(wall(wid, 30, 0, 30, 6)); wid += 1;
-    map.walls.push(wall(wid, 30, 10, 30, 14)); wid += 1;
-    map.walls.push(wall(wid, 30, 18, 30, 28)); wid += 1;
+    // Right column boundary (x=36) with hatchway gaps
+    map.walls.push(wall(wid, 36, 0, 36, 4)); wid += 1;
+    map.walls.push(wall(wid, 36, 8, 36, 12)); wid += 1;
+    map.walls.push(wall(wid, 36, 16, 36, 20)); wid += 1;
+    map.walls.push(wall(wid, 36, 24, 36, 28)); wid += 1;
 
-    // Right entry boundary (x=42)
-    map.walls.push(wall(wid, 42, 0, 42, 10)); wid += 1;
-    map.walls.push(wall(wid, 42, 14, 42, 16)); wid += 1;
-    map.walls.push(wall(wid, 42, 18, 42, 28)); wid += 1;
+    // Horizontal divider at y=14 (between upper and lower compartments on left and right)
+    map.walls.push(wall(wid, 0, 14, 5, 14)); wid += 1;
+    map.walls.push(wall(wid, 7, 14, 12, 14)); wid += 1;
+    map.walls.push(wall(wid, 36, 14, 41, 14)); wid += 1;
+    map.walls.push(wall(wid, 43, 14, 48, 14)); wid += 1;
 
-    // Horizontal dividers
-    map.walls.push(wall(wid, 6, 12, 18, 12)); wid += 1;
-    map.walls.push(wall(wid, 6, 16, 18, 16)); wid += 1;
-    map.walls.push(wall(wid, 18, 8, 30, 8)); wid += 1;
-    map.walls.push(wall(wid, 18, 20, 30, 20)); wid += 1;
-    map.walls.push(wall(wid, 30, 12, 42, 12)); wid += 1;
-    map.walls.push(wall(wid, 30, 16, 42, 16)); wid += 1;
+    // Horizontal divider at y=6 (top of lower passages) with hatchway gaps
+    map.walls.push(wall(wid, 12, 6, 17, 6)); wid += 1;
+    map.walls.push(wall(wid, 21, 6, 24, 6)); wid += 1;
+    map.walls.push(wall(wid, 24, 6, 29, 6)); wid += 1;
+    map.walls.push(wall(wid, 33, 6, 36, 6)); wid += 1;
+
+    // Horizontal divider at y=22 (bottom of upper passages) with hatchway gaps
+    map.walls.push(wall(wid, 12, 22, 17, 22)); wid += 1;
+    map.walls.push(wall(wid, 21, 22, 24, 22)); wid += 1;
+    map.walls.push(wall(wid, 24, 22, 29, 22)); wid += 1;
+    map.walls.push(wall(wid, 33, 22, 36, 22)); wid += 1;
 
     // Perimeter
     map.walls.push(wall(wid, 0, 0, 48, 0)); wid += 1;
@@ -856,68 +958,83 @@ fn build_ba_23() -> BoardingMap {
     map.walls.push(wall(wid, 48, 0, 48, 28));
 
     // --- Hatchways ---
-    // Left entry to compartments
-    map.hatchways.push(hatch(0, 6, 11, Vertical, 2, 0, 2, Open));
-    map.hatchways.push(hatch(1, 6, 17, Vertical, 2, 0, 1, Open));
+    // Left compartments to Compartment 5 (x=12)
+    map.hatchways.push(hatch(0, 12, 5, Vertical, 2, 0, 4, Closed));    // Comp1 to Lower Passage
+    map.hatchways.push(hatch(1, 12, 14, Vertical, 2, 0, 2, Closed));   // Comp1 to Comp5 (lower half)
+    map.hatchways.push(hatch(2, 12, 14, Vertical, 2, 1, 2, Closed));   // Comp4 to Comp5 (upper half)
+    map.hatchways.push(hatch(3, 12, 23, Vertical, 2, 1, 3, Closed));   // Comp4 to Upper Passage
 
-    // Compartment 4 to Compartment 5
-    map.hatchways.push(hatch(2, 18, 18, Vertical, 2, 1, 3, Closed));
-    // Compartment 1 to Compartment 2
-    map.hatchways.push(hatch(3, 18, 7, Vertical, 2, 2, 4, Closed));
+    // Compartment 5 to passages (y=6 and y=22)
+    map.hatchways.push(hatch(4, 19, 6, Horizontal, 2, 4, 2, Closed));  // Lower Passage to Comp5
+    map.hatchways.push(hatch(5, 19, 22, Horizontal, 2, 2, 3, Closed)); // Comp5 to Upper Passage
 
-    // Compartment 5 to Compartment 3
-    map.hatchways.push(hatch(4, 30, 16, Vertical, 2, 3, 6, Closed));
-    // Compartment 5 to Lower Right
-    map.hatchways.push(hatch(5, 30, 7, Vertical, 2, 4, 7, Closed));
+    // Board seam (x=24) — Comp5 to Comp2
+    map.hatchways.push(hatch(6, 24, 14, Vertical, 2, 2, 5, Closed));   // Comp5 to Comp2
 
-    // Upper Passage to Compartment 3
-    map.hatchways.push(hatch(6, 18, 21, Vertical, 2, 5, 3, Closed));
+    // Passages across board seam (x=24)
+    map.hatchways.push(hatch(7, 24, 5, Vertical, 2, 4, 7, Closed));    // Lower Passage 1 to Lower Passage 2
+    map.hatchways.push(hatch(8, 24, 23, Vertical, 2, 3, 6, Closed));   // Upper Passage 1 to Upper Passage 2
 
-    // Right side to entry
-    map.hatchways.push(hatch(7, 42, 11, Vertical, 2, 7, 9, Open));
-    map.hatchways.push(hatch(8, 42, 17, Vertical, 2, 6, 9, Open));
+    // Compartment 2 to passages (y=6 and y=22)
+    map.hatchways.push(hatch(9, 31, 6, Horizontal, 2, 7, 5, Closed));  // Lower Passage 2 to Comp2
+    map.hatchways.push(hatch(10, 31, 22, Horizontal, 2, 5, 6, Closed)); // Comp2 to Upper Passage 2
 
-    // Cross-compartment hatchway
-    map.hatchways.push(hatch(9, 42, 15, Vertical, 2, 8, 9, Open));
+    // Right compartments to Compartment 2 (x=36)
+    map.hatchways.push(hatch(11, 36, 5, Vertical, 2, 7, 9, Closed));   // Lower Passage 2 to Comp3
+    map.hatchways.push(hatch(12, 36, 14, Vertical, 2, 5, 9, Closed));  // Comp2 to Comp3 (lower half)
+    map.hatchways.push(hatch(13, 36, 14, Vertical, 2, 5, 8, Closed));  // Comp2 to Comp6 (upper half)
+    map.hatchways.push(hatch(14, 36, 23, Vertical, 2, 6, 8, Closed));  // Upper Passage 2 to Comp6
+
+    // Horizontal hatchways at y=14 within left and right sides
+    map.hatchways.push(hatch(15, 6, 14, Horizontal, 2, 1, 0, Open));   // Comp4 to Comp1 (entry)
+    map.hatchways.push(hatch(16, 42, 14, Horizontal, 2, 8, 9, Open));  // Comp6 to Comp3 (entry)
 
     // --- Entry Zones ---
+    // Player A (green) deploys in Compartment 1 (lower-left) and Compartment 3 (lower-right)
     map.entry_zones.push(entry_zone(
-        0, "Player A Entry", EntryZoneRole::Main, 0, 0, 6, 28, Some(0),
+        0, "Player A Entry (Comp 1)", EntryZoneRole::Main, 0, 0, 12, 14, Some(0),
     ));
     map.entry_zones.push(entry_zone(
-        1, "Player B Entry", EntryZoneRole::Main, 42, 0, 48, 28, Some(1),
+        1, "Player A Entry (Comp 3)", EntryZoneRole::Main, 36, 0, 48, 14, Some(0),
+    ));
+    // Player B (red) deploys in Compartment 4 (upper-left) and Compartment 6 (upper-right)
+    map.entry_zones.push(entry_zone(
+        2, "Player B Entry (Comp 4)", EntryZoneRole::Main, 0, 14, 12, 28, Some(1),
+    ));
+    map.entry_zones.push(entry_zone(
+        3, "Player B Entry (Comp 6)", EntryZoneRole::Main, 36, 14, 48, 28, Some(1),
     ));
 
     // --- Objectives ---
-    // Three datacore objective markers spread across compartments
-    map.objectives.push(objective(0, 12, 22, "Datacore Alpha"));
+    // Three datacore objective markers along y=14 centerline
+    map.objectives.push(objective(0, 6, 14, "Datacore Alpha"));
     map.objectives.push(objective(1, 24, 14, "Datacore Beta"));
-    map.objectives.push(objective(2, 36, 6, "Datacore Gamma"));
+    map.objectives.push(objective(2, 42, 14, "Datacore Gamma"));
 
     // --- Special Regions ---
-    // Numbered compartments used for venting mechanics
+    // 4 ventable compartments: Compartment 1, 2, 4, 5
     map.special_regions.push(SpecialRegion {
         id: RegionId::new(0),
         name: "Compartment 1".to_string(),
-        boundary: rect_poly(6, 0, 18, 12),
+        boundary: rect_poly(0, 0, 12, 14),
         tags: vec!["compartment".to_string(), "ventable".to_string()],
     });
     map.special_regions.push(SpecialRegion {
         id: RegionId::new(1),
         name: "Compartment 2".to_string(),
-        boundary: rect_poly(18, 0, 30, 8),
+        boundary: rect_poly(24, 6, 36, 22),
         tags: vec!["compartment".to_string(), "ventable".to_string()],
     });
     map.special_regions.push(SpecialRegion {
         id: RegionId::new(2),
         name: "Compartment 4".to_string(),
-        boundary: rect_poly(6, 16, 18, 28),
+        boundary: rect_poly(0, 14, 12, 28),
         tags: vec!["compartment".to_string(), "ventable".to_string()],
     });
     map.special_regions.push(SpecialRegion {
         id: RegionId::new(3),
         name: "Compartment 5".to_string(),
-        boundary: rect_poly(18, 8, 30, 20),
+        boundary: rect_poly(12, 6, 24, 22),
         tags: vec!["compartment".to_string(), "ventable".to_string()],
     });
 
@@ -927,9 +1044,10 @@ fn build_ba_23() -> BoardingMap {
 // ---------------------------------------------------------------------------
 // BA-31: Control Centre (Symmetric, 4 objectives, global hatch unlock)
 // ---------------------------------------------------------------------------
-// Layout: Central control room surrounded by rooms on all sides.
-// Objective A is the primary scoring marker. Objective B controls
-// the "Unlock Overrides" ability to open all hatchways simultaneously.
+// Layout: Y-AXIS deployment (Player A from top y=22-28, Player B from bottom y=0-6).
+// Central Control Centre room spanning x=12-36, y=8-20, surrounded by flanking rooms.
+// Objective A is the primary scoring marker. Objective B controls the "Unlock Overrides"
+// ability to open all hatchways simultaneously.
 //
 // Source: CONTROL_CENTRE.PNG mission map
 // Source: boarding_actions_maps_complete_v3.json (BA-31)
@@ -941,52 +1059,63 @@ fn build_ba_31() -> BoardingMap {
     let mut map = BoardingMap::new(BoardDimensions::BOARDING_ACTIONS);
 
     // --- Compartments ---
-    map.compartments.push(compartment(0, "Left Entry", 0, 0, 6, 28));
-    map.compartments.push(compartment(1, "Upper Left Room", 6, 18, 16, 28));
-    map.compartments.push(compartment(2, "Lower Left Room", 6, 0, 16, 10));
-    map.compartments.push(compartment(3, "Left Ante-room", 6, 10, 16, 18));
-    map.compartments.push(compartment(4, "Control Centre", 16, 8, 32, 20));
-    map.compartments.push(compartment(5, "Upper Corridor", 16, 20, 32, 28));
-    map.compartments.push(compartment(6, "Lower Corridor", 16, 0, 32, 8));
-    map.compartments.push(compartment(7, "Upper Right Room", 32, 18, 42, 28));
-    map.compartments.push(compartment(8, "Lower Right Room", 32, 0, 42, 10));
-    map.compartments.push(compartment(9, "Right Ante-room", 32, 10, 42, 18));
-    map.compartments.push(compartment(10, "Right Entry", 42, 0, 48, 28));
+    // C0: Board1 Upper Left
+    map.compartments.push(compartment(0, "Board1 Upper Left", 0, 14, 12, 22));
+    // C1: Board1 Lower Left
+    map.compartments.push(compartment(1, "Board1 Lower Left", 0, 6, 12, 14));
+    // C2: Control Centre (large central room)
+    map.compartments.push(compartment(2, "Control Centre", 12, 8, 36, 20));
+    // C3: Upper Corridor (above control centre)
+    map.compartments.push(compartment(3, "Upper Corridor", 12, 20, 36, 22));
+    // C4: Lower Corridor (below control centre)
+    map.compartments.push(compartment(4, "Lower Corridor", 12, 6, 36, 8));
+    // C5: Board2 Upper Right
+    map.compartments.push(compartment(5, "Board2 Upper Right", 36, 14, 48, 22));
+    // C6: Board2 Lower Right
+    map.compartments.push(compartment(6, "Board2 Lower Right", 36, 6, 48, 14));
 
     // --- Walls ---
     let mut wid = 0u32;
 
-    // Left entry boundary (x=6)
-    map.walls.push(wall(wid, 6, 0, 6, 9)); wid += 1;
-    map.walls.push(wall(wid, 6, 11, 6, 17)); wid += 1;
-    map.walls.push(wall(wid, 6, 19, 6, 28)); wid += 1;
+    // Entry zone boundary at y=22 (below Player A entry) with hatchway gaps
+    map.walls.push(wall(wid, 0, 22, 4, 22)); wid += 1;
+    map.walls.push(wall(wid, 8, 22, 16, 22)); wid += 1;
+    map.walls.push(wall(wid, 20, 22, 32, 22)); wid += 1;
+    map.walls.push(wall(wid, 36, 22, 40, 22)); wid += 1;
+    map.walls.push(wall(wid, 44, 22, 48, 22)); wid += 1;
 
-    // Left to control centre (x=16)
-    map.walls.push(wall(wid, 16, 0, 16, 6)); wid += 1;
-    map.walls.push(wall(wid, 16, 10, 16, 12)); wid += 1;
-    map.walls.push(wall(wid, 16, 16, 16, 18)); wid += 1;
-    map.walls.push(wall(wid, 16, 22, 16, 28)); wid += 1;
+    // Entry zone boundary at y=6 (above Player B entry) with hatchway gaps
+    map.walls.push(wall(wid, 0, 6, 4, 6)); wid += 1;
+    map.walls.push(wall(wid, 8, 6, 16, 6)); wid += 1;
+    map.walls.push(wall(wid, 20, 6, 32, 6)); wid += 1;
+    map.walls.push(wall(wid, 36, 6, 40, 6)); wid += 1;
+    map.walls.push(wall(wid, 44, 6, 48, 6)); wid += 1;
 
-    // Control centre boundaries
-    map.walls.push(wall(wid, 16, 8, 32, 8)); wid += 1;
-    map.walls.push(wall(wid, 16, 20, 32, 20)); wid += 1;
+    // Left column divider at x=12 with hatchway gaps
+    map.walls.push(wall(wid, 12, 6, 12, 7)); wid += 1;
+    map.walls.push(wall(wid, 12, 9, 12, 13)); wid += 1;
+    map.walls.push(wall(wid, 12, 15, 12, 19)); wid += 1;
+    map.walls.push(wall(wid, 12, 21, 12, 22)); wid += 1;
 
-    // Right of control centre (x=32)
-    map.walls.push(wall(wid, 32, 0, 32, 6)); wid += 1;
-    map.walls.push(wall(wid, 32, 10, 32, 12)); wid += 1;
-    map.walls.push(wall(wid, 32, 16, 32, 18)); wid += 1;
-    map.walls.push(wall(wid, 32, 22, 32, 28)); wid += 1;
+    // Right column divider at x=36 with hatchway gaps
+    map.walls.push(wall(wid, 36, 6, 36, 7)); wid += 1;
+    map.walls.push(wall(wid, 36, 9, 36, 13)); wid += 1;
+    map.walls.push(wall(wid, 36, 15, 36, 19)); wid += 1;
+    map.walls.push(wall(wid, 36, 21, 36, 22)); wid += 1;
 
-    // Right entry boundary (x=42)
-    map.walls.push(wall(wid, 42, 0, 42, 9)); wid += 1;
-    map.walls.push(wall(wid, 42, 11, 42, 17)); wid += 1;
-    map.walls.push(wall(wid, 42, 19, 42, 28)); wid += 1;
+    // Horizontal divider at y=14 (separating upper/lower flanking rooms)
+    map.walls.push(wall(wid, 0, 14, 5, 14)); wid += 1;
+    map.walls.push(wall(wid, 7, 14, 12, 14)); wid += 1;
+    map.walls.push(wall(wid, 36, 14, 41, 14)); wid += 1;
+    map.walls.push(wall(wid, 43, 14, 48, 14)); wid += 1;
 
-    // Horizontal room dividers
-    map.walls.push(wall(wid, 6, 10, 16, 10)); wid += 1;
-    map.walls.push(wall(wid, 6, 18, 16, 18)); wid += 1;
-    map.walls.push(wall(wid, 32, 10, 42, 10)); wid += 1;
-    map.walls.push(wall(wid, 32, 18, 42, 18)); wid += 1;
+    // Control Centre top/bottom walls (y=20 and y=8) with hatchway gaps
+    map.walls.push(wall(wid, 12, 20, 17, 20)); wid += 1;
+    map.walls.push(wall(wid, 21, 20, 27, 20)); wid += 1;
+    map.walls.push(wall(wid, 31, 20, 36, 20)); wid += 1;
+    map.walls.push(wall(wid, 12, 8, 17, 8)); wid += 1;
+    map.walls.push(wall(wid, 21, 8, 27, 8)); wid += 1;
+    map.walls.push(wall(wid, 31, 8, 36, 8)); wid += 1;
 
     // Perimeter
     map.walls.push(wall(wid, 0, 0, 48, 0)); wid += 1;
@@ -995,44 +1124,64 @@ fn build_ba_31() -> BoardingMap {
     map.walls.push(wall(wid, 48, 0, 48, 28));
 
     // --- Hatchways ---
-    map.hatchways.push(hatch(0, 6, 10, Vertical, 2, 0, 2, Open));
-    map.hatchways.push(hatch(1, 6, 18, Vertical, 2, 0, 1, Open));
+    // Entry A (y=22) to rooms/corridors
+    map.hatchways.push(hatch(0, 6, 22, Horizontal, 2, 0, 0, Open));    // to Board1 UL
+    map.hatchways.push(hatch(1, 18, 22, Horizontal, 2, 3, 3, Open));   // to Upper Corridor
+    map.hatchways.push(hatch(2, 34, 22, Horizontal, 2, 3, 3, Open));   // to Upper Corridor
+    map.hatchways.push(hatch(3, 42, 22, Horizontal, 2, 5, 5, Open));   // to Board2 UR
 
-    // Into control centre
-    map.hatchways.push(hatch(2, 16, 7, Vertical, 2, 6, 4, Closed));
-    map.hatchways.push(hatch(3, 16, 14, Vertical, 2, 3, 4, Closed));
-    map.hatchways.push(hatch(4, 16, 21, Vertical, 2, 5, 4, Closed));
+    // Entry B (y=6) to rooms/corridors
+    map.hatchways.push(hatch(4, 6, 6, Horizontal, 2, 1, 1, Open));     // to Board1 LL
+    map.hatchways.push(hatch(5, 18, 6, Horizontal, 2, 4, 4, Open));    // to Lower Corridor
+    map.hatchways.push(hatch(6, 34, 6, Horizontal, 2, 4, 4, Open));    // to Lower Corridor
+    map.hatchways.push(hatch(7, 42, 6, Horizontal, 2, 6, 6, Open));    // to Board2 LR
 
-    // Out of control centre
-    map.hatchways.push(hatch(5, 32, 7, Vertical, 2, 4, 6, Closed));
-    map.hatchways.push(hatch(6, 32, 14, Vertical, 2, 4, 9, Closed));
-    map.hatchways.push(hatch(7, 32, 21, Vertical, 2, 4, 5, Closed));
+    // Left flanking rooms to corridors/control centre (x=12)
+    map.hatchways.push(hatch(8, 12, 8, Vertical, 2, 1, 4, Closed));    // Board1 LL to Lower Corridor
+    map.hatchways.push(hatch(9, 12, 14, Vertical, 2, 1, 2, Closed));   // Board1 LL to Control Centre
+    map.hatchways.push(hatch(10, 12, 14, Vertical, 2, 0, 2, Closed));  // Board1 UL to Control Centre
+    map.hatchways.push(hatch(11, 12, 20, Vertical, 2, 0, 3, Closed));  // Board1 UL to Upper Corridor
 
-    map.hatchways.push(hatch(8, 42, 10, Vertical, 2, 8, 10, Open));
-    map.hatchways.push(hatch(9, 42, 18, Vertical, 2, 7, 10, Open));
+    // Right flanking rooms to corridors/control centre (x=36)
+    map.hatchways.push(hatch(12, 36, 8, Vertical, 2, 4, 6, Closed));   // Lower Corridor to Board2 LR
+    map.hatchways.push(hatch(13, 36, 14, Vertical, 2, 2, 6, Closed));  // Control Centre to Board2 LR
+    map.hatchways.push(hatch(14, 36, 14, Vertical, 2, 2, 5, Closed));  // Control Centre to Board2 UR
+    map.hatchways.push(hatch(15, 36, 20, Vertical, 2, 3, 5, Closed));  // Upper Corridor to Board2 UR
+
+    // Corridors to Control Centre (horizontal hatchways)
+    map.hatchways.push(hatch(16, 19, 20, Horizontal, 2, 3, 2, Closed)); // Upper Corridor to CC
+    map.hatchways.push(hatch(17, 29, 20, Horizontal, 2, 3, 2, Closed)); // Upper Corridor to CC
+    map.hatchways.push(hatch(18, 19, 8, Horizontal, 2, 2, 4, Closed));  // CC to Lower Corridor
+    map.hatchways.push(hatch(19, 29, 8, Horizontal, 2, 2, 4, Closed));  // CC to Lower Corridor
+
+    // Left and right horizontal hatchways at y=14
+    map.hatchways.push(hatch(20, 6, 14, Horizontal, 2, 0, 1, Closed));  // Board1 UL to Board1 LL
+    map.hatchways.push(hatch(21, 42, 14, Horizontal, 2, 5, 6, Closed)); // Board2 UR to Board2 LR
 
     // --- Entry Zones ---
+    // Player A (green) deploys from top (y=22-28)
     map.entry_zones.push(entry_zone(
-        0, "Player A Entry", EntryZoneRole::Main, 0, 0, 6, 28, Some(0),
+        0, "Player A Entry", EntryZoneRole::Main, 0, 22, 48, 28, Some(0),
     ));
+    // Player B (red) deploys from bottom (y=0-6)
     map.entry_zones.push(entry_zone(
-        1, "Player B Entry", EntryZoneRole::Main, 42, 0, 48, 28, Some(1),
+        1, "Player B Entry", EntryZoneRole::Main, 0, 0, 48, 6, Some(1),
     ));
 
     // --- Objectives ---
     // Objective A: primary scoring marker (center of control room)
     map.objectives.push(objective(0, 24, 14, "Objective A"));
-    // Objective B: controls Unlock Overrides (off-center in control room)
+    // Objective B: controls Unlock Overrides
     map.objectives.push(objective(1, 24, 18, "Objective B"));
     // Two additional objectives in flanking rooms
-    map.objectives.push(objective(2, 10, 14, "Objective C"));
-    map.objectives.push(objective(3, 38, 14, "Objective D"));
+    map.objectives.push(objective(2, 6, 14, "Objective C"));
+    map.objectives.push(objective(3, 42, 14, "Objective D"));
 
     // --- Special Regions ---
     map.special_regions.push(SpecialRegion {
         id: RegionId::new(0),
         name: "Control Centre".to_string(),
-        boundary: rect_poly(16, 8, 32, 20),
+        boundary: rect_poly(12, 8, 36, 20),
         tags: vec!["control_centre".to_string()],
     });
 
@@ -1042,9 +1191,9 @@ fn build_ba_31() -> BoardingMap {
 // ---------------------------------------------------------------------------
 // BA-32: The Furnace (Symmetric, 3 objectives, furnace zone, burners)
 // ---------------------------------------------------------------------------
-// Layout: Large central Furnace area (dark shaded region) surrounded by
-// rooms and corridors. Furnace Control Zones flank the Furnace. Any unit
-// can Secure Site on objectives within the Furnace.
+// Layout: Y-AXIS deployment (Player B/red from top y=22-28, Player A/green from
+// bottom y=0-6). Large central Furnace room (x=12-36, y=8-20) surrounded by
+// flanking rooms and bypass corridors. Furnace Control Zones flank the Furnace.
 //
 // Source: THE_FURNACE.PNG mission map
 // Source: boarding_actions_maps_complete_v3.json (BA-32)
@@ -1056,52 +1205,63 @@ fn build_ba_32() -> BoardingMap {
     let mut map = BoardingMap::new(BoardDimensions::BOARDING_ACTIONS);
 
     // --- Compartments ---
-    map.compartments.push(compartment(0, "Left Entry", 0, 0, 6, 28));
-    map.compartments.push(compartment(1, "Upper Left Room", 6, 20, 16, 28));
-    map.compartments.push(compartment(2, "Lower Left Room", 6, 0, 16, 8));
-    map.compartments.push(compartment(3, "Left Control Zone", 6, 8, 16, 20));
-    map.compartments.push(compartment(4, "The Furnace", 16, 6, 32, 22));
-    map.compartments.push(compartment(5, "Upper Bypass", 16, 22, 32, 28));
-    map.compartments.push(compartment(6, "Lower Bypass", 16, 0, 32, 6));
-    map.compartments.push(compartment(7, "Right Control Zone", 32, 8, 42, 20));
-    map.compartments.push(compartment(8, "Upper Right Room", 32, 20, 42, 28));
-    map.compartments.push(compartment(9, "Lower Right Room", 32, 0, 42, 8));
-    map.compartments.push(compartment(10, "Right Entry", 42, 0, 48, 28));
+    // C0: Board1 Upper Left
+    map.compartments.push(compartment(0, "Board1 Upper Left", 0, 14, 12, 22));
+    // C1: Board1 Lower Left
+    map.compartments.push(compartment(1, "Board1 Lower Left", 0, 6, 12, 14));
+    // C2: The Furnace (large central room)
+    map.compartments.push(compartment(2, "The Furnace", 12, 8, 36, 20));
+    // C3: Upper Bypass (above furnace)
+    map.compartments.push(compartment(3, "Upper Bypass", 12, 20, 36, 22));
+    // C4: Lower Bypass (below furnace)
+    map.compartments.push(compartment(4, "Lower Bypass", 12, 6, 36, 8));
+    // C5: Board2 Upper Right
+    map.compartments.push(compartment(5, "Board2 Upper Right", 36, 14, 48, 22));
+    // C6: Board2 Lower Right
+    map.compartments.push(compartment(6, "Board2 Lower Right", 36, 6, 48, 14));
 
     // --- Walls ---
     let mut wid = 0u32;
 
-    // Left entry boundary (x=6)
-    map.walls.push(wall(wid, 6, 0, 6, 7)); wid += 1;
-    map.walls.push(wall(wid, 6, 9, 6, 19)); wid += 1;
-    map.walls.push(wall(wid, 6, 21, 6, 28)); wid += 1;
+    // Entry zone boundary at y=22 (below Player B entry) with hatchway gaps
+    map.walls.push(wall(wid, 0, 22, 4, 22)); wid += 1;
+    map.walls.push(wall(wid, 8, 22, 16, 22)); wid += 1;
+    map.walls.push(wall(wid, 20, 22, 32, 22)); wid += 1;
+    map.walls.push(wall(wid, 36, 22, 40, 22)); wid += 1;
+    map.walls.push(wall(wid, 44, 22, 48, 22)); wid += 1;
 
-    // Left to furnace (x=16)
-    map.walls.push(wall(wid, 16, 0, 16, 4)); wid += 1;
-    map.walls.push(wall(wid, 16, 8, 16, 10)); wid += 1;
-    map.walls.push(wall(wid, 16, 18, 16, 20)); wid += 1;
-    map.walls.push(wall(wid, 16, 24, 16, 28)); wid += 1;
+    // Entry zone boundary at y=6 (above Player A entry) with hatchway gaps
+    map.walls.push(wall(wid, 0, 6, 4, 6)); wid += 1;
+    map.walls.push(wall(wid, 8, 6, 16, 6)); wid += 1;
+    map.walls.push(wall(wid, 20, 6, 32, 6)); wid += 1;
+    map.walls.push(wall(wid, 36, 6, 40, 6)); wid += 1;
+    map.walls.push(wall(wid, 44, 6, 48, 6)); wid += 1;
 
-    // Furnace boundaries
-    map.walls.push(wall(wid, 16, 6, 32, 6)); wid += 1;
-    map.walls.push(wall(wid, 16, 22, 32, 22)); wid += 1;
+    // Left column divider at x=12 with hatchway gaps
+    map.walls.push(wall(wid, 12, 6, 12, 7)); wid += 1;
+    map.walls.push(wall(wid, 12, 9, 12, 13)); wid += 1;
+    map.walls.push(wall(wid, 12, 15, 12, 19)); wid += 1;
+    map.walls.push(wall(wid, 12, 21, 12, 22)); wid += 1;
 
-    // Right of furnace (x=32)
-    map.walls.push(wall(wid, 32, 0, 32, 4)); wid += 1;
-    map.walls.push(wall(wid, 32, 8, 32, 10)); wid += 1;
-    map.walls.push(wall(wid, 32, 18, 32, 20)); wid += 1;
-    map.walls.push(wall(wid, 32, 24, 32, 28)); wid += 1;
+    // Right column divider at x=36 with hatchway gaps
+    map.walls.push(wall(wid, 36, 6, 36, 7)); wid += 1;
+    map.walls.push(wall(wid, 36, 9, 36, 13)); wid += 1;
+    map.walls.push(wall(wid, 36, 15, 36, 19)); wid += 1;
+    map.walls.push(wall(wid, 36, 21, 36, 22)); wid += 1;
 
-    // Right entry boundary (x=42)
-    map.walls.push(wall(wid, 42, 0, 42, 7)); wid += 1;
-    map.walls.push(wall(wid, 42, 9, 42, 19)); wid += 1;
-    map.walls.push(wall(wid, 42, 21, 42, 28)); wid += 1;
+    // Horizontal divider at y=14 (separating upper/lower flanking rooms)
+    map.walls.push(wall(wid, 0, 14, 5, 14)); wid += 1;
+    map.walls.push(wall(wid, 7, 14, 12, 14)); wid += 1;
+    map.walls.push(wall(wid, 36, 14, 41, 14)); wid += 1;
+    map.walls.push(wall(wid, 43, 14, 48, 14)); wid += 1;
 
-    // Horizontal dividers
-    map.walls.push(wall(wid, 6, 8, 16, 8)); wid += 1;
-    map.walls.push(wall(wid, 6, 20, 16, 20)); wid += 1;
-    map.walls.push(wall(wid, 32, 8, 42, 8)); wid += 1;
-    map.walls.push(wall(wid, 32, 20, 42, 20)); wid += 1;
+    // Furnace top/bottom walls (y=20 and y=8) with hatchway gaps
+    map.walls.push(wall(wid, 12, 20, 17, 20)); wid += 1;
+    map.walls.push(wall(wid, 21, 20, 27, 20)); wid += 1;
+    map.walls.push(wall(wid, 31, 20, 36, 20)); wid += 1;
+    map.walls.push(wall(wid, 12, 8, 17, 8)); wid += 1;
+    map.walls.push(wall(wid, 21, 8, 27, 8)); wid += 1;
+    map.walls.push(wall(wid, 31, 8, 36, 8)); wid += 1;
 
     // Perimeter
     map.walls.push(wall(wid, 0, 0, 48, 0)); wid += 1;
@@ -1110,55 +1270,76 @@ fn build_ba_32() -> BoardingMap {
     map.walls.push(wall(wid, 48, 0, 48, 28));
 
     // --- Hatchways ---
-    map.hatchways.push(hatch(0, 6, 8, Vertical, 2, 0, 2, Open));
-    map.hatchways.push(hatch(1, 6, 20, Vertical, 2, 0, 1, Open));
+    // Entry B (y=22, top) to rooms/bypass
+    map.hatchways.push(hatch(0, 6, 22, Horizontal, 2, 0, 0, Open));    // to Board1 UL
+    map.hatchways.push(hatch(1, 18, 22, Horizontal, 2, 3, 3, Open));   // to Upper Bypass
+    map.hatchways.push(hatch(2, 34, 22, Horizontal, 2, 3, 3, Open));   // to Upper Bypass
+    map.hatchways.push(hatch(3, 42, 22, Horizontal, 2, 5, 5, Open));   // to Board2 UR
 
-    // Into the Furnace
-    map.hatchways.push(hatch(2, 16, 5, Vertical, 2, 6, 4, Closed));
-    map.hatchways.push(hatch(3, 16, 14, Vertical, 2, 3, 4, Closed));
-    map.hatchways.push(hatch(4, 16, 23, Vertical, 2, 5, 4, Closed));
+    // Entry A (y=6, bottom) to rooms/bypass
+    map.hatchways.push(hatch(4, 6, 6, Horizontal, 2, 1, 1, Open));     // to Board1 LL
+    map.hatchways.push(hatch(5, 18, 6, Horizontal, 2, 4, 4, Open));    // to Lower Bypass
+    map.hatchways.push(hatch(6, 34, 6, Horizontal, 2, 4, 4, Open));    // to Lower Bypass
+    map.hatchways.push(hatch(7, 42, 6, Horizontal, 2, 6, 6, Open));    // to Board2 LR
 
-    // Out of the Furnace
-    map.hatchways.push(hatch(5, 32, 5, Vertical, 2, 4, 6, Closed));
-    map.hatchways.push(hatch(6, 32, 14, Vertical, 2, 4, 7, Closed));
-    map.hatchways.push(hatch(7, 32, 23, Vertical, 2, 4, 5, Closed));
+    // Left flanking rooms to Furnace/bypass (x=12)
+    map.hatchways.push(hatch(8, 12, 8, Vertical, 2, 1, 4, Closed));    // Board1 LL to Lower Bypass
+    map.hatchways.push(hatch(9, 12, 14, Vertical, 2, 1, 2, Closed));   // Board1 LL to Furnace
+    map.hatchways.push(hatch(10, 12, 14, Vertical, 2, 0, 2, Closed));  // Board1 UL to Furnace
+    map.hatchways.push(hatch(11, 12, 20, Vertical, 2, 0, 3, Closed));  // Board1 UL to Upper Bypass
 
-    map.hatchways.push(hatch(8, 42, 8, Vertical, 2, 9, 10, Open));
-    map.hatchways.push(hatch(9, 42, 20, Vertical, 2, 8, 10, Open));
+    // Right flanking rooms to Furnace/bypass (x=36)
+    map.hatchways.push(hatch(12, 36, 8, Vertical, 2, 4, 6, Closed));   // Lower Bypass to Board2 LR
+    map.hatchways.push(hatch(13, 36, 14, Vertical, 2, 2, 6, Closed));  // Furnace to Board2 LR
+    map.hatchways.push(hatch(14, 36, 14, Vertical, 2, 2, 5, Closed));  // Furnace to Board2 UR
+    map.hatchways.push(hatch(15, 36, 20, Vertical, 2, 3, 5, Closed));  // Upper Bypass to Board2 UR
+
+    // Bypass to Furnace (horizontal hatchways)
+    map.hatchways.push(hatch(16, 19, 20, Horizontal, 2, 3, 2, Closed)); // Upper Bypass to Furnace
+    map.hatchways.push(hatch(17, 29, 20, Horizontal, 2, 3, 2, Closed)); // Upper Bypass to Furnace
+    map.hatchways.push(hatch(18, 19, 8, Horizontal, 2, 2, 4, Closed));  // Furnace to Lower Bypass
+    map.hatchways.push(hatch(19, 29, 8, Horizontal, 2, 2, 4, Closed));  // Furnace to Lower Bypass
+
+    // Left and right horizontal hatchways at y=14
+    map.hatchways.push(hatch(20, 6, 14, Horizontal, 2, 0, 1, Closed));  // Board1 UL to Board1 LL
+    map.hatchways.push(hatch(21, 42, 14, Horizontal, 2, 5, 6, Closed)); // Board2 UR to Board2 LR
 
     // --- Entry Zones ---
+    // Player B (red) deploys from top (y=22-28) — note red on high-y for this map
     map.entry_zones.push(entry_zone(
-        0, "Player A Entry", EntryZoneRole::Main, 0, 0, 6, 28, Some(0),
+        0, "Player B Entry", EntryZoneRole::Main, 0, 22, 48, 28, Some(1),
     ));
+    // Player A (green) deploys from bottom (y=0-6)
     map.entry_zones.push(entry_zone(
-        1, "Player B Entry", EntryZoneRole::Main, 42, 0, 48, 28, Some(1),
+        1, "Player A Entry", EntryZoneRole::Main, 0, 0, 48, 6, Some(0),
     ));
 
     // --- Objectives ---
-    // Objectives within and around the Furnace
-    map.objectives.push(objective(0, 20, 14, "Furnace Objective A"));
+    // 3 objectives within/near the Furnace
+    map.objectives.push(objective(0, 18, 14, "Furnace Objective A"));
     map.objectives.push(objective(1, 24, 14, "Furnace Objective B"));
-    map.objectives.push(objective(2, 28, 14, "Furnace Objective C"));
+    map.objectives.push(objective(2, 30, 14, "Furnace Objective C"));
 
     // --- Special Regions ---
     // The Furnace (central hazard zone)
     map.special_regions.push(SpecialRegion {
         id: RegionId::new(0),
         name: "The Furnace".to_string(),
-        boundary: rect_poly(16, 6, 32, 22),
+        boundary: rect_poly(12, 8, 36, 20),
         tags: vec!["furnace".to_string()],
     });
-    // Furnace Control Zones (flanking the Furnace)
+    // Left Furnace Control Zone (flanking rooms on left)
     map.special_regions.push(SpecialRegion {
         id: RegionId::new(1),
         name: "Left Furnace Control Zone".to_string(),
-        boundary: rect_poly(6, 8, 16, 20),
+        boundary: rect_poly(0, 6, 12, 22),
         tags: vec!["furnace_control_zone".to_string()],
     });
+    // Right Furnace Control Zone (flanking rooms on right)
     map.special_regions.push(SpecialRegion {
         id: RegionId::new(2),
         name: "Right Furnace Control Zone".to_string(),
-        boundary: rect_poly(32, 8, 42, 20),
+        boundary: rect_poly(36, 6, 48, 22),
         tags: vec!["furnace_control_zone".to_string()],
     });
 
@@ -1168,9 +1349,9 @@ fn build_ba_32() -> BoardingMap {
 // ---------------------------------------------------------------------------
 // BA-33: Rad Leak (Symmetric, 3 objectives, 4 radiation sectors)
 // ---------------------------------------------------------------------------
-// Layout: Standard room arrangement with 4 radiation sectors (A, B, C, D)
-// overlaying the board in quadrant regions. Two "Critical" objective markers
-// plus one additional. Radiation effects vary by sector per round.
+// Layout: Y-AXIS deployment (Player B/red from top y=22-28, Player A/green from
+// bottom y=0-6). 8 rooms in a standard 4×2 grid. Two "Critical" objective markers
+// plus one additional. 4 radiation sector quadrant overlays with varying effects.
 //
 // Source: RAD_LEAK.PNG mission map
 // Source: boarding_actions_maps_complete_v3.json (BA-33)
@@ -1182,58 +1363,58 @@ fn build_ba_33() -> BoardingMap {
     let mut map = BoardingMap::new(BoardDimensions::BOARDING_ACTIONS);
 
     // --- Compartments ---
-    map.compartments.push(compartment(0, "Left Entry", 0, 0, 6, 28));
-    map.compartments.push(compartment(1, "Upper Left Room", 6, 18, 16, 28));
-    map.compartments.push(compartment(2, "Lower Left Room", 6, 0, 16, 10));
-    map.compartments.push(compartment(3, "Left Corridor", 6, 10, 16, 18));
-    map.compartments.push(compartment(4, "Center Upper Left", 16, 16, 24, 28));
-    map.compartments.push(compartment(5, "Center Lower Left", 16, 0, 24, 12));
-    map.compartments.push(compartment(6, "Central Passage", 16, 12, 32, 16));
-    map.compartments.push(compartment(7, "Center Upper Right", 24, 16, 32, 28));
-    map.compartments.push(compartment(8, "Center Lower Right", 24, 0, 32, 12));
-    map.compartments.push(compartment(9, "Upper Right Room", 32, 18, 42, 28));
-    map.compartments.push(compartment(10, "Lower Right Room", 32, 0, 42, 10));
-    map.compartments.push(compartment(11, "Right Corridor", 32, 10, 42, 18));
-    map.compartments.push(compartment(12, "Right Entry", 42, 0, 48, 28));
+    // 8 rooms in standard 4×2 grid: columns at x=0,12,24,36,48; rows at y=6,14,22
+    // C0: Upper Left
+    map.compartments.push(compartment(0, "Upper Left Room", 0, 14, 12, 22));
+    // C1: Lower Left
+    map.compartments.push(compartment(1, "Lower Left Room", 0, 6, 12, 14));
+    // C2: Upper Center-Left
+    map.compartments.push(compartment(2, "Upper Center-Left", 12, 14, 24, 22));
+    // C3: Lower Center-Left
+    map.compartments.push(compartment(3, "Lower Center-Left", 12, 6, 24, 14));
+    // C4: Upper Center-Right
+    map.compartments.push(compartment(4, "Upper Center-Right", 24, 14, 36, 22));
+    // C5: Lower Center-Right
+    map.compartments.push(compartment(5, "Lower Center-Right", 24, 6, 36, 14));
+    // C6: Upper Right
+    map.compartments.push(compartment(6, "Upper Right Room", 36, 14, 48, 22));
+    // C7: Lower Right
+    map.compartments.push(compartment(7, "Lower Right Room", 36, 6, 48, 14));
 
     // --- Walls ---
     let mut wid = 0u32;
 
-    // Left entry boundary (x=6)
-    map.walls.push(wall(wid, 6, 0, 6, 9)); wid += 1;
-    map.walls.push(wall(wid, 6, 11, 6, 17)); wid += 1;
-    map.walls.push(wall(wid, 6, 19, 6, 28)); wid += 1;
+    // Entry zone boundary at y=22 (below Player B entry) with hatchway gaps
+    map.walls.push(wall(wid, 0, 22, 4, 22)); wid += 1;
+    map.walls.push(wall(wid, 8, 22, 16, 22)); wid += 1;
+    map.walls.push(wall(wid, 20, 22, 28, 22)); wid += 1;
+    map.walls.push(wall(wid, 32, 22, 40, 22)); wid += 1;
+    map.walls.push(wall(wid, 44, 22, 48, 22)); wid += 1;
 
-    // Left rooms to center (x=16)
-    map.walls.push(wall(wid, 16, 0, 16, 6)); wid += 1;
-    map.walls.push(wall(wid, 16, 8, 16, 14)); wid += 1;
-    map.walls.push(wall(wid, 16, 18, 16, 24)); wid += 1;
-    map.walls.push(wall(wid, 16, 26, 16, 28)); wid += 1;
+    // Entry zone boundary at y=6 (above Player A entry) with hatchway gaps
+    map.walls.push(wall(wid, 0, 6, 4, 6)); wid += 1;
+    map.walls.push(wall(wid, 8, 6, 16, 6)); wid += 1;
+    map.walls.push(wall(wid, 20, 6, 28, 6)); wid += 1;
+    map.walls.push(wall(wid, 32, 6, 40, 6)); wid += 1;
+    map.walls.push(wall(wid, 44, 6, 48, 6)); wid += 1;
 
-    // Board center (x=24)
-    map.walls.push(wall(wid, 24, 0, 24, 6)); wid += 1;
-    map.walls.push(wall(wid, 24, 8, 24, 12)); wid += 1;
+    // Vertical column dividers with hatchway gaps
+    // x=12
+    map.walls.push(wall(wid, 12, 6, 12, 12)); wid += 1;
+    map.walls.push(wall(wid, 12, 16, 12, 22)); wid += 1;
+    // x=24 (board seam)
+    map.walls.push(wall(wid, 24, 6, 24, 12)); wid += 1;
     map.walls.push(wall(wid, 24, 16, 24, 22)); wid += 1;
-    map.walls.push(wall(wid, 24, 24, 24, 28)); wid += 1;
+    // x=36
+    map.walls.push(wall(wid, 36, 6, 36, 12)); wid += 1;
+    map.walls.push(wall(wid, 36, 16, 36, 22)); wid += 1;
 
-    // Center to right rooms (x=32)
-    map.walls.push(wall(wid, 32, 0, 32, 6)); wid += 1;
-    map.walls.push(wall(wid, 32, 8, 32, 14)); wid += 1;
-    map.walls.push(wall(wid, 32, 18, 32, 24)); wid += 1;
-    map.walls.push(wall(wid, 32, 26, 32, 28)); wid += 1;
-
-    // Right entry boundary (x=42)
-    map.walls.push(wall(wid, 42, 0, 42, 9)); wid += 1;
-    map.walls.push(wall(wid, 42, 11, 42, 17)); wid += 1;
-    map.walls.push(wall(wid, 42, 19, 42, 28)); wid += 1;
-
-    // Horizontal dividers
-    map.walls.push(wall(wid, 6, 10, 16, 10)); wid += 1;
-    map.walls.push(wall(wid, 6, 18, 16, 18)); wid += 1;
-    map.walls.push(wall(wid, 16, 12, 32, 12)); wid += 1;
-    map.walls.push(wall(wid, 16, 16, 32, 16)); wid += 1;
-    map.walls.push(wall(wid, 32, 10, 42, 10)); wid += 1;
-    map.walls.push(wall(wid, 32, 18, 42, 18)); wid += 1;
+    // Horizontal row divider at y=14 with hatchway gaps
+    map.walls.push(wall(wid, 0, 14, 4, 14)); wid += 1;
+    map.walls.push(wall(wid, 8, 14, 16, 14)); wid += 1;
+    map.walls.push(wall(wid, 20, 14, 28, 14)); wid += 1;
+    map.walls.push(wall(wid, 32, 14, 40, 14)); wid += 1;
+    map.walls.push(wall(wid, 44, 14, 48, 14)); wid += 1;
 
     // Perimeter
     map.walls.push(wall(wid, 0, 0, 48, 0)); wid += 1;
@@ -1242,39 +1423,46 @@ fn build_ba_33() -> BoardingMap {
     map.walls.push(wall(wid, 48, 0, 48, 28));
 
     // --- Hatchways ---
-    map.hatchways.push(hatch(0, 6, 10, Vertical, 2, 0, 2, Open));
-    map.hatchways.push(hatch(1, 6, 18, Vertical, 2, 0, 1, Open));
+    // Entry B (y=22, top) to upper rooms
+    map.hatchways.push(hatch(0, 6, 22, Horizontal, 2, 0, 0, Open));
+    map.hatchways.push(hatch(1, 18, 22, Horizontal, 2, 2, 2, Open));
+    map.hatchways.push(hatch(2, 30, 22, Horizontal, 2, 4, 4, Open));
+    map.hatchways.push(hatch(3, 42, 22, Horizontal, 2, 6, 6, Open));
 
-    // Left to center
-    map.hatchways.push(hatch(2, 16, 7, Vertical, 2, 2, 5, Closed));
-    map.hatchways.push(hatch(3, 16, 16, Vertical, 2, 3, 6, Closed));
-    map.hatchways.push(hatch(4, 16, 25, Vertical, 2, 1, 4, Closed));
+    // Entry A (y=6, bottom) to lower rooms
+    map.hatchways.push(hatch(4, 6, 6, Horizontal, 2, 1, 1, Open));
+    map.hatchways.push(hatch(5, 18, 6, Horizontal, 2, 3, 3, Open));
+    map.hatchways.push(hatch(6, 30, 6, Horizontal, 2, 5, 5, Open));
+    map.hatchways.push(hatch(7, 42, 6, Horizontal, 2, 7, 7, Open));
 
-    // Board center hatchways
-    map.hatchways.push(hatch(5, 24, 7, Vertical, 2, 5, 8, Closed));
-    map.hatchways.push(hatch(6, 24, 14, Vertical, 2, 6, 6, Closed));
-    map.hatchways.push(hatch(7, 24, 23, Vertical, 2, 4, 7, Closed));
+    // Interior horizontal hatchways at y=14 (upper to lower rooms)
+    map.hatchways.push(hatch(8, 6, 14, Horizontal, 2, 0, 1, Closed));
+    map.hatchways.push(hatch(9, 18, 14, Horizontal, 2, 2, 3, Closed));
+    map.hatchways.push(hatch(10, 30, 14, Horizontal, 2, 4, 5, Closed));
+    map.hatchways.push(hatch(11, 42, 14, Horizontal, 2, 6, 7, Closed));
 
-    // Center to right
-    map.hatchways.push(hatch(8, 32, 7, Vertical, 2, 8, 10, Closed));
-    map.hatchways.push(hatch(9, 32, 16, Vertical, 2, 6, 11, Closed));
-    map.hatchways.push(hatch(10, 32, 25, Vertical, 2, 7, 9, Closed));
-
-    map.hatchways.push(hatch(11, 42, 10, Vertical, 2, 10, 12, Open));
-    map.hatchways.push(hatch(12, 42, 18, Vertical, 2, 9, 12, Open));
+    // Interior vertical hatchways at column dividers
+    map.hatchways.push(hatch(12, 12, 14, Vertical, 2, 0, 2, Closed));   // UL to UCL
+    map.hatchways.push(hatch(13, 12, 10, Vertical, 2, 1, 3, Closed));   // LL to LCL
+    map.hatchways.push(hatch(14, 24, 14, Vertical, 2, 2, 4, Closed));   // UCL to UCR
+    map.hatchways.push(hatch(15, 24, 10, Vertical, 2, 3, 5, Closed));   // LCL to LCR
+    map.hatchways.push(hatch(16, 36, 14, Vertical, 2, 4, 6, Closed));   // UCR to UR
+    map.hatchways.push(hatch(17, 36, 10, Vertical, 2, 5, 7, Closed));   // LCR to LR
 
     // --- Entry Zones ---
+    // Player B (red) deploys from top (y=22-28)
     map.entry_zones.push(entry_zone(
-        0, "Player A Entry", EntryZoneRole::Main, 0, 0, 6, 28, Some(0),
+        0, "Player B Entry", EntryZoneRole::Main, 0, 22, 48, 28, Some(1),
     ));
+    // Player A (green) deploys from bottom (y=0-6)
     map.entry_zones.push(entry_zone(
-        1, "Player B Entry", EntryZoneRole::Main, 42, 0, 48, 28, Some(1),
+        1, "Player A Entry", EntryZoneRole::Main, 0, 0, 48, 6, Some(0),
     ));
 
     // --- Objectives ---
-    // Two Critical objectives + one additional
-    map.objectives.push(objective(0, 14, 14, "Critical Objective A"));
-    map.objectives.push(objective(1, 34, 14, "Critical Objective B"));
+    // Two Critical objectives + one additional along y=14 centerline
+    map.objectives.push(objective(0, 12, 14, "Critical Objective A"));
+    map.objectives.push(objective(1, 36, 14, "Critical Objective B"));
     map.objectives.push(objective(2, 24, 14, "Objective C"));
 
     // --- Special Regions ---
@@ -1407,14 +1595,14 @@ mod tests {
     #[test]
     fn test_ba_12_deck_sweepers() {
         let map = build_ba_12();
-        assert_eq!(map.compartments.len(), 11);
+        assert_eq!(map.compartments.len(), 9);
         assert_eq!(map.objectives.len(), 3);
         assert_eq!(map.entry_zones.len(), 3); // 2 main + 1 underdog
-        assert_eq!(map.hatchways.len(), 10);
+        assert_eq!(map.hatchways.len(), 18);
         // Underdog entry zone exists
         assert!(map.entry_zones.iter().any(|ez| ez.role == EntryZoneRole::Underdog));
-        // Central Chamber compartment exists
-        assert!(map.compartments.iter().any(|c| c.name == "Central Chamber"));
+        // Strongroom compartment exists
+        assert!(map.compartments.iter().any(|c| c.name == "Strongroom"));
     }
 
     #[test]
@@ -1439,27 +1627,36 @@ mod tests {
     #[test]
     fn test_ba_22_death_in_the_dark() {
         let map = build_ba_22();
+        assert_eq!(map.compartments.len(), 11); // 2 entry areas + 8 grid rooms + 1 central room
         assert_eq!(map.objectives.len(), 4); // 2 per lighting area
         assert_eq!(map.entry_zones.len(), 2);
+        assert_eq!(map.hatchways.len(), 19);
         // Two Lighting Areas
         let lighting_areas: Vec<_> = map.special_regions.iter()
             .filter(|r| r.tags.contains(&"lighting_area".to_string()))
             .collect();
         assert_eq!(lighting_areas.len(), 2);
-        // Entry zones on short edges (y-axis), not long edges (x-axis)
-        // Entry zone A spans full width (x=0-48) at y=22-28
-        let ez_a_y_min = map.entry_zones[0].boundary.vertices.iter()
-            .map(|v| v.y.0)
-            .min().unwrap();
-        assert!(ez_a_y_min >= Inches::from_inches(22).0
-            || ez_a_y_min <= Inches::from_inches(6).0);
+        // X-axis deployment: entry zones on long edges (left x=0-6, right x=42-48)
+        // Player B entry is on left (x=0-6)
+        assert_eq!(map.entry_zones[0].player_assignment, Some(PlayerId::new(1)));
+        // Player A entry is on right (x=42-48)
+        assert_eq!(map.entry_zones[1].player_assignment, Some(PlayerId::new(0)));
     }
 
     #[test]
     fn test_ba_23_hull_breach() {
         let map = build_ba_23();
+        assert_eq!(map.compartments.len(), 10); // 6 numbered compartments + 4 passages
         assert_eq!(map.objectives.len(), 3); // 3 datacores
-        assert_eq!(map.entry_zones.len(), 2);
+        assert_eq!(map.entry_zones.len(), 4); // 2 for Player A + 2 for Player B
+        assert_eq!(map.hatchways.len(), 17);
+        // Y-axis deployment in specific compartments
+        // Player A in Comp 1 (lower-left) and Comp 3 (lower-right)
+        assert_eq!(map.entry_zones[0].player_assignment, Some(PlayerId::new(0)));
+        assert_eq!(map.entry_zones[1].player_assignment, Some(PlayerId::new(0)));
+        // Player B in Comp 4 (upper-left) and Comp 6 (upper-right)
+        assert_eq!(map.entry_zones[2].player_assignment, Some(PlayerId::new(1)));
+        assert_eq!(map.entry_zones[3].player_assignment, Some(PlayerId::new(1)));
         // 4 ventable compartments as special regions
         let ventable: Vec<_> = map.special_regions.iter()
             .filter(|r| r.tags.contains(&"ventable".to_string()))
@@ -1475,8 +1672,13 @@ mod tests {
     #[test]
     fn test_ba_31_control_centre() {
         let map = build_ba_31();
+        assert_eq!(map.compartments.len(), 7); // 4 flanking rooms + CC + 2 corridors
         assert_eq!(map.objectives.len(), 4); // A, B + 2 more
         assert_eq!(map.entry_zones.len(), 2);
+        assert_eq!(map.hatchways.len(), 22);
+        // Y-axis deployment: Player A from top, Player B from bottom
+        assert_eq!(map.entry_zones[0].player_assignment, Some(PlayerId::new(0)));
+        assert_eq!(map.entry_zones[1].player_assignment, Some(PlayerId::new(1)));
         // Control Centre special region
         assert!(map.special_regions.iter().any(|r| r.name == "Control Centre"));
         // Objectives A and B exist
@@ -1487,8 +1689,13 @@ mod tests {
     #[test]
     fn test_ba_32_the_furnace() {
         let map = build_ba_32();
+        assert_eq!(map.compartments.len(), 7); // 4 flanking rooms + Furnace + 2 bypasses
         assert_eq!(map.objectives.len(), 3);
         assert_eq!(map.entry_zones.len(), 2);
+        assert_eq!(map.hatchways.len(), 22);
+        // Y-axis deployment: Player B (red) from top, Player A (green) from bottom
+        assert_eq!(map.entry_zones[0].player_assignment, Some(PlayerId::new(1))); // Player B on top
+        assert_eq!(map.entry_zones[1].player_assignment, Some(PlayerId::new(0))); // Player A on bottom
         // Furnace special region
         assert!(map.special_regions.iter().any(|r| r.name == "The Furnace"));
         // Furnace Control Zones
@@ -1501,8 +1708,13 @@ mod tests {
     #[test]
     fn test_ba_33_rad_leak() {
         let map = build_ba_33();
+        assert_eq!(map.compartments.len(), 8); // 4×2 grid
         assert_eq!(map.objectives.len(), 3); // 2 critical + 1 additional
         assert_eq!(map.entry_zones.len(), 2);
+        assert_eq!(map.hatchways.len(), 18);
+        // Y-axis deployment: Player B (red) from top, Player A (green) from bottom
+        assert_eq!(map.entry_zones[0].player_assignment, Some(PlayerId::new(1))); // Player B on top
+        assert_eq!(map.entry_zones[1].player_assignment, Some(PlayerId::new(0))); // Player A on bottom
         // 4 radiation sectors
         let sectors: Vec<_> = map.special_regions.iter()
             .filter(|r| r.tags.contains(&"radiation_sector".to_string()))
