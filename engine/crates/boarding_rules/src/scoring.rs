@@ -12,6 +12,19 @@ use wh40k_core_types::{BattleRound, ObjectiveId, PlayerId, VictoryPoints};
 use crate::mission_loader::BoardingMissionPackage;
 
 // ---------------------------------------------------------------------------
+// Underdog threshold (BA-19)
+// ---------------------------------------------------------------------------
+
+/// Determine if a player is the underdog based on army points difference.
+/// A player is the underdog if their army is at least 30 points lower than their opponent's.
+/// Source: boarding_actions_complete_v3.md §6.6
+pub const UNDERDOG_POINT_THRESHOLD: u32 = 30;
+
+pub fn is_underdog(player_points: u32, opponent_points: u32) -> bool {
+    opponent_points >= player_points + UNDERDOG_POINT_THRESHOLD
+}
+
+// ---------------------------------------------------------------------------
 // Scoring event and state types
 // ---------------------------------------------------------------------------
 

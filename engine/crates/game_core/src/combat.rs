@@ -981,15 +981,20 @@ fn determine_best_save(
     // Calculate modified armor save (AP worsens save)
     let mut modified_armor = armor_save.modified_by_ap(ap);
 
-    // Benefit of Cover: +1 to armor save (improvement cap = save can't be better than base)
+    // Benefit of Cover: +1 to armor save
     // 40k_revised.md §13.1: Models with Save 3+ or better do NOT get Benefit of Cover against AP 0
+    // 40k_revised.md §8.4: "Saving throws can never be improved by more than +1"
+    //   — This cap applies to ALL save improvement sources combined, not just cover.
+    //   — Currently cover is the only improvement source, so this is enforced below.
     let cover_denied = ap == ArmorPenetration::ZERO && armor_save.value() <= 3;
     if has_cover && !cover_denied && modified_armor.value() > 1 {
         modified_armor = ArmorSave(modified_armor.value().saturating_sub(1));
-        // Cap: can't improve beyond the unmodified save
-        if modified_armor.value() < armor_save.value() {
-            modified_armor = armor_save;
-        }
+    }
+    // General +1 improvement cap: save cannot improve by more than 1 from any source
+    // (AP-modified save - 1 is the best allowed result)
+    let ap_modified_base = armor_save.modified_by_ap(ap);
+    if modified_armor.value() < ap_modified_base.value().saturating_sub(1) {
+        modified_armor = ArmorSave(ap_modified_base.value().saturating_sub(1));
     }
 
     // Compare with invulnerable save (lower is better)

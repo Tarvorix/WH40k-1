@@ -40,6 +40,12 @@ pub enum MovementError {
 // Public API
 // ---------------------------------------------------------------------------
 
+/// Check if the FLY keyword should be suppressed in Boarding Actions.
+/// Source: boarding_actions_complete_v3.md §3.2 — "models lose FLY"
+pub fn fly_suppressed_in_ba() -> bool {
+    true
+}
+
 /// Apply the Boarding Actions movement cap.
 ///
 /// If `base_move` exceeds 9", return 9". Otherwise return `base_move` unchanged.
@@ -53,6 +59,12 @@ pub fn effective_movement(base_move: Inches) -> Inches {
     } else {
         base_move
     }
+}
+
+/// Check if a unit should have the FLY keyword removed in Boarding Actions.
+/// Source: boarding_actions_complete_v3.md §3.2
+pub fn should_strip_fly() -> bool {
+    true  // In BA, ALL models lose FLY
 }
 
 /// Validate whether a move from `from` to `to` is legal in Boarding Actions.
@@ -223,6 +235,47 @@ pub fn scouts_move_check(
         return false;
     }
     true
+}
+
+// ---------------------------------------------------------------------------
+// Deep Strike round / count limits (BA-3)
+// ---------------------------------------------------------------------------
+
+/// Check if deep strike arrival is allowed in the given battle round for Boarding Actions.
+/// BA rules: only rounds 2 and 3. Units not deployed by end of round 3 are destroyed.
+/// Source: boarding_actions_complete_v3.md §3.1
+pub fn is_deep_strike_round_allowed(battle_round: u8) -> bool {
+    battle_round == 2 || battle_round == 3
+}
+
+/// Check if a player has already used their deep strike arrival this round.
+/// BA rules: max 1 unit per battle round via deep strike.
+/// Source: boarding_actions_complete_v3.md §3.1
+pub fn can_deep_strike_this_round(arrivals_this_round: u8) -> bool {
+    arrivals_this_round < 1
+}
+
+/// Maximum models that can be returned to a unit per battle round in BA.
+/// Source: boarding_actions_complete_v3.md §3.8
+pub const BA_MAX_RETURNED_MODELS_PER_ROUND: u8 = 1;
+
+// ---------------------------------------------------------------------------
+// Objective marker range (BA-8)
+// ---------------------------------------------------------------------------
+
+/// Objective marker range in Boarding Actions: 1" horizontally.
+/// Source: boarding_actions_complete_v3.md §3.2
+pub const BA_OBJECTIVE_RANGE_INCHES: i32 = 1;
+
+/// Check if a model is within range of an objective marker in BA.
+/// In BA, models can end a move on top of an objective marker.
+/// Source: boarding_actions_complete_v3.md §3.2
+pub fn model_within_objective_range(
+    model_pos: wh40k_core_types::Position,
+    objective_pos: wh40k_core_types::Position,
+) -> bool {
+    let dist = wh40k_geometry::distance(model_pos, objective_pos);
+    dist <= wh40k_core_types::Inches::from_inches(BA_OBJECTIVE_RANGE_INCHES)
 }
 
 // ---------------------------------------------------------------------------

@@ -1017,6 +1017,22 @@ impl ScenarioLoader {
                                         WeaponAbility::Pistol,
                                     ]),
                                 },
+                                // Plasma pistol — supercharge: 12", 1A, BS4+, S8, AP-3, D2 [PISTOL, HAZARDOUS]
+                                WeaponProfile {
+                                    id: WeaponId::new(2014),
+                                    name: "Plasma pistol — supercharge".to_string(),
+                                    weapon_type: WeaponType::Ranged,
+                                    range: Inches::from_inches(12),
+                                    attacks: AttackCount::Fixed(1),
+                                    skill: Skill::FOUR_PLUS,
+                                    strength: Strength::new(8),
+                                    ap: ArmorPenetration::MINUS_3,
+                                    damage: Damage::Fixed(2),
+                                    abilities: WeaponAbilitySet::from_abilities(vec![
+                                        WeaponAbility::Pistol,
+                                        WeaponAbility::Hazardous,
+                                    ]),
+                                },
                             ],
                             vec![
                                 // Chainblade: 4A, WS3+, S4, AP-1, D1
@@ -1057,6 +1073,22 @@ impl ScenarioLoader {
                                     damage: Damage::Fixed(1),
                                     abilities: WeaponAbilitySet::from_abilities(vec![
                                         WeaponAbility::Pistol,
+                                    ]),
+                                },
+                                // Plasma pistol — supercharge: 12", 1A, BS4+, S8, AP-3, D2 [PISTOL, HAZARDOUS]
+                                WeaponProfile {
+                                    id: WeaponId::new(2015),
+                                    name: "Plasma pistol — supercharge".to_string(),
+                                    weapon_type: WeaponType::Ranged,
+                                    range: Inches::from_inches(12),
+                                    attacks: AttackCount::Fixed(1),
+                                    skill: Skill::FOUR_PLUS,
+                                    strength: Strength::new(8),
+                                    ap: ArmorPenetration::MINUS_3,
+                                    damage: Damage::Fixed(2),
+                                    abilities: WeaponAbilitySet::from_abilities(vec![
+                                        WeaponAbility::Pistol,
+                                        WeaponAbility::Hazardous,
                                     ]),
                                 },
                             ],
