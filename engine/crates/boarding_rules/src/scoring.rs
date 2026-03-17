@@ -544,13 +544,14 @@ impl BoardingScoringEngine {
 
 /// Standard Boarding Actions destroyed-points threshold table.
 /// (min_points, max_points, vp_awarded)
-/// Source: boarding_actions_complete_v3.md
-pub const STANDARD_DESTROYED_POINTS_THRESHOLDS: [(u16, u16, i16); 5] = [
+///
+/// Purge the Ship uses three 15 VP thresholds at 125+, 250+, and 375+.
+/// Source: boarding_actions_missions_complete_v3.md §v3 addendum
+pub const STANDARD_DESTROYED_POINTS_THRESHOLDS: [(u16, u16, i16); 4] = [
     (0, 124, 0),
     (125, 249, 15),
-    (250, 374, 40),
-    (375, 499, 60),
-    (500, u16::MAX, 80),
+    (250, 374, 30),
+    (375, u16::MAX, 45),
 ];
 
 /// Look up destroyed points in a threshold table.
@@ -680,27 +681,27 @@ mod tests {
         );
         assert_eq!(
             destroyed_points_to_vp(250, &STANDARD_DESTROYED_POINTS_THRESHOLDS),
-            40
+            30
         );
         assert_eq!(
             destroyed_points_to_vp(374, &STANDARD_DESTROYED_POINTS_THRESHOLDS),
-            40
+            30
         );
         assert_eq!(
             destroyed_points_to_vp(375, &STANDARD_DESTROYED_POINTS_THRESHOLDS),
-            60
+            45
         );
         assert_eq!(
             destroyed_points_to_vp(499, &STANDARD_DESTROYED_POINTS_THRESHOLDS),
-            60
+            45
         );
         assert_eq!(
             destroyed_points_to_vp(500, &STANDARD_DESTROYED_POINTS_THRESHOLDS),
-            80
+            45
         );
         assert_eq!(
             destroyed_points_to_vp(1000, &STANDARD_DESTROYED_POINTS_THRESHOLDS),
-            80
+            45
         );
     }
 
@@ -1084,7 +1085,7 @@ mod tests {
         let player = PlayerId::new(0);
         let state = EndGameState::default();
 
-        // 300 destroyed points => 40 VP from threshold table
+        // 300 destroyed points => 30 VP from threshold table (250-374 range)
         let events = BoardingScoringEngine::score_end_game(
             &mission,
             player,
@@ -1099,7 +1100,7 @@ mod tests {
             .iter()
             .find(|e| e.source.contains("Purge the Ship"));
         assert!(purge_event.is_some());
-        assert_eq!(purge_event.unwrap().amount.value(), 40);
+        assert_eq!(purge_event.unwrap().amount.value(), 30);
     }
 
     #[test]
