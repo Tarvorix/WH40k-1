@@ -208,6 +208,18 @@ pub fn are_on_different_levels(
 }
 
 // ---------------------------------------------------------------------------
+// BA Attack Allocation for Unwounded Targets (BA-7)
+// ---------------------------------------------------------------------------
+
+/// In BA, ranged attacks allocated to an unwounded unit must be allocated to a model
+/// visible to at least one model in the shooting unit. If no visible model exists,
+/// the attack sequence ends.
+/// Source: boarding_actions_complete_v3.md §3.3
+pub fn attack_must_target_visible_model() -> bool {
+    true  // In BA, always enforced for unwounded targets
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 

@@ -656,6 +656,29 @@ impl CommandValidator {
             }
         }
 
+        // Model stacking prevention: destination must not overlap with any other alive model
+        // Uses 1" tolerance for base overlap (simplified; full path collision requires pathfinding)
+        // Source: 40k_revised.md §5.1 - Models cannot move through or over other models
+        let overlap_tolerance = wh40k_core_types::Inches::from_inches(1);
+        for other_unit in &state.units {
+            if other_unit.is_destroyed() || !other_unit.is_on_battlefield() {
+                continue;
+            }
+            for other_model in other_unit.models.iter().filter(|m| m.alive) {
+                // Skip models belonging to the moving unit itself
+                if other_model.unit_id == unit_id {
+                    continue;
+                }
+                let dist = destination.distance(other_model.position);
+                if dist < overlap_tolerance {
+                    return CommandValidationResult::illegal_with_ref(
+                        "Destination overlaps with another model's position",
+                        "40k_revised.md §5.1 - Models cannot be stacked on the same position",
+                    );
+                }
+            }
+        }
+
         CommandValidationResult::Legal
     }
 
@@ -1596,7 +1619,7 @@ impl CommandValidator {
 
         // Cannot end within engagement range of enemy units that were NOT declared
         // as charge targets (unless the charger was already within ER before charging)
-        let current_pos = unit.reference_position().unwrap_or(wh40k_core_types::Position::ORIGIN);
+        // Source: 40k_revised.md §9.4
         for enemy_unit in &state.units {
             if enemy_unit.owner == unit.owner
                 || enemy_unit.is_destroyed()
@@ -1614,12 +1637,15 @@ impl CommandValidator {
                     enemy_model.position, enemy_model.base_size,
                 );
                 if will_be_in_er {
-                    // Check if was already within ER before the charge
-                    let was_in_er = wh40k_geometry::within_engagement_range_2d(
-                        current_pos, unit_base,
-                        enemy_model.position, enemy_model.base_size,
-                    );
-                    if !was_in_er {
+                    // Check if ANY alive model in the charging unit was already within ER
+                    // of this enemy model before the charge began
+                    let was_already_in_er = unit.alive_models().iter().any(|cm| {
+                        wh40k_geometry::within_engagement_range_2d(
+                            cm.position, cm.base_size,
+                            enemy_model.position, enemy_model.base_size,
+                        )
+                    });
+                    if !was_already_in_er {
                         return CommandValidationResult::illegal_with_ref(
                             format!(
                                 "Charge move would end within Engagement Range of non-target enemy unit {}",
@@ -2012,6 +2038,23 @@ impl CommandValidator {
             }
             if target.is_destroyed() || !target.is_on_battlefield() {
                 return CommandValidationResult::illegal("Target is destroyed or not on battlefield");
+            }
+
+            // Verify target is within Engagement Range of attacker
+            // Source: 40k_revised.md §10.5
+            let attacker_in_er_of_target = unit.alive_models().iter().any(|am| {
+                target.alive_models().iter().any(|tm| {
+                    wh40k_geometry::within_engagement_range_2d(
+                        am.position, am.base_size,
+                        tm.position, tm.base_size,
+                    )
+                })
+            });
+            if !attacker_in_er_of_target {
+                return CommandValidationResult::illegal_with_ref(
+                    "Melee target must be within Engagement Range of the attacking unit",
+                    "40k_revised.md §10.5 - Must target unit within ER",
+                );
             }
         }
 

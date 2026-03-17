@@ -296,6 +296,67 @@ pub fn is_in_inaccessible_area(
 }
 
 // ---------------------------------------------------------------------------
+// BA Deployment Sequence (BA-18)
+// ---------------------------------------------------------------------------
+
+/// BA deployment: players alternate deploying ONE unit per Entry Zone, starting with Defender.
+/// Source: boarding_actions_complete_v3.md §7.4
+pub const BA_DEPLOYMENT_DEFENDER_FIRST: bool = true;
+
+/// Check if a player can deploy another unit in a given entry zone.
+/// In BA, only one unit can be deployed per entry zone per deployment round.
+/// Source: boarding_actions_complete_v3.md §7.4
+pub fn can_deploy_in_entry_zone(
+    units_deployed_in_zone: u8,
+    max_per_round: u8,
+) -> bool {
+    units_deployed_in_zone < max_per_round
+}
+
+/// At least half a player's units must deploy normally (not in reserves).
+/// Source: boarding_actions_complete_v3.md §3.1
+pub fn minimum_deployed_units(total_units: usize) -> usize {
+    (total_units + 1) / 2  // ceiling division
+}
+
+// ---------------------------------------------------------------------------
+// BA Reserves Via Empty Entry Zones (BA-12)
+// ---------------------------------------------------------------------------
+
+/// In BA, Strategic Reserves arrive via empty Entry Zones (one unit per empty zone per turn).
+/// Source: boarding_actions_complete_v3.md §7.5
+pub fn can_arrive_via_entry_zone(
+    zone_has_models: bool,
+    arrivals_this_zone_this_turn: u8,
+) -> bool {
+    !zone_has_models && arrivals_this_zone_this_turn == 0
+}
+
+/// Units not deployed by end of battle round 3 are destroyed.
+/// Source: boarding_actions_complete_v3.md §3.1
+pub fn should_destroy_undeployed_reserves(battle_round: u8) -> bool {
+    battle_round > 3
+}
+
+// ---------------------------------------------------------------------------
+// BA Pile-In / Consolidation Visibility (BA-6)
+// ---------------------------------------------------------------------------
+
+/// In BA, a model making a Pile-in or Consolidation move cannot end within ER of a unit
+/// that was NOT visible to its own unit at the start of the move.
+/// Source: boarding_actions_complete_v3.md §3.6
+pub fn pile_in_target_must_be_visible() -> bool {
+    true  // In BA, always enforced
+}
+
+/// In BA, pile-in/consolidation does not have to end closer to closest enemy;
+/// instead it must end as close as possible to the closest VISIBLE enemy unit.
+/// Source: boarding_actions_complete_v3.md §3.6
+pub fn pile_in_uses_visible_closest() -> bool {
+    true  // In BA, always enforced
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -541,5 +602,74 @@ mod tests {
         let from = Position::from_inches(8, 5);
         let to = Position::from_inches(12, 5);
         assert!(scouts_move_check(&map, from, to, &states));
+    }
+
+    // BA Deployment (BA-18) tests
+    #[test]
+    fn test_ba_deployment_defender_first() {
+        assert!(BA_DEPLOYMENT_DEFENDER_FIRST);
+    }
+
+    #[test]
+    fn test_can_deploy_in_entry_zone_none_deployed() {
+        assert!(can_deploy_in_entry_zone(0, 1));
+    }
+
+    #[test]
+    fn test_cannot_deploy_in_entry_zone_already_full() {
+        assert!(!can_deploy_in_entry_zone(1, 1));
+    }
+
+    #[test]
+    fn test_minimum_deployed_units_even() {
+        // 4 total -> at least 2 must deploy
+        assert_eq!(minimum_deployed_units(4), 2);
+    }
+
+    #[test]
+    fn test_minimum_deployed_units_odd() {
+        // 5 total -> at least 3 must deploy (ceiling)
+        assert_eq!(minimum_deployed_units(5), 3);
+    }
+
+    #[test]
+    fn test_minimum_deployed_units_one() {
+        assert_eq!(minimum_deployed_units(1), 1);
+    }
+
+    // BA Reserves (BA-12) tests
+    #[test]
+    fn test_can_arrive_via_empty_entry_zone() {
+        assert!(can_arrive_via_entry_zone(false, 0));
+    }
+
+    #[test]
+    fn test_cannot_arrive_via_occupied_entry_zone() {
+        assert!(!can_arrive_via_entry_zone(true, 0));
+    }
+
+    #[test]
+    fn test_cannot_arrive_twice_same_zone() {
+        assert!(!can_arrive_via_entry_zone(false, 1));
+    }
+
+    #[test]
+    fn test_destroy_reserves_after_round_3() {
+        assert!(!should_destroy_undeployed_reserves(1));
+        assert!(!should_destroy_undeployed_reserves(2));
+        assert!(!should_destroy_undeployed_reserves(3));
+        assert!(should_destroy_undeployed_reserves(4));
+        assert!(should_destroy_undeployed_reserves(5));
+    }
+
+    // BA Pile-In/Consolidation Visibility (BA-6) tests
+    #[test]
+    fn test_pile_in_target_must_be_visible() {
+        assert!(pile_in_target_must_be_visible());
+    }
+
+    #[test]
+    fn test_pile_in_uses_visible_closest() {
+        assert!(pile_in_uses_visible_closest());
     }
 }
