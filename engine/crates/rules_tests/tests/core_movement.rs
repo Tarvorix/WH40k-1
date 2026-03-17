@@ -1192,16 +1192,16 @@ fn s5_9_reserves_more_than_9_inches_allowed() {
     let mut state = make_movement_game_state(vec![unit_a, unit_b]);
     state.battle_round = BattleRound::new(2);
 
-    // Arrive at (10, 15) — well over 9" from enemy at (30,15) (20" away)
+    // Arrive at (10, 3) — within 6" of bottom edge (y=0) AND >9" from enemy at (30,15)
     let cmd = Command::ArriveFromReserves {
         unit_id: UnitId::new(1),
-        position: Position::from_inches(10, 15),
+        position: Position::from_inches(10, 3),
     };
 
     let result = CommandValidator::validate(&state, &cmd);
     assert!(
         result.is_legal(),
-        "Reserves arriving >9\" from all enemies should be allowed (§5.9)"
+        "Reserves arriving >9\" from enemies and within 6\" of edge should be allowed (§5.9, §14.2)"
     );
 }
 
@@ -1282,7 +1282,7 @@ fn s5_9_reserves_arrival_sets_unit_on_battlefield() {
 
     let cmd = Command::ArriveFromReserves {
         unit_id: UnitId::new(1),
-        position: Position::from_inches(20, 15),
+        position: Position::from_inches(20, 3),  // Within 6" of bottom edge (§14.2)
     };
 
     CommandExecutor::execute(&mut state, &cmd).unwrap();
@@ -1730,7 +1730,7 @@ fn s5_9_reserves_arrival_emits_event() {
 
     let cmd = Command::ArriveFromReserves {
         unit_id: UnitId::new(1),
-        position: Position::from_inches(22, 15),
+        position: Position::from_inches(22, 3),  // Within 6" of bottom edge (§14.2)
     };
 
     let events = CommandExecutor::execute(&mut state, &cmd).unwrap();

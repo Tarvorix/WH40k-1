@@ -218,9 +218,16 @@ impl PhaseStateMachine {
             }
         }
 
-        // Clear phase-level stratagem tracking
+        // Clear phase-level stratagem tracking for BOTH players.
+        // The active player uses stratagems during their own turn, but the
+        // opponent can also use stratagems (e.g., Overwatch, Counter-Offensive)
+        // during the active player's turn. Both must be reset at phase boundaries.
+        // Source: 40k_revised.md - "same Stratagem cannot be used more than once in the same phase"
         state.turn_flags.clear_phase_flags();
-        state.player_mut(state.active_player).stratagem_usage.clear_phase();
+        let active = state.active_player;
+        let opponent = state.opponent_id(active);
+        state.player_mut(active).stratagem_usage.clear_phase();
+        state.player_mut(opponent).stratagem_usage.clear_phase();
 
         events
     }

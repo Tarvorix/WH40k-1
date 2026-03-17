@@ -902,6 +902,29 @@ impl CommandValidator {
             );
         }
 
+        // Strategic Reserves placement: must be wholly within 6" of a battlefield edge.
+        // Source: 40k_revised.md §12.2 - "Strategic Reserves: Set up the unit wholly
+        // within 6\" of any battlefield edge"
+        // The closest edge distance must be <= 6".
+        let six_inches = wh40k_core_types::Inches::from_inches(6);
+        let board_w = state.board.dimensions.width;
+        let board_h = state.board.dimensions.height;
+        let dist_left = position.x;                                       // distance from x=0 edge
+        let dist_right = board_w - position.x;                            // distance from x=width edge
+        let dist_bottom = position.y;                                     // distance from y=0 edge
+        let dist_top = board_h - position.y;                              // distance from y=height edge
+        let closest_edge_dist = dist_left.min(dist_right).min(dist_bottom).min(dist_top);
+        if closest_edge_dist > six_inches {
+            return CommandValidationResult::illegal_with_ref(
+                format!(
+                    "Strategic Reserves must arrive wholly within 6\" of a battlefield edge \
+                     (closest edge is {}\" away)",
+                    closest_edge_dist
+                ),
+                "40k_revised.md §12.2 - Strategic Reserves: within 6\" of battlefield edge",
+            );
+        }
+
         // Deep Strike: must be >9" from all enemy models
         // Source: 40k_revised.md §12.3 - "DEEP STRIKE"
         // Source: CP_Rules.md §5.6 - Reserves distance requirement
@@ -1062,8 +1085,13 @@ impl CommandValidator {
                 // #11: LOS/visibility check — target must be visible unless Indirect Fire
                 // Source: 40k_revised.md §7.2 - "that is visible to the shooting model"
                 // Indirect Fire weapons can target non-visible units (§11.3)
+                // HOWEVER: Torrent weapons cannot benefit from Indirect Fire.
+                // Source: 40k_revised.md §11.16 - Torrent weapons auto-hit and
+                // cannot use Indirect Fire rules (they require visibility).
                 let has_indirect_fire = wp.abilities.has(&wh40k_core_types::WeaponAbility::IndirectFire);
-                if !has_indirect_fire {
+                let has_torrent = wp.abilities.has(&wh40k_core_types::WeaponAbility::Torrent);
+                let effective_indirect_fire = has_indirect_fire && !has_torrent;
+                if !effective_indirect_fire {
                     if let (Some(attacker_pos), Some(target_pos)) =
                         (unit.reference_position(), target.reference_position())
                     {
