@@ -1635,13 +1635,47 @@ impl CommandExecutor {
                     entity: format!("Weapon {} on unit {}", weapon_id, attacker_id),
                 })?;
 
-            // Count models that have this weapon
-            let model_count = unit.alive_models().iter()
-                .filter(|m| {
-                    let weapons = if is_melee { &m.melee_weapons } else { &m.ranged_weapons };
-                    weapons.iter().any(|w| w.id == weapon_id)
-                })
-                .count() as u8;
+            // Count models that have this weapon.
+            // For melee attacks, only count models that are actually within
+            // Engagement Range of at least one enemy model — models out of
+            // reach cannot strike in melee.
+            // Source: 40k_revised.md — "Only models within Engagement Range of
+            //   enemy models, and models within ½\" of another model in their
+            //   own unit that is itself within ½\" of an enemy model, can make
+            //   melee attacks."
+            let model_count = if is_melee {
+                // Collect enemy model positions from ALL enemy units that are
+                // engaged, so we correctly count attackers within ER of any foe.
+                let attacker_owner = unit.owner;
+                let enemy_positions: Vec<(wh40k_core_types::Position, wh40k_core_types::BaseSize)> = state.units.iter()
+                    .filter(|u| u.owner != attacker_owner && !u.is_destroyed() && u.is_on_battlefield())
+                    .flat_map(|u| u.models.iter())
+                    .filter(|m| m.alive)
+                    .map(|m| (m.position, m.base_size))
+                    .collect();
+
+                unit.alive_models().iter()
+                    .filter(|m| {
+                        let has_weapon = m.melee_weapons.iter().any(|w| w.id == weapon_id);
+                        if !has_weapon {
+                            return false;
+                        }
+                        // Model must be within Engagement Range of at least one enemy model
+                        enemy_positions.iter().any(|&(enemy_pos, enemy_base)| {
+                            wh40k_geometry::within_engagement_range_2d(
+                                m.position, m.base_size,
+                                enemy_pos, enemy_base,
+                            )
+                        })
+                    })
+                    .count() as u8
+            } else {
+                unit.alive_models().iter()
+                    .filter(|m| {
+                        m.ranged_weapons.iter().any(|w| w.id == weapon_id)
+                    })
+                    .count() as u8
+            };
 
             (
                 weapon,
@@ -1844,6 +1878,15 @@ impl CommandExecutor {
             within_half_range,
             target_has_cover,
             in_engagement_range,
+            target_is_engaged_monster_or_vehicle: {
+                // Check if target is an engaged Monster/Vehicle (BGNT -1 hit for external shooters)
+                let target_is_mv = target_keywords.has(wh40k_core_types::Keyword::Monster)
+                    || target_keywords.has(wh40k_core_types::Keyword::Vehicle);
+                let target_engaged = state.unit(target_id)
+                    .map(|u| u.engagement_status == wh40k_core_types::EngagementStatus::Engaged)
+                    .unwrap_or(false);
+                target_is_mv && target_engaged && !is_melee
+            },
             target_model_count,
             target_keywords,
             defender_toughness,

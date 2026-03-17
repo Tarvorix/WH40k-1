@@ -90,6 +90,7 @@ fn default_attack_ctx(weapon: WeaponProfile) -> AttackContext {
         within_half_range: false,
         target_has_cover: false,
         in_engagement_range: false,
+            target_is_engaged_monster_or_vehicle: false,
         target_model_count: 5,
         target_keywords: KeywordSet::from_keywords(&[Keyword::Infantry]),
         defender_toughness: Toughness::new(4),

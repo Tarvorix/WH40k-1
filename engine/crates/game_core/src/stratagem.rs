@@ -67,6 +67,9 @@ pub enum StratagemTiming {
     AfterChargeMoveComplete,
     /// When a unit is selected to fight.
     OnUnitSelectedToFight,
+    /// After an enemy unit has fought (used by Counter-Offensive).
+    /// Source: 40k_revised.md — Counter-Offensive: "used after an enemy unit has fought"
+    AfterEnemyUnitFights,
 }
 
 // ─── Stratagem Definition ───────────────────────────────────────────────────
@@ -163,7 +166,9 @@ static ALL_STRATAGEMS: &[StratagemDef] = &[
         name: "Counter-Offensive",
         cp_cost: 2,
         valid_phases: &[Phase::Fight],
-        timing: StratagemTiming::DuringPhase,
+        // Source: 40k_revised.md — Counter-Offensive is used "after an enemy unit has fought",
+        // NOT at any arbitrary time during the Fight phase.
+        timing: StratagemTiming::AfterEnemyUnitFights,
         required_keywords: &[],
         must_be_friendly: true,
         must_be_enemy: false,
@@ -428,7 +433,22 @@ pub fn apply_stratagem_effects(
         }
 
         id if id == ids::COUNTER_OFFENSIVE => {
-            // Counter-Offensive: target unit gains Fights First
+            // Counter-Offensive: target friendly unit fights next in the current
+            // alternation, interrupting the normal order. This is NOT the same as
+            // Fights First — it does not move the unit into the Fights First step.
+            // It simply lets the unit be selected to fight next regardless of whose
+            // turn it is in the alternation.
+            //
+            // Source: 40k_revised.md — Counter-Offensive:
+            //   "Use after an enemy unit has fought. Select one of your eligible
+            //    units — that unit fights next."
+            //
+            // TODO: Implement a dedicated FightNext effect variant that the fight-phase
+            // alternation logic in the validator respects, so this unit is forced to be
+            // the next selected. For now, using GrantFightsFirst as the closest available
+            // mechanism; it will at least ensure the unit can fight in the Fights First
+            // step rather than being delayed to Remaining Combats, but the true
+            // "fight next in alternation" semantics require FightNext.
             if let Some(uid) = target_unit {
                 let effect_id = state.next_counter() as u32;
                 state.active_effects.push(ActiveEffect {

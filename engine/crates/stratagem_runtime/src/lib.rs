@@ -205,6 +205,9 @@ pub fn core_stratagem_definitions() -> Vec<CoreStratagemDef> {
                 stratagem::StratagemTiming::OnUnitSelectedToFight => {
                     StratagemTiming::OnEvent("unit_selected_to_fight".to_string())
                 }
+                stratagem::StratagemTiming::AfterEnemyUnitFights => {
+                    StratagemTiming::OnEvent("after_enemy_unit_fights".to_string())
+                }
             };
 
             CoreStratagemDef {

@@ -76,6 +76,9 @@ pub struct AttackContext {
     pub target_has_stealth: bool,
     /// Distance from attacker to target in mils (for Stealth range check).
     pub distance_mils: i32,
+    /// Whether the TARGET is an engaged Monster/Vehicle (external shooters suffer -1 to hit).
+    /// Source: 40k_revised.md §7.5 — Big Guns Never Tire (being targeted)
+    pub target_is_engaged_monster_or_vehicle: bool,
     /// Bonus attacks from blessings (e.g., Total Carnage +1 melee attack).
     pub bonus_attacks_per_model: u8,
     /// Bonus AP from blessings (e.g., Warp Blades +1 AP on melee weapons).
@@ -644,9 +647,20 @@ fn evaluate_hit_roll(ctx: &AttackContext, roll: u8) -> HitRollEvaluation {
     }
 
     // Big Guns Never Tire: -1 to hit if Monster/Vehicle shooting while engaged
+    // Source: 40k_revised.md §7.5
     if ctx.in_engagement_range
         && ctx.weapon.weapon_type == WeaponType::Ranged
         && !ctx.effective_abilities.has_pistol()
+    {
+        hit_modifier -= 1;
+    }
+
+    // Big Guns Never Tire (target): -1 to hit when shooting AT an engaged Monster/Vehicle
+    // Source: 40k_revised.md §7.5 — external units shooting at engaged Monster/Vehicle
+    if ctx.target_is_engaged_monster_or_vehicle
+        && ctx.weapon.weapon_type == WeaponType::Ranged
+        && !ctx.effective_abilities.has_pistol()
+        && !ctx.in_engagement_range  // Don't double-apply if shooter is ALSO engaged
     {
         hit_modifier -= 1;
     }
@@ -1284,6 +1298,7 @@ fn apply_mortal_wounds_devastating(
             within_half_range: false,
             target_has_cover: false,
             in_engagement_range: false,
+            target_is_engaged_monster_or_vehicle: false,
             target_model_count: 0,
             target_keywords: KeywordSet::empty(),
             defender_toughness: Toughness::new(1),
@@ -1724,6 +1739,7 @@ mod tests {
             within_half_range: false,
             target_has_cover: false,
             in_engagement_range: false,
+            target_is_engaged_monster_or_vehicle: false,
             target_model_count: 5,
             target_keywords: KeywordSet::from_keywords(&[Keyword::Infantry]),
             defender_toughness: Toughness::new(4),

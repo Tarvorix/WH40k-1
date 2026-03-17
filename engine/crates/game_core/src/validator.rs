@@ -1151,6 +1151,42 @@ impl CommandValidator {
                 }
             }
 
+            // Locked in Combat (§7.4): non-Pistol, non-BGNT weapons cannot target
+            // enemies that are within Engagement Range of friendly units.
+            // Source: 40k_revised.md §7.4 - "Locked in Combat"
+            if !is_engaged {
+                let weapon_is_pistol = unit.alive_models().iter()
+                    .flat_map(|m| m.ranged_weapons.iter())
+                    .find(|w| w.id == *weapon_id)
+                    .map(|w| w.abilities.has(&wh40k_core_types::WeaponAbility::Pistol))
+                    .unwrap_or(false);
+
+                if !weapon_is_pistol {
+                    // Check if any friendly unit is within ER of the target
+                    let target_engaged_by_friendly = state.units.iter().any(|fu| {
+                        fu.owner == unit.owner
+                            && fu.id != unit_id
+                            && !fu.is_destroyed()
+                            && fu.is_on_battlefield()
+                            && fu.alive_models().iter().any(|fm| {
+                                target.alive_models().iter().any(|tm| {
+                                    wh40k_geometry::within_engagement_range_2d(
+                                        fm.position, fm.base_size,
+                                        tm.position, tm.base_size,
+                                    )
+                                })
+                            })
+                    });
+
+                    if target_engaged_by_friendly {
+                        return CommandValidationResult::illegal_with_ref(
+                            "Cannot target enemy units that are within Engagement Range of friendly units (Locked in Combat)",
+                            "40k_revised.md §7.4 - Locked in Combat",
+                        );
+                    }
+                }
+            }
+
             // #27: Blast restriction — cannot target units within Engagement Range
             // of friendly units.
             // Source: 40k_revised.md §11.5 - "BLAST"
@@ -2028,6 +2064,35 @@ impl CommandValidator {
                             def.name
                         ),
                         "40k_revised.md - Stratagems: timing window (after charge move complete)",
+                    );
+                }
+            }
+            stratagem::StratagemTiming::AfterEnemyUnitFights => {
+                // Counter-Offensive: requires Fight phase and an enemy unit to have fought
+                // Source: 40k_revised.md — Counter-Offensive: "used after an enemy unit has fought"
+                if state.current_phase != Phase::Fight {
+                    return CommandValidationResult::illegal_with_ref(
+                        format!(
+                            "Stratagem '{}' can only be used in the Fight phase after an enemy unit has fought",
+                            def.name
+                        ),
+                        "40k_revised.md - Counter-Offensive: after enemy unit fights",
+                    );
+                }
+                // Check for a CounterOffensive reaction window (opened after an enemy unit fights)
+                let has_co_window = state.reaction_windows.iter().any(|rw| {
+                    matches!(
+                        rw.window_type,
+                        wh40k_core_types::ReactionWindowType::CounterOffensive
+                    )
+                });
+                if !has_co_window {
+                    return CommandValidationResult::illegal_with_ref(
+                        format!(
+                            "Stratagem '{}' requires an enemy unit to have fought first",
+                            def.name
+                        ),
+                        "40k_revised.md - Counter-Offensive: timing (after enemy unit fights)",
                     );
                 }
             }
