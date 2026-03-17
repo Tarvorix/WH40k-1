@@ -1,7 +1,12 @@
 # WH40K Engine — FULL AUDIT RESULTS
 
-**Date: 2026-03-16**
+**Date: 2026-03-16 | Updated: 2026-03-17**
 **Audited against: 40k_revised.md, CP_Rules.md, boarding_actions_complete_v3.md, boarding_actions_missions_complete_v3.md, Frenzied_Reavers.md, Custodes.md, AI_Primer.md**
+
+**Progress: ~52 of 93 issues FIXED across 10 commits (2026-03-16/17)**
+**See docs/rule_coverage_matrix.md for current status of every rule**
+
+**FIXED items marked with ~~strikethrough~~ below.**
 
 ---
 
