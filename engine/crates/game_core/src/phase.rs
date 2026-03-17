@@ -426,6 +426,21 @@ impl PhaseStateMachine {
         }]
     }
 
+    /// Transition from Fights First to Remaining Combats subphase.
+    ///
+    /// Called when no more units with Fights First or charged-this-turn are eligible
+    /// to fight in the Fights First step. Resets fight alternation so the active
+    /// player picks first in Remaining Combats.
+    ///
+    /// Source: 40k_revised.md §10.1-10.3
+    /// Source: CP_Rules.md §8.1 - "Remaining Combats: active player picks first"
+    pub fn transition_to_remaining_combats(state: &mut GameState) {
+        state.current_subphase = SubPhase::RemainingCombats;
+        // Remaining Combats step: active player picks first
+        // Source: 40k_revised.md §10.3 - "starting with the player whose turn IS taking place"
+        state.turn_flags.init_fight_alternation(state.active_player);
+    }
+
     /// End the current player's turn and transition to the next player or round.
     ///
     /// If the first player just finished, start the second player's turn.
@@ -576,8 +591,8 @@ impl PhaseStateMachine {
             // Archeotech Recovery (Mission 2): Irradiated Power Cells objective removal.
             // Source: CP_Rules.md - Mission 2: Archeotech Recovery
             //   Start of round 3: Defender randomly selects one NML objective = Gamma
-            //   Start of round 4: Gamma is removed
-            //   Start of round 5: Attacker randomly selects remaining NML obj = Beta, removed
+            //   Start of round 4: Gamma is removed + Attacker selects remaining NML obj = Beta
+            //   Start of round 5: Beta is removed
             // We handle selection and removal at round boundaries.
             if state.scenario_id == Some(scoring::mission_ids::ARCHEOTECH_RECOVERY) {
                 let round_num = next_round.number();

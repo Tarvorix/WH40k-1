@@ -8,10 +8,10 @@ use crate::roster::BoardingPatrol;
 pub const UNIVERSAL_BA_ENHANCEMENTS: &[&str] = &[
     "Superior Boarding Tactics",
     "Close-Quarters Killer",
-    "Peerless Leader",
     "Expert Breacher",
-    "Personal Teleporter",
     "Trademark Weapon",
+    "Armour of Contempt",
+    "Brutal Combatant",
 ];
 
 /// Maximum points allowed for a Boarding Patrol.

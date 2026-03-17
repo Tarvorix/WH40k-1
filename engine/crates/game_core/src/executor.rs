@@ -1773,6 +1773,16 @@ impl CommandExecutor {
             if state.player(attacker_owner).faction_round_flags.has_blessing("Martial Excellence") {
                 effective_abilities.add(wh40k_core_types::WeaponAbility::SustainedHits(1));
             }
+
+            // Apply Epic Challenge stratagem: CHARACTER's melee attacks gain Precision
+            // Source: 40k_revised.md - Epic Challenge stratagem (R-38)
+            let has_epic_challenge = state.active_effects.iter().any(|e| {
+                matches!(e.target, crate::effect::EffectTarget::Unit(uid) if uid == attacker_id)
+                    && matches!(&e.effect_type, crate::effect::EffectType::Custom(s) if s.contains("Epic Challenge"))
+            });
+            if has_epic_challenge {
+                effective_abilities.add(wh40k_core_types::WeaponAbility::Precision);
+            }
         }
 
         // Determine cover from terrain geometry

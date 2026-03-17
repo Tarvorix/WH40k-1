@@ -375,10 +375,10 @@ fn ba_mustering_six_universal_enhancements() {
     let expected = [
         "Superior Boarding Tactics",
         "Close-Quarters Killer",
-        "Peerless Leader",
         "Expert Breacher",
-        "Personal Teleporter",
         "Trademark Weapon",
+        "Armour of Contempt",
+        "Brutal Combatant",
     ];
 
     for name in &expected {
