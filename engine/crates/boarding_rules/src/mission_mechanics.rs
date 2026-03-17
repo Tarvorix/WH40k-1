@@ -9,6 +9,9 @@
 
 use serde::{Deserialize, Serialize};
 
+// Re-export from scoring to avoid DRY violation (BA-17).
+pub use crate::scoring::{destroyed_points_to_vp, STANDARD_DESTROYED_POINTS_THRESHOLDS};
+
 // ---------------------------------------------------------------------------
 // MissionMechanic enum
 // ---------------------------------------------------------------------------
@@ -61,6 +64,8 @@ pub enum MissionMechanic {
     BackupEntryZone,
     /// BA-01, BA-21, BA-31: Warlord kill end-game objective
     WarlordKill,
+    /// BA-32: Desperate Measures CP gain (5+ on D6 if controlling furnace objective)
+    DesperateMeasuresCpGain,
 }
 
 /// Return which mission mechanics apply to a given mission.
@@ -111,6 +116,7 @@ pub fn get_mission_mechanics(mission_id: &str) -> Vec<MissionMechanic> {
             MissionMechanic::TurnOnBurners,
             MissionMechanic::SecureSiteOverride,
             MissionMechanic::ControlFurnaceObjective,
+            MissionMechanic::DesperateMeasuresCpGain,
         ],
 
         "ba33" => vec![
@@ -340,38 +346,10 @@ pub fn get_corruption_consequences() -> Vec<CorruptionConsequence> {
 }
 
 // ---------------------------------------------------------------------------
-// Destroyed points threshold scoring
+// Destroyed points threshold scoring (canonical definition in scoring.rs)
 // ---------------------------------------------------------------------------
-
-/// Standard BA threshold table for destroyed-points end-game objectives.
-///
-/// Returns VP awarded based on total enemy points destroyed.
-/// Used by BA-11 (Access Junction Primus) and BA-05 (Power the Generators).
-///
-/// | Destroyed Points | VP  |
-/// |------------------|-----|
-/// | 0-124            | 0   |
-/// | 125-249          | 15  |
-/// | 250-374          | 40  |
-/// | 375-499          | 60  |
-/// | 500+             | 80  |
-pub fn destroyed_points_to_vp(destroyed_points: u16, thresholds: &[(u16, u16, i16)]) -> i16 {
-    for &(min, max, vp) in thresholds {
-        if destroyed_points >= min && destroyed_points <= max {
-            return vp;
-        }
-    }
-    0
-}
-
-/// The standard Boarding Actions destroyed-points threshold table.
-pub const STANDARD_DESTROYED_POINTS_THRESHOLDS: [(u16, u16, i16); 5] = [
-    (0, 124, 0),
-    (125, 249, 15),
-    (250, 374, 40),
-    (375, 499, 60),
-    (500, u16::MAX, 80),
-];
+// `destroyed_points_to_vp` and `STANDARD_DESTROYED_POINTS_THRESHOLDS` are
+// re-exported from `crate::scoring` at the top of this file (BA-17 DRY fix).
 
 // ---------------------------------------------------------------------------
 // Lighting mechanics (BA-22)
@@ -548,6 +526,23 @@ pub fn corruption_attempt_succeeds(roll: u8) -> bool {
 /// The threshold is typically 4+ (suffer a mortal wound on 4+).
 pub fn burner_roll_hits(roll: u8) -> bool {
     roll >= 4
+}
+
+/// Maximum mortal wounds from burners per unit per turn.
+/// Source: boarding_actions_missions_complete_v3.md §3.8
+pub const FURNACE_BURNER_MW_CAP: u8 = 3;
+
+/// Calculate total mortal wounds from burner rolls, capped at 3 per unit.
+pub fn capped_burner_mortal_wounds(hits: u8) -> u8 {
+    hits.min(FURNACE_BURNER_MW_CAP)
+}
+
+/// Check if Desperate Measures CP roll succeeds (5+ on D6).
+/// If player controls one or more objectives within the Furnace, roll D6.
+/// On 5+, gain 1 CP.
+/// Source: boarding_actions_missions_complete_v3.md §3.8
+pub fn desperate_measures_cp_check(roll: u8) -> bool {
+    roll >= 5
 }
 
 // ---------------------------------------------------------------------------
@@ -771,6 +766,7 @@ mod tests {
         assert!(mechanics.contains(&MissionMechanic::TurnOnBurners));
         assert!(mechanics.contains(&MissionMechanic::SecureSiteOverride));
         assert!(mechanics.contains(&MissionMechanic::ControlFurnaceObjective));
+        assert!(mechanics.contains(&MissionMechanic::DesperateMeasuresCpGain));
     }
 
     #[test]
@@ -945,39 +941,39 @@ mod tests {
         );
         assert_eq!(
             destroyed_points_to_vp(250, &STANDARD_DESTROYED_POINTS_THRESHOLDS),
-            40
+            30
         );
         assert_eq!(
             destroyed_points_to_vp(374, &STANDARD_DESTROYED_POINTS_THRESHOLDS),
-            40
+            30
         );
         assert_eq!(
             destroyed_points_to_vp(375, &STANDARD_DESTROYED_POINTS_THRESHOLDS),
-            60
+            45
         );
         assert_eq!(
             destroyed_points_to_vp(499, &STANDARD_DESTROYED_POINTS_THRESHOLDS),
-            60
+            45
         );
         assert_eq!(
             destroyed_points_to_vp(500, &STANDARD_DESTROYED_POINTS_THRESHOLDS),
-            80
+            45
         );
         assert_eq!(
             destroyed_points_to_vp(1000, &STANDARD_DESTROYED_POINTS_THRESHOLDS),
-            80
+            45
         );
     }
 
     #[test]
     fn test_destroyed_points_boundary_values() {
-        // Test exact boundary values
+        // Test exact boundary values (re-exported from scoring.rs)
         let thresholds = &STANDARD_DESTROYED_POINTS_THRESHOLDS;
         assert_eq!(destroyed_points_to_vp(0, thresholds), 0);
         assert_eq!(destroyed_points_to_vp(124, thresholds), 0);
         assert_eq!(destroyed_points_to_vp(125, thresholds), 15);
         assert_eq!(destroyed_points_to_vp(249, thresholds), 15);
-        assert_eq!(destroyed_points_to_vp(250, thresholds), 40);
+        assert_eq!(destroyed_points_to_vp(250, thresholds), 30);
     }
 
     // --- Lighting roll tests ---
@@ -1089,6 +1085,28 @@ mod tests {
         assert!(burner_roll_hits(4));
         assert!(burner_roll_hits(5));
         assert!(burner_roll_hits(6));
+    }
+
+    #[test]
+    fn test_furnace_burner_mw_cap() {
+        assert_eq!(FURNACE_BURNER_MW_CAP, 3);
+        assert_eq!(capped_burner_mortal_wounds(0), 0);
+        assert_eq!(capped_burner_mortal_wounds(1), 1);
+        assert_eq!(capped_burner_mortal_wounds(2), 2);
+        assert_eq!(capped_burner_mortal_wounds(3), 3);
+        assert_eq!(capped_burner_mortal_wounds(4), 3);
+        assert_eq!(capped_burner_mortal_wounds(10), 3);
+        assert_eq!(capped_burner_mortal_wounds(255), 3);
+    }
+
+    #[test]
+    fn test_desperate_measures_cp_check() {
+        assert!(!desperate_measures_cp_check(1));
+        assert!(!desperate_measures_cp_check(2));
+        assert!(!desperate_measures_cp_check(3));
+        assert!(!desperate_measures_cp_check(4));
+        assert!(desperate_measures_cp_check(5));
+        assert!(desperate_measures_cp_check(6));
     }
 
     // --- VP transfer tests ---

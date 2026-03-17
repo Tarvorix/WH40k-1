@@ -289,9 +289,10 @@ fn ba_scoring_progressive_fourth_condition() {
 // Test 9: End-game scoring — destroyed points threshold table
 // ===========================================================================
 
-/// Source: boarding_actions_complete_v3.md Section 8
+/// Source: boarding_actions_missions_complete_v3.md §v3 addendum
+/// Purge the Ship uses three 15 VP thresholds at 125+, 250+, and 375+.
 /// Standard destroyed-points thresholds:
-///   0-124 => 0 VP, 125-249 => 15 VP, 250-374 => 40 VP, 375-499 => 60 VP, 500+ => 80 VP
+///   0-124 => 0 VP, 125-249 => 15 VP, 250-374 => 30 VP, 375+ => 45 VP
 #[test]
 fn ba_scoring_destroyed_points_thresholds() {
     assert_eq!(destroyed_points_to_vp(0, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 0);
@@ -300,12 +301,12 @@ fn ba_scoring_destroyed_points_thresholds() {
     assert_eq!(destroyed_points_to_vp(125, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 15);
     assert_eq!(destroyed_points_to_vp(200, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 15);
     assert_eq!(destroyed_points_to_vp(249, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 15);
-    assert_eq!(destroyed_points_to_vp(250, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 40);
-    assert_eq!(destroyed_points_to_vp(374, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 40);
-    assert_eq!(destroyed_points_to_vp(375, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 60);
-    assert_eq!(destroyed_points_to_vp(499, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 60);
-    assert_eq!(destroyed_points_to_vp(500, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 80);
-    assert_eq!(destroyed_points_to_vp(1000, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 80);
+    assert_eq!(destroyed_points_to_vp(250, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 30);
+    assert_eq!(destroyed_points_to_vp(374, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 30);
+    assert_eq!(destroyed_points_to_vp(375, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 45);
+    assert_eq!(destroyed_points_to_vp(499, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 45);
+    assert_eq!(destroyed_points_to_vp(500, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 45);
+    assert_eq!(destroyed_points_to_vp(1000, &STANDARD_DESTROYED_POINTS_THRESHOLDS), 45);
 }
 
 // ===========================================================================
