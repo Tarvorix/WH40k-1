@@ -152,6 +152,20 @@ pub mod command {
             position: Position,
         },
 
+        /// Perform a Scouts pre-game move (before the first turn begins).
+        /// Source: 40k_revised.md §12.5 - "Scouts X\""
+        ScoutsMove {
+            unit_id: UnitId,
+            destination: Position,
+        },
+
+        /// Surge Move: a short additional move (typically 3") during specific phases.
+        /// Source: 40k_revised.md §5.10
+        SurgeMove {
+            unit_id: UnitId,
+            destination: Position,
+        },
+
         // ===== Shooting commands =====
         /// Select a unit to shoot this phase.
         SelectUnitToShoot {
@@ -377,6 +391,8 @@ pub mod command {
                 Command::FallBack { unit_id, .. } => vec![*unit_id],
                 Command::RemainStationary { unit_id } => vec![*unit_id],
                 Command::ArriveFromReserves { unit_id, .. } => vec![*unit_id],
+                Command::ScoutsMove { unit_id, .. } => vec![*unit_id],
+                Command::SurgeMove { unit_id, .. } => vec![*unit_id],
                 Command::SelectUnitToShoot { unit_id } => vec![*unit_id],
                 Command::DeclareShootingTargets { unit_id, targets } => {
                     let mut ids = vec![*unit_id];
@@ -456,7 +472,9 @@ pub mod command {
                 | Command::AdvanceMove { .. }
                 | Command::FallBack { .. }
                 | Command::RemainStationary { .. }
-                | Command::ArriveFromReserves { .. } => "Movement",
+                | Command::ArriveFromReserves { .. }
+                | Command::ScoutsMove { .. }
+                | Command::SurgeMove { .. } => "Movement",
 
                 Command::SelectUnitToShoot { .. }
                 | Command::DeclareShootingTargets { .. }
@@ -620,6 +638,26 @@ pub mod command {
                         f,
                         "Unit {} arrives from reserves at {}",
                         unit_id, position
+                    )
+                }
+                Command::ScoutsMove {
+                    unit_id,
+                    destination,
+                } => {
+                    write!(
+                        f,
+                        "Unit {} scouts move to {}",
+                        unit_id, destination
+                    )
+                }
+                Command::SurgeMove {
+                    unit_id,
+                    destination,
+                } => {
+                    write!(
+                        f,
+                        "Unit {} surge move to {}",
+                        unit_id, destination
                     )
                 }
                 Command::SelectUnitToShoot { unit_id } => {

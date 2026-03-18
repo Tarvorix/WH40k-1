@@ -149,6 +149,9 @@ impl CommandValidator {
             Command::ScoutsMove { unit_id, destination } => {
                 Self::validate_scouts_move(state, *unit_id, *destination)
             }
+            Command::SurgeMove { unit_id, destination } => {
+                Self::validate_surge_move(state, *unit_id, *destination)
+            }
 
             // ===== Shooting commands =====
             Command::SelectUnitToShoot { unit_id } => {

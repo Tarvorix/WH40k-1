@@ -117,6 +117,12 @@ impl Inches {
     pub const DEEP_STRIKE_MIN_DISTANCE: Inches = Inches::from_inches(9);
     /// Heroic Intervention range (6 inches)
     pub const HEROIC_INTERVENTION: Inches = Inches::from_inches(6);
+    /// Scouts/Infiltrators minimum distance from enemy models (9 inches).
+    /// Source: 40k_revised.md §12.4 / §12.5
+    pub const SCOUTS_MIN_ENEMY_DISTANCE: Inches = Inches::from_inches(9);
+    /// Infiltrators minimum distance from enemy deployment zone (9 inches).
+    /// Source: 40k_revised.md §12.4
+    pub const INFILTRATORS_MIN_DZ_DISTANCE: Inches = Inches::from_inches(9);
 
     // Boarding Actions specific constants
     /// Maximum movement in Boarding Actions (9 inches).
@@ -134,6 +140,20 @@ impl Inches {
     /// Battlefield Command projection range (6 inches from leader to bodyguard unit).
     /// Source: boarding_actions_complete_v3.md Section 3.7
     pub const BA_BATTLEFIELD_COMMAND_RANGE: Inches = Inches::from_inches(6);
+
+    // Terrain constants
+    /// Terrain height threshold: terrain ≤2" can be moved over freely.
+    /// Terrain taller than 2" requires climbing (vertical distance deducted from move).
+    /// Source: 40k_revised.md §5.7
+    pub const TERRAIN_FREE_STEP_HEIGHT: Inches = Inches::from_inches(2);
+
+    // Movement pivot costs
+    /// Pivot cost for non-round base models.
+    /// Source: 40k_revised.md §5.6
+    pub const PIVOT_COST_STANDARD: Inches = Inches::from_inches(1);
+    /// Pivot cost for MONSTER/VEHICLE on non-round base.
+    /// Source: 40k_revised.md §5.6
+    pub const PIVOT_COST_MONSTER_VEHICLE: Inches = Inches::from_inches(2);
 }
 
 impl Add for Inches {
@@ -442,6 +462,37 @@ impl Polygon {
         inside
     }
 
+    /// Compute the minimum distance from a point to the polygon boundary.
+    /// Returns the distance as `Inches` using integer square root for determinism.
+    ///
+    /// If the polygon has fewer than 3 vertices, returns `Inches::ZERO`.
+    ///
+    /// This is useful for checking if a position is more than X" from a
+    /// deployment zone boundary (e.g., Infiltrators must be >9" from enemy DZ).
+    ///
+    /// Source: 40k_revised.md §12.4 - Infiltrators deployment distance check
+    pub fn min_distance_to(&self, point: Position) -> Inches {
+        let n = self.vertices.len();
+        if n < 2 {
+            return Inches::ZERO;
+        }
+
+        let mut min_dist_sq = i64::MAX;
+        for i in 0..n {
+            let j = (i + 1) % n;
+            let dist_sq = point_to_segment_distance_squared(
+                point,
+                self.vertices[i],
+                self.vertices[j],
+            );
+            if dist_sq < min_dist_sq {
+                min_dist_sq = dist_sq;
+            }
+        }
+
+        Inches(isqrt(min_dist_sq) as i32)
+    }
+
     /// Check if a point is wholly within the polygon (all points of the model's
     /// base must be inside). For simplicity, we check if the center point is inside
     /// with a margin equal to the base radius.
@@ -618,6 +669,33 @@ mod tests {
         ]);
         assert!(poly.contains(Position::from_inches(5, 3)));
         assert!(!poly.contains(Position::from_inches(0, 10)));
+    }
+
+    #[test]
+    fn test_polygon_min_distance_to() {
+        // Square polygon: (0,0) to (10,10)
+        let poly = Polygon::new(vec![
+            Position::from_inches(0, 0),
+            Position::from_inches(10, 0),
+            Position::from_inches(10, 10),
+            Position::from_inches(0, 10),
+        ]);
+
+        // Point 5 inches outside the right edge at (15, 5)
+        let dist = poly.min_distance_to(Position::from_inches(15, 5));
+        assert_eq!(dist, Inches::from_inches(5));
+
+        // Point directly on the boundary at (10, 5)
+        let dist = poly.min_distance_to(Position::from_inches(10, 5));
+        assert_eq!(dist, Inches::ZERO);
+
+        // Point 3 inches above top edge at (5, 13)
+        let dist = poly.min_distance_to(Position::from_inches(5, 13));
+        assert_eq!(dist, Inches::from_inches(3));
+
+        // Point inside the polygon at (5, 5) — distance to nearest edge is 5"
+        let dist = poly.min_distance_to(Position::from_inches(5, 5));
+        assert_eq!(dist, Inches::from_inches(5));
     }
 
     #[test]

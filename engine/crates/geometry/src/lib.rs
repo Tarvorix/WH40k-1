@@ -428,6 +428,19 @@ impl TerrainProperties {
         }
     }
 
+    /// Calculate the vertical climbing cost for moving through this terrain.
+    /// Terrain ≤ 2" height can be moved over freely (no climbing cost).
+    /// Terrain taller than 2" requires climbing — vertical distance deducted from move.
+    /// Source: 40k_revised.md §5.7
+    pub fn climbing_cost(&self) -> Inches {
+        if self.height <= Inches::TERRAIN_FREE_STEP_HEIGHT {
+            Inches::ZERO
+        } else {
+            // Climb up + climb down = 2x height
+            Inches(self.height.0 * 2)
+        }
+    }
+
     /// Light cover (e.g., craters, barricades): provides cover but does not block LOS.
     pub fn light_cover() -> Self {
         Self {

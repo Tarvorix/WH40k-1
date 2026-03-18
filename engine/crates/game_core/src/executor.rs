@@ -228,6 +228,9 @@ impl CommandExecutor {
             Command::ArriveFromReserves { unit_id, position } => {
                 Self::apply_arrive_from_reserves(state, *unit_id, *position)
             }
+            Command::ScoutsMove { unit_id, destination } => {
+                Self::apply_scouts_move(state, *unit_id, *destination)
+            }
 
             // ===== Shooting commands (Phase 2: combat resolution) =====
             Command::SelectUnitToShoot { unit_id } => {
@@ -942,6 +945,45 @@ impl CommandExecutor {
         Ok(vec![GameEvent::UnitArrivedFromReserves {
             unit: unit_id,
             position,
+        }])
+    }
+
+    /// Apply a Scouts pre-game move.
+    ///
+    /// Translates all alive models by the same offset (reference position -> destination).
+    /// This is a Normal move equivalent that happens before the first turn.
+    ///
+    /// Source: 40k_revised.md §12.5 - Scouts
+    fn apply_scouts_move(
+        state: &mut GameState,
+        unit_id: UnitId,
+        destination: Position,
+    ) -> Result<Vec<GameEvent>, ExecutionError> {
+        let from = {
+            let unit = state.unit(unit_id).ok_or_else(|| ExecutionError::EntityNotFound {
+                entity: format!("Unit {}", unit_id),
+            })?;
+            unit.reference_position().unwrap_or(Position::ORIGIN)
+        };
+
+        // Calculate offset from reference model's position to destination
+        let dx = wh40k_core_types::Inches(destination.x.0 - from.x.0);
+        let dy = wh40k_core_types::Inches(destination.y.0 - from.y.0);
+
+        // Move all models by the same offset
+        let unit = state.unit_mut(unit_id).ok_or_else(|| ExecutionError::EntityNotFound {
+            entity: format!("Unit {}", unit_id),
+        })?;
+
+        for model in unit.models.iter_mut().filter(|m| m.alive) {
+            model.position = model.position.translate(dx, dy);
+        }
+
+        Ok(vec![GameEvent::MoveCompleted {
+            unit: unit_id,
+            action: MovementAction::ScoutsMove,
+            from,
+            to: destination,
         }])
     }
 
