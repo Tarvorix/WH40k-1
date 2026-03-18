@@ -7,15 +7,15 @@ Updated: 2026-03-17 from full audit.
 
 | Rule | Section | Status | Engine File | Notes |
 |------|---------|--------|-------------|-------|
-| Normal Move | §5.3 | PARTIAL | executor.rs, validator.rs | No path collision detection — models teleport through others |
+| Normal Move | §5.3 | IMPL | executor.rs, validator.rs | Path collision via midpoint check, model stacking prevention, coherency |
 | Advance Move | §5.4 | IMPL | executor.rs | M + D6 works, flag tracking works |
 | Fall Back Move | §5.5 | PARTIAL | executor.rs | Desperate Escape count logic wrong (per enemy in ER, not per crossing) |
 | Desperate Escape Tests | §5.5 | PARTIAL | executor.rs | Exists but trigger logic approximate |
-| Pivot Costs | §5.6 | MISSING | — | No implementation |
-| Terrain Climbing | §5.7 | MISSING | — | No vertical distance, no terrain height system |
-| FLY Movement | §5.8 | MISSING | — | FLY keyword exists but not checked during movement |
-| Surge Moves | §5.10 | MISSING | — | No implementation |
-| Transports (full system) | §6.1-6.5 | MISSING | — | No embark/disembark/capacity/firing deck |
+| Pivot Costs | §5.6 | IMPL | measurements.rs | Constants defined (1" standard, 2" monster/vehicle) |
+| Terrain Climbing | §5.7 | IMPL | geometry/lib.rs | climbing_cost() on TerrainProperties, free step ≤2" |
+| FLY Movement | §5.8 | IMPL | validator.rs | has_fly_for_movement() with BA suppression |
+| Surge Moves | §5.10 | IMPL | command_system, validator.rs, executor.rs | Command + validation + execution |
+| Transports (full system) | §6.1-6.5 | IN PROGRESS | — | Embark/Disembark/Destroyed transport being implemented |
 | Shooting Phase | §7.1-7.5 | IMPL | executor.rs, validator.rs, combat.rs | Core pipeline works |
 | Locked in Combat | §7.4 | FIXED | validator.rs | Non-Pistol cannot target engaged enemies |
 | Big Guns Never Tire | §7.5 | FIXED | combat.rs | Both shooter-in-ER and target-in-ER penalties |
@@ -31,8 +31,8 @@ Updated: 2026-03-17 from full audit.
 | Melee Attacks | §10.5 | FIXED | executor.rs | Only ER-eligible models fight |
 | Consolidation | §10.6 | PARTIAL | validator.rs | Same gaps as Pile-In |
 | Deadly Demise | §12.2 | FIXED | executor.rs | Uses datasheet value (was always D3) |
-| Infiltrators | §12.4 | MISSING | — | No deployment logic |
-| Scouts | §12.5 | MISSING | — | No pre-game move |
+| Infiltrators | §12.4 | IMPL | validator.rs | >9" from DZ and all enemies |
+| Scouts | §12.5 | IMPL | validator.rs, executor.rs | ScoutsMove command + validation + execution |
 | Lone Operative | §12.6 | IMPL | validator.rs | 12" range + closest target check |
 | Stealth | §12.7 | IMPL | combat.rs | -1 to hit |
 | Leader/Attached Units | §12.8 | PARTIAL | combat.rs | Bodyguard protection works, starting strength not combined |
@@ -41,11 +41,11 @@ Updated: 2026-03-17 from full audit.
 | Extra Attacks | §11.18 | MISSING | — | Not enforced in fight sequence |
 | Indirect Fire | §11.16 | IMPL | combat.rs, validator.rs | Works, Torrent prohibition added |
 | Strategic Reserves | §14.2 | FIXED | validator.rs | Within 6" of edge enforced |
-| Aircraft Movement | §16.1-16.2 | MISSING | — | Only charge prohibition enforced |
+| Aircraft Movement | §16.1-16.2 | IMPL | validator.rs | Min 20", no stat/adv/fb, no charge target, no pile-in/consolidate |
 | Redeployments | §1.4 | MISSING | — | No mechanism |
-| Unit Coherency | §1.7 | MISSING | — | No end-of-turn check, no movement check |
-| Model on Model | §1.6 | MISSING | — | No "destroyed if forced into ER" |
-| Model Stacking | §5.3 | MISSING | — | Units can stack on same position |
+| Unit Coherency | §1.7 | IMPL | unit.rs, geometry/lib.rs, validator.rs | BFS connectivity + neighbor count + movement check + removal |
+| Model on Model | §1.6 | PARTIAL | validator.rs | Placeholder function, not fully enforced |
+| Model Stacking | §5.3 | IMPL | validator.rs | Destination overlap check with 1" tolerance |
 | Stratagems Per Phase | §15.1 | FIXED | validator.rs, phase.rs | Tracked and reset for both players |
 | Battle-shocked Strat Block | §4.3 | IMPL | validator.rs | Implemented |
 | Counter-Offensive | §15.2 | FIXED | stratagem.rs, validator.rs | AfterEnemyUnitFights timing |
@@ -81,7 +81,7 @@ Updated: 2026-03-17 from full audit.
 | Deep Strike Rounds 2-3 | §3.1 | FIXED | movement.rs | Function added |
 | Deep Strike Max 1/Round | §3.1 | FIXED | movement.rs | Function added |
 | Returning Models Cap | §3.8 | FIXED | movement.rs | Constant added |
-| Measurement Around Walls | §3.2 | MISSING | movement.rs | Uses straight-line, not pathfinding |
+| Measurement Around Walls | §3.2 | IMPL | movement.rs | shortest_legal_path_distance() via hatchway waypoints |
 | ER Through Open Hatchway | §3.2 | IMPL | hatchway.rs | 2" horizontal |
 | Objective Range 1" | §3.2 | FIXED | movement.rs | Function added |
 | Secured Objectives | §3.4 | FIXED | tactical_manoeuvres.rs | State machine functions added |
