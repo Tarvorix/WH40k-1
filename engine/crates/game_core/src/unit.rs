@@ -194,6 +194,12 @@ impl UnitState {
         self.starting_model_count
     }
 
+    /// Get the combined starting strength of an attached unit (leader + bodyguard).
+    /// Source: 40k_revised.md §12.8
+    pub fn attached_starting_strength(leader: &UnitState, bodyguard: &UnitState) -> usize {
+        leader.starting_model_count as usize + bodyguard.starting_model_count as usize
+    }
+
     /// Total wounds remaining across all alive models.
     pub fn total_wounds_remaining(&self) -> u16 {
         self.models

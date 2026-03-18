@@ -640,8 +640,11 @@ fn evaluate_hit_roll(ctx: &AttackContext, roll: u8) -> HitRollEvaluation {
         }
     }
 
-    // Stealth: -1 to hit if target has Stealth (all ranges)
-    // Source: 40k_revised.md §12.7 - "STEALTH"
+    // Stealth: -1 to hit if target has Stealth
+    // Source: 40k_revised.md §12.7 — "If every model in unit has this ability"
+    // Note: The Stealth effect is applied at unit level. For native datasheet Stealth,
+    // the effect should only be active if ALL models have the ability.
+    // Currently enforced via unit-level effect application (correct for stratagems like Smokescreen).
     if ctx.target_has_stealth {
         hit_modifier -= 1;
     }

@@ -714,6 +714,33 @@ impl CommandValidator {
             }
         }
 
+        // Path collision: cannot move through enemy models
+        // Source: 40k_revised.md §5.3
+        // Simplified check: if any enemy model is close to the midpoint of the path,
+        // the move is likely blocked. Full path intersection would need continuous checks.
+        if !Self::has_fly_for_movement(state, unit) {
+            if let Some(current_pos) = unit.reference_position() {
+                let midpoint = wh40k_core_types::Position {
+                    x: wh40k_core_types::Inches((current_pos.x.0 + destination.x.0) / 2),
+                    y: wh40k_core_types::Inches((current_pos.y.0 + destination.y.0) / 2),
+                };
+                for enemy in &state.units {
+                    if enemy.owner == unit.owner || enemy.is_destroyed() || !enemy.is_on_battlefield() {
+                        continue;
+                    }
+                    for em in enemy.alive_models() {
+                        let mid_dist = wh40k_geometry::distance(midpoint, em.position);
+                        if mid_dist <= wh40k_core_types::Inches::from_inches(1) {
+                            return CommandValidationResult::illegal_with_ref(
+                                "Cannot move through enemy models",
+                                "40k_revised.md §5.3",
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
         // Model stacking prevention: destination must not overlap with any other alive model.
         // Uses 1" tolerance for base overlap (simplified; full path collision requires pathfinding).
         // Source: 40k_revised.md §5.1 - Models cannot move through or over other models

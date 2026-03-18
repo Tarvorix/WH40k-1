@@ -821,26 +821,27 @@ pub fn score_archeotech_endgame(
         .map(|obj| obj.id)
         .collect();
 
-    // If there are remaining NML objectives, check who controls them
-    // The rules say "the last No Man's Land objective" — award +10VP for controlling it
-    for nml_obj_id in &nml_objectives {
-        for player_idx in 0..2u32 {
-            let player = PlayerId::new(player_idx);
-            if calculate_objective_controller(state, *nml_obj_id) == Some(player) {
-                let vp = VictoryPoints::new(10);
-                results.push((
+    // If there are remaining NML objectives, check who controls them.
+    // The rules say "the LAST No Man's Land objective" — award at most +10VP total per player.
+    // Even if multiple NML objectives remain, each player can only earn +10VP from this bonus.
+    for player_idx in 0..2u32 {
+        let player = PlayerId::new(player_idx);
+        let controls_any_nml = nml_objectives.iter().any(|nml_obj_id| {
+            calculate_objective_controller(state, *nml_obj_id) == Some(player)
+        });
+        if controls_any_nml {
+            let vp = VictoryPoints::new(10);
+            results.push((
+                player,
+                vp,
+                GameEvent::VictoryPointsScored {
                     player,
-                    vp,
-                    GameEvent::VictoryPointsScored {
-                        player,
-                        amount: 10,
-                        source: VpSource::MissionRule(format!(
-                            "Archeotech Recovery: control last NML objective {} (+10VP)",
-                            nml_obj_id
-                        )),
-                    },
-                ));
-            }
+                    amount: 10,
+                    source: VpSource::MissionRule(
+                        "Archeotech Recovery: control last NML objective (+10VP)".to_string(),
+                    ),
+                },
+            ));
         }
     }
 
