@@ -467,8 +467,9 @@ fn deadly_demise_field_stored() {
     // Try many seeds to find one where the DD roll is a 6 (triggers mortal wounds)
     let mut found_dd_trigger = false;
     let mut found_dd_no_trigger = false;
+    let mut destroy_count = 0u32;
 
-    for seed_byte in 0u8..200 {
+    for seed_byte in 0u8..255 {
         let seed = [seed_byte; 32];
         let ctx = DiceContext::new(seed, StreamKind::HitRoll, 0, 0);
         let dice_roller = DiceRoller::new(ctx);
@@ -509,12 +510,6 @@ fn deadly_demise_field_stored() {
         let result = CommandExecutor::execute(&mut state, &cmd);
         match result {
             Ok(events) => {
-                if seed_byte < 5 {
-                    eprintln!("Seed {}: {} events", seed_byte, events.len());
-                    for e in &events {
-                        eprintln!("  Event: {}", e);
-                    }
-                }
                 // Check if the target was destroyed
                 let target_destroyed = events.iter().any(|e| matches!(
                     e,
@@ -522,6 +517,7 @@ fn deadly_demise_field_stored() {
                 ));
 
                 if target_destroyed {
+                    destroy_count += 1;
                     // Check if MortalWoundsInflicted event was emitted (DD triggered on a 6)
                     let dd_triggered = events.iter().any(|e| matches!(
                         e,
@@ -554,14 +550,15 @@ fn deadly_demise_field_stored() {
         }
     }
 
-    // With 200 seeds, we should observe both the D6=6 trigger and non-trigger cases
+    // With 255 seeds, we should observe both the D6=6 trigger and non-trigger cases
     assert!(
         found_dd_trigger,
-        "Deadly Demise should trigger (roll 6) in at least one seed out of 200"
+        "Deadly Demise should trigger (roll 6) in at least one seed out of 255 ({} targets destroyed)",
+        destroy_count,
     );
     assert!(
         found_dd_no_trigger,
-        "Deadly Demise should NOT trigger (roll 1-5) in at least one seed out of 200"
+        "Deadly Demise should NOT trigger (roll 1-5) in at least one seed out of 255"
     );
 }
 
