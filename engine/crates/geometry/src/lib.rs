@@ -741,11 +741,39 @@ pub fn check_coherency(models: &[ModelPosition]) -> CoherencyResult {
         }
     }
 
-    if violating.is_empty() {
+    if !violating.is_empty() {
+        return CoherencyResult::OutOfCoherency {
+            violating_models: violating,
+        };
+    }
+
+    // Also check connectivity: all models must form a single connected group
+    // via coherency-range links (BFS from model 0).
+    // Source: 40k_revised.md §1.7 — unit must be a connected formation
+    let mut visited = vec![false; count];
+    let mut queue = std::collections::VecDeque::new();
+    visited[0] = true;
+    queue.push_back(0);
+    while let Some(current) = queue.pop_front() {
+        for j in 0..count {
+            if visited[j] || j == current {
+                continue;
+            }
+            if within_coherency_range(
+                models[current].position, models[current].base_size, models[current].height,
+                models[j].position, models[j].base_size, models[j].height,
+            ) {
+                visited[j] = true;
+                queue.push_back(j);
+            }
+        }
+    }
+    let disconnected: Vec<usize> = (0..count).filter(|&i| !visited[i]).collect();
+    if disconnected.is_empty() {
         CoherencyResult::Coherent
     } else {
         CoherencyResult::OutOfCoherency {
-            violating_models: violating,
+            violating_models: disconnected,
         }
     }
 }

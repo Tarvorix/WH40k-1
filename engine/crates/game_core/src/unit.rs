@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use wh40k_core_types::{
-    AllocationStatus, ArmorSave, BaseSize, DatasheetId, EngagementStatus, FeelNoPain,
+    AllocationStatus, ArmorSave, BaseSize, DatasheetId, EngagementStatus, FeelNoPain, Inches,
     InvulnerableSave, Keyword, KeywordSet, Leadership, ModelId, MoveCharacteristic,
     ObjectiveControl, PlayerId, Position, Toughness, UnitId, UnitStatus, WeaponProfile, Wounds,
 };
@@ -97,6 +97,17 @@ pub struct UnitState {
     /// Source: 40k_revised.md - Deadly Demise X
     pub deadly_demise: u8,
 
+    /// Scouts pre-game move distance, if this unit has the Scouts ability.
+    /// None means the unit does not have Scouts. Some(distance) is the max Scouts move.
+    /// Source: 40k_revised.md §12.5 - "Scouts X\""
+    pub scouts_distance: Option<Inches>,
+
+    /// Whether this unit has the Infiltrators ability.
+    /// If true, the unit can deploy anywhere on the battlefield >9" from enemy DZ
+    /// and >9" from all enemy models.
+    /// Source: 40k_revised.md §12.4 - Infiltrators
+    pub has_infiltrators: bool,
+
     /// The starting model count for this unit (for half-strength calculations).
     starting_model_count: usize,
 }
@@ -143,6 +154,8 @@ impl UnitState {
             enhancement_oc_override: None,
             enhancement_oc_requires_engaged: false,
             deadly_demise: 0,
+            scouts_distance: None,
+            has_infiltrators: false,
             starting_model_count: starting_count,
         }
     }
@@ -442,6 +455,137 @@ impl WargearAbilityState {
             active: true,
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Coherency Functions
+// ---------------------------------------------------------------------------
+
+/// Check if a unit is in coherency.
+///
+/// Rules (Source: 40k_revised.md §1.7):
+/// - Single model units are always in coherency.
+/// - 2-6 models: each model within 2" horizontally and 5" vertically of at least 1 other model.
+/// - 7+ models: each model within 2" horizontally and 5" vertically of at least 2 other models.
+///
+/// Only alive models are considered. Dead models are ignored entirely.
+pub fn check_unit_coherency(models: &[ModelState]) -> bool {
+    let alive_positions: Vec<wh40k_geometry::ModelPosition> = models
+        .iter()
+        .filter(|m| m.alive)
+        .map(|m| wh40k_geometry::ModelPosition::new(m.position, m.base_size))
+        .collect();
+
+    wh40k_geometry::check_coherency(&alive_positions).is_coherent()
+}
+
+/// Find models that need to be removed to restore coherency.
+///
+/// Returns indices into the original `models` slice (not filtered alive indices)
+/// for models that should be removed. Removes the fewest models possible.
+///
+/// The algorithm works by iteratively finding the alive model that violates
+/// coherency and has the fewest coherent neighbors, removing it, and repeating
+/// until coherency is restored or only one model remains.
+///
+/// Models removed this way count as destroyed but do not trigger "when destroyed" rules.
+///
+/// Source: 40k_revised.md §1.7 — "the controlling player removes models (one at a time)
+/// until coherency is restored"
+pub fn models_to_remove_for_coherency(models: &[ModelState]) -> Vec<usize> {
+    // Build a working set of (original_index, position, base_size, still_present)
+    let mut working: Vec<(usize, wh40k_core_types::Position, wh40k_core_types::BaseSize, bool)> = models
+        .iter()
+        .enumerate()
+        .map(|(i, m)| (i, m.position, m.base_size, m.alive))
+        .collect();
+
+    let mut removed_indices: Vec<usize> = Vec::new();
+
+    loop {
+        // Collect alive/present models into ModelPosition for coherency check
+        let alive_entries: Vec<(usize, wh40k_geometry::ModelPosition)> = working
+            .iter()
+            .filter(|(_, _, _, present)| *present)
+            .map(|(orig_idx, pos, base, _)| {
+                (*orig_idx, wh40k_geometry::ModelPosition::new(*pos, *base))
+            })
+            .collect();
+
+        let alive_count = alive_entries.len();
+
+        // 0 or 1 models are always coherent
+        if alive_count <= 1 {
+            break;
+        }
+
+        let positions: Vec<wh40k_geometry::ModelPosition> =
+            alive_entries.iter().map(|(_, mp)| *mp).collect();
+
+        let result = wh40k_geometry::check_coherency(&positions);
+
+        if result.is_coherent() {
+            break;
+        }
+
+        // Find which models are violating coherency
+        let violating = match &result {
+            wh40k_geometry::CoherencyResult::OutOfCoherency { violating_models } => {
+                violating_models.clone()
+            }
+            _ => break, // Coherent or SingleModel — should not reach here
+        };
+
+        // Among violating models, find the one with the fewest coherent neighbors.
+        // This is the "worst offender" and removing it is most likely to help.
+        let mut worst_violator_alive_idx: Option<usize> = None;
+        let mut worst_neighbor_count = usize::MAX;
+
+        for &alive_idx in &violating {
+            let mut neighbor_count = 0;
+            for (j, mp) in positions.iter().enumerate() {
+                if j == alive_idx {
+                    continue;
+                }
+                if wh40k_geometry::within_coherency_range_2d(
+                    positions[alive_idx].position,
+                    positions[alive_idx].base_size,
+                    mp.position,
+                    mp.base_size,
+                ) {
+                    neighbor_count += 1;
+                }
+            }
+            if neighbor_count < worst_neighbor_count {
+                worst_neighbor_count = neighbor_count;
+                worst_violator_alive_idx = Some(alive_idx);
+            }
+        }
+
+        // Remove the worst violator
+        if let Some(alive_idx) = worst_violator_alive_idx {
+            let orig_idx = alive_entries[alive_idx].0;
+            working[orig_idx].3 = false; // Mark as no longer present
+            removed_indices.push(orig_idx);
+        } else {
+            // Safety: should not happen, but break to avoid infinite loop
+            break;
+        }
+
+        // Guard: if we've removed everything down to 1 model, stop
+        let remaining = working.iter().filter(|(_, _, _, p)| *p).count();
+        if remaining <= 1 {
+            break;
+        }
+
+        // Additional guard: don't remove more models than exist minus one
+        // (must leave at least one model alive)
+        if removed_indices.len() >= models.iter().filter(|m| m.alive).count() - 1 {
+            break;
+        }
+    }
+
+    removed_indices
 }
 
 // ---------------------------------------------------------------------------
@@ -810,5 +954,203 @@ mod tests {
 
         unit.models[2].alive = false;
         assert!(unit.is_below_half_strength()); // 2 alive, below half
+    }
+
+    // ===== Coherency Tests =====
+
+    fn make_model_at(id: u32, unit_id: UnitId, x: i32, y: i32) -> ModelState {
+        ModelState::new(
+            ModelId::new(id),
+            unit_id,
+            Wounds::new(3),
+            Position::from_inches(x, y),
+            BaseSize::MM32,
+            Vec::new(),
+            Vec::new(),
+            false,
+            None,
+        )
+    }
+
+    #[test]
+    fn test_coherency_single_model_always_coherent() {
+        let unit_id = UnitId::new(1);
+        let models = vec![make_model_at(1, unit_id, 10, 10)];
+        assert!(check_unit_coherency(&models));
+    }
+
+    #[test]
+    fn test_coherency_empty_is_coherent() {
+        let models: Vec<ModelState> = vec![];
+        assert!(check_unit_coherency(&models));
+    }
+
+    #[test]
+    fn test_coherency_two_models_within_2_inches() {
+        let unit_id = UnitId::new(1);
+        let models = vec![
+            make_model_at(1, unit_id, 10, 10),
+            make_model_at(2, unit_id, 11, 10), // 1" away
+        ];
+        assert!(check_unit_coherency(&models));
+    }
+
+    #[test]
+    fn test_coherency_two_models_beyond_2_inches() {
+        let unit_id = UnitId::new(1);
+        let models = vec![
+            make_model_at(1, unit_id, 10, 10),
+            make_model_at(2, unit_id, 20, 10), // 10" away
+        ];
+        assert!(!check_unit_coherency(&models));
+    }
+
+    #[test]
+    fn test_coherency_three_models_chain() {
+        let unit_id = UnitId::new(1);
+        // A---B---C each 1" apart, chain is fine for 2-6 models (need 1 neighbor)
+        let models = vec![
+            make_model_at(1, unit_id, 10, 10),
+            make_model_at(2, unit_id, 11, 10),
+            make_model_at(3, unit_id, 12, 10),
+        ];
+        assert!(check_unit_coherency(&models));
+    }
+
+    #[test]
+    fn test_coherency_ignores_dead_models() {
+        let unit_id = UnitId::new(1);
+        let mut models = vec![
+            make_model_at(1, unit_id, 10, 10),
+            make_model_at(2, unit_id, 20, 10), // far away, but dead
+            make_model_at(3, unit_id, 11, 10), // close to model 1
+        ];
+        models[1].alive = false;
+        assert!(check_unit_coherency(&models));
+    }
+
+    #[test]
+    fn test_coherency_all_dead_is_coherent() {
+        let unit_id = UnitId::new(1);
+        let mut models = vec![
+            make_model_at(1, unit_id, 10, 10),
+            make_model_at(2, unit_id, 20, 20),
+        ];
+        models[0].alive = false;
+        models[1].alive = false;
+        // No alive models = trivially coherent (empty set)
+        assert!(check_unit_coherency(&models));
+    }
+
+    #[test]
+    fn test_coherency_seven_plus_needs_two_neighbors() {
+        let unit_id = UnitId::new(1);
+        // 7 models in a line, each 2" apart (so end models only have 1 neighbor)
+        // Model 0 at (10,10) has neighbor at (12,10)=2" away only -> needs 2 -> incoherent
+        let models: Vec<ModelState> = (0..7)
+            .map(|i| make_model_at(i as u32, unit_id, 10 + (i as i32) * 2, 10))
+            .collect();
+        // End models (0 and 6) only have 1 neighbor each within 2", so this should fail
+        assert!(!check_unit_coherency(&models));
+    }
+
+    #[test]
+    fn test_coherency_seven_models_clustered() {
+        let unit_id = UnitId::new(1);
+        // 7 models all within 1" of each other (clustered)
+        // Each has 6 neighbors -> satisfies the 2-neighbor requirement
+        let models = vec![
+            make_model_at(1, unit_id, 10, 10),
+            make_model_at(2, unit_id, 10, 11),
+            make_model_at(3, unit_id, 11, 10),
+            make_model_at(4, unit_id, 11, 11),
+            make_model_at(5, unit_id, 10, 9),
+            make_model_at(6, unit_id, 9, 10),
+            make_model_at(7, unit_id, 9, 11),
+        ];
+        assert!(check_unit_coherency(&models));
+    }
+
+    #[test]
+    fn test_coherency_six_models_chain_is_ok() {
+        let unit_id = UnitId::new(1);
+        // 6 models in a chain (1" apart), only need 1 neighbor each
+        let models: Vec<ModelState> = (0..6)
+            .map(|i| make_model_at(i as u32, unit_id, 10 + i as i32, 10))
+            .collect();
+        assert!(check_unit_coherency(&models));
+    }
+
+    #[test]
+    fn test_models_to_remove_already_coherent() {
+        let unit_id = UnitId::new(1);
+        let models = vec![
+            make_model_at(1, unit_id, 10, 10),
+            make_model_at(2, unit_id, 11, 10),
+        ];
+        let to_remove = models_to_remove_for_coherency(&models);
+        assert!(to_remove.is_empty(), "Already coherent, nothing to remove");
+    }
+
+    #[test]
+    fn test_models_to_remove_one_straggler() {
+        let unit_id = UnitId::new(1);
+        // 3 models: two close, one far away
+        let models = vec![
+            make_model_at(1, unit_id, 10, 10),
+            make_model_at(2, unit_id, 11, 10), // close to model 0
+            make_model_at(3, unit_id, 30, 30), // far from everyone
+        ];
+        let to_remove = models_to_remove_for_coherency(&models);
+        assert_eq!(to_remove.len(), 1);
+        assert_eq!(to_remove[0], 2, "The far model at index 2 should be removed");
+    }
+
+    #[test]
+    fn test_models_to_remove_restores_coherency() {
+        let unit_id = UnitId::new(1);
+        // 4 models: two pairs far from each other
+        let mut models = vec![
+            make_model_at(1, unit_id, 10, 10),
+            make_model_at(2, unit_id, 11, 10),
+            make_model_at(3, unit_id, 30, 30),
+            make_model_at(4, unit_id, 31, 30),
+        ];
+        assert!(!check_unit_coherency(&models));
+
+        let to_remove = models_to_remove_for_coherency(&models);
+        // Remove the indicated models
+        for &idx in &to_remove {
+            models[idx].alive = false;
+        }
+        // After removal, should be coherent
+        assert!(check_unit_coherency(&models));
+    }
+
+    #[test]
+    fn test_models_to_remove_single_model_nothing() {
+        let unit_id = UnitId::new(1);
+        let models = vec![make_model_at(1, unit_id, 10, 10)];
+        let to_remove = models_to_remove_for_coherency(&models);
+        assert!(to_remove.is_empty());
+    }
+
+    #[test]
+    fn test_models_to_remove_seven_plus_line() {
+        let unit_id = UnitId::new(1);
+        // 7 models in a line, each 2" apart — end models only have 1 neighbor (needs 2)
+        // After removal, should be coherent
+        let mut models: Vec<ModelState> = (0..7)
+            .map(|i| make_model_at(i as u32, unit_id, 10 + (i as i32) * 2, 10))
+            .collect();
+        assert!(!check_unit_coherency(&models));
+
+        let to_remove = models_to_remove_for_coherency(&models);
+        assert!(!to_remove.is_empty(), "Should need to remove models from a 7-model line");
+
+        for &idx in &to_remove {
+            models[idx].alive = false;
+        }
+        assert!(check_unit_coherency(&models), "Should be coherent after removal");
     }
 }

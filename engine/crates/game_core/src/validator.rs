@@ -146,6 +146,9 @@ impl CommandValidator {
             Command::ArriveFromReserves { unit_id, position } => {
                 Self::validate_arrive_from_reserves(state, *unit_id, *position)
             }
+            Command::ScoutsMove { unit_id, destination } => {
+                Self::validate_scouts_move(state, *unit_id, *destination)
+            }
 
             // ===== Shooting commands =====
             Command::SelectUnitToShoot { unit_id } => {
@@ -454,6 +457,17 @@ impl CommandValidator {
             return CommandValidationResult::illegal("Position is outside the board");
         }
 
+        // Infiltrators deployment: can deploy anywhere on the battlefield,
+        // but must be >9" from enemy deployment zone and >9" from all enemy models.
+        // Source: 40k_revised.md §12.4 - Infiltrators
+        if unit.has_infiltrators {
+            if let Some(result) = Self::validate_infiltrators_position(state, position, player) {
+                return result;
+            }
+            // Infiltrators bypass normal deployment zone constraints
+            return CommandValidationResult::Legal;
+        }
+
         // Check that the position is within the player's deployment zone
         if let Some(ref config) = state.deployment_config {
             // Combat Patrol: check standard deployment zones
@@ -633,6 +647,50 @@ impl CommandValidator {
                     "40k_revised.md - Normal Move: up to M characteristic",
                 );
             }
+
+            // AIRCRAFT movement: minimum 20" move distance (or M if less than 20")
+            // Source: 40k_revised.md §16.1
+            if unit.keywords.has(Keyword::Aircraft) {
+                let twenty_inches = wh40k_core_types::Inches::from_inches(20);
+                let min_distance = std::cmp::min(twenty_inches, unit.base_movement.distance());
+                if distance < min_distance {
+                    return CommandValidationResult::illegal_with_ref(
+                        format!(
+                            "AIRCRAFT must move at least {} (minimum 20\" or M characteristic, whichever is less); attempted {}",
+                            min_distance, distance
+                        ),
+                        "40k_revised.md §16.1 - AIRCRAFT minimum move distance",
+                    );
+                }
+            }
+        }
+
+        // AIRCRAFT must end move more than 9" from all enemy models
+        // Source: 40k_revised.md §16.1
+        if unit.keywords.has(Keyword::Aircraft) {
+            let nine_inches = wh40k_core_types::Inches::from_inches(9);
+            for enemy_unit in &state.units {
+                if enemy_unit.owner == unit.owner || enemy_unit.is_destroyed() || !enemy_unit.is_on_battlefield() {
+                    continue;
+                }
+                for enemy_model in enemy_unit.models.iter().filter(|m| m.alive) {
+                    let dist = wh40k_geometry::distance_between_models(
+                        destination,
+                        unit.models.first().map(|m| m.base_size).unwrap_or(wh40k_core_types::BaseSize::MM25),
+                        enemy_model.position,
+                        enemy_model.base_size,
+                    );
+                    if dist <= nine_inches {
+                        return CommandValidationResult::illegal_with_ref(
+                            format!(
+                                "AIRCRAFT must end move more than 9\" from all enemy models (distance: {})",
+                                dist
+                            ),
+                            "40k_revised.md §16.1 - AIRCRAFT 9\" distance requirement",
+                        );
+                    }
+                }
+            }
         }
 
         // #9: Normal Move cannot end within Engagement Range of any enemy model
@@ -656,9 +714,15 @@ impl CommandValidator {
             }
         }
 
-        // Model stacking prevention: destination must not overlap with any other alive model
-        // Uses 1" tolerance for base overlap (simplified; full path collision requires pathfinding)
+        // Model stacking prevention: destination must not overlap with any other alive model.
+        // Uses 1" tolerance for base overlap (simplified; full path collision requires pathfinding).
         // Source: 40k_revised.md §5.1 - Models cannot move through or over other models
+        //
+        // FLY exception (§5.8): FLY models can move OVER enemy models and friendly
+        // MONSTER/VEHICLE during Normal, Advance, or Fall Back moves. However, they
+        // still cannot END their move on top of another model. Since this check only
+        // validates the destination position (not the path), it correctly prevents
+        // FLY models from ending on top of other models while allowing path traversal.
         let overlap_tolerance = wh40k_core_types::Inches::from_inches(1);
         for other_unit in &state.units {
             if other_unit.is_destroyed() || !other_unit.is_on_battlefield() {
@@ -674,6 +738,31 @@ impl CommandValidator {
                     return CommandValidationResult::illegal_with_ref(
                         "Destination overlaps with another model's position",
                         "40k_revised.md §5.1 - Models cannot be stacked on the same position",
+                    );
+                }
+            }
+        }
+
+        // Unit coherency check: after moving, the unit must remain in coherency.
+        // Simulate translated model positions and verify coherency is maintained.
+        // Source: 40k_revised.md §1.7 - Unit Coherency
+        if unit.models_alive() > 1 {
+            if let Some(ref_pos) = unit.reference_position() {
+                let dx = wh40k_core_types::Inches(destination.x.0 - ref_pos.x.0);
+                let dy = wh40k_core_types::Inches(destination.y.0 - ref_pos.y.0);
+                let translated_positions: Vec<wh40k_geometry::ModelPosition> = unit
+                    .models
+                    .iter()
+                    .filter(|m| m.alive)
+                    .map(|m| {
+                        let new_pos = m.position.translate(dx, dy);
+                        wh40k_geometry::ModelPosition::new(new_pos, m.base_size)
+                    })
+                    .collect();
+                if !wh40k_geometry::check_coherency(&translated_positions).is_coherent() {
+                    return CommandValidationResult::illegal_with_ref(
+                        "Normal Move would break unit coherency",
+                        "40k_revised.md §1.7 - Unit Coherency: must maintain coherency after move",
                     );
                 }
             }
@@ -709,6 +798,15 @@ impl CommandValidator {
             return CommandValidationResult::illegal_with_ref(
                 "Cannot Advance while within Engagement Range",
                 "40k_revised.md - Movement Phase: Engaged units cannot Advance",
+            );
+        }
+
+        // AIRCRAFT cannot Advance
+        // Source: 40k_revised.md §16.1 - AIRCRAFT can only make Normal Moves
+        if unit.keywords.has(Keyword::Aircraft) {
+            return CommandValidationResult::illegal_with_ref(
+                "AIRCRAFT units cannot Advance",
+                "40k_revised.md §16.1 - AIRCRAFT: cannot Advance",
             );
         }
 
@@ -792,6 +890,15 @@ impl CommandValidator {
 
         if !unit.is_on_battlefield() {
             return CommandValidationResult::illegal("Unit is not on the battlefield");
+        }
+
+        // AIRCRAFT cannot Fall Back
+        // Source: 40k_revised.md §16.1 - AIRCRAFT can only make Normal Moves
+        if unit.keywords.has(Keyword::Aircraft) {
+            return CommandValidationResult::illegal_with_ref(
+                "AIRCRAFT units cannot Fall Back",
+                "40k_revised.md §16.1 - AIRCRAFT: cannot Fall Back",
+            );
         }
 
         // Must be engaged to fall back
@@ -879,6 +986,15 @@ impl CommandValidator {
 
         if unit.is_destroyed() {
             return CommandValidationResult::illegal("Unit is destroyed");
+        }
+
+        // AIRCRAFT cannot Remain Stationary
+        // Source: 40k_revised.md §16.1 - AIRCRAFT must make a Normal Move each turn
+        if unit.keywords.has(Keyword::Aircraft) {
+            return CommandValidationResult::illegal_with_ref(
+                "AIRCRAFT units cannot Remain Stationary",
+                "40k_revised.md §16.1 - AIRCRAFT: cannot Remain Stationary",
+            );
         }
 
         CommandValidationResult::Legal
@@ -977,6 +1093,192 @@ impl CommandValidator {
         }
 
         CommandValidationResult::Legal
+    }
+
+    /// Validate a Scouts pre-game move.
+    ///
+    /// Source: 40k_revised.md §12.5 - Scouts
+    /// Rules:
+    /// - Unit must have the Scouts ability (scouts_distance is Some)
+    /// - Must be in PreBattle phase (before the first turn begins)
+    /// - Move distance must be <= scouts_distance
+    /// - Must end more than 9" horizontally from all enemy models
+    /// - Destination must be on the board
+    fn validate_scouts_move(
+        state: &GameState,
+        unit_id: wh40k_core_types::UnitId,
+        destination: wh40k_core_types::Position,
+    ) -> CommandValidationResult {
+        // Must be in PreBattle phase (Scouts moves happen before Turn 1)
+        if state.current_phase != Phase::PreBattle {
+            return CommandValidationResult::illegal_with_ref(
+                "ScoutsMove is only valid in the PreBattle phase (before the first turn)",
+                "40k_revised.md §12.5 - Scouts: before first turn begins",
+            );
+        }
+
+        let unit = match state.unit(unit_id) {
+            Some(u) => u,
+            None => return CommandValidationResult::illegal("Unit not found"),
+        };
+
+        if !unit.is_on_battlefield() {
+            return CommandValidationResult::illegal("Unit is not on the battlefield");
+        }
+
+        if unit.is_destroyed() {
+            return CommandValidationResult::illegal("Unit is destroyed");
+        }
+
+        // Must have the Scouts ability
+        let scouts_dist = match unit.scouts_distance {
+            Some(d) => d,
+            None => return CommandValidationResult::illegal_with_ref(
+                "Unit does not have the Scouts ability",
+                "40k_revised.md §12.5 - Only units with Scouts can make this move",
+            ),
+        };
+
+        // Destination must be on the board
+        if !state.board.contains(destination) {
+            return CommandValidationResult::illegal("Destination is outside the board");
+        }
+
+        // Check all models would remain on the board after translation
+        if let Some(reason) = Self::all_models_on_board_after_move(state, unit_id, destination) {
+            return CommandValidationResult::illegal_with_ref(
+                reason,
+                "40k_revised.md §12.5 - Scouts: models cannot move off the battlefield",
+            );
+        }
+
+        // Check movement distance <= scouts_distance
+        if let Some(current_pos) = unit.reference_position() {
+            let distance = current_pos.distance(destination);
+            if distance > scouts_dist {
+                return CommandValidationResult::illegal_with_ref(
+                    format!(
+                        "Scouts move distance ({}) exceeds Scouts distance ({})",
+                        distance, scouts_dist
+                    ),
+                    "40k_revised.md §12.5 - Scouts: up to X inches",
+                );
+            }
+        }
+
+        // Must end more than 9" from all enemy models
+        // Source: 40k_revised.md §12.5 - "must end more than 9\" horizontally from all enemy models"
+        let nine_inches = wh40k_core_types::Inches::SCOUTS_MIN_ENEMY_DISTANCE;
+        for enemy_unit in &state.units {
+            if enemy_unit.owner == unit.owner || enemy_unit.is_destroyed() || !enemy_unit.is_on_battlefield() {
+                continue;
+            }
+            for enemy_model in enemy_unit.models.iter().filter(|m| m.alive) {
+                let dist = destination.distance(enemy_model.position);
+                if dist <= nine_inches {
+                    return CommandValidationResult::illegal_with_ref(
+                        format!(
+                            "Scouts move must end more than 9\" from all enemy models \
+                             (enemy model at {} is {} away)",
+                            enemy_model.position, dist
+                        ),
+                        "40k_revised.md §12.5 - Scouts: >9\" from all enemy models",
+                    );
+                }
+            }
+        }
+
+        CommandValidationResult::Legal
+    }
+
+    /// Validate Infiltrators deployment position.
+    ///
+    /// Source: 40k_revised.md §12.4 - Infiltrators
+    /// Rules:
+    /// - Unit must have the Infiltrators ability (has_infiltrators == true)
+    /// - Can be set up anywhere on the battlefield
+    /// - Must be more than 9" horizontally from enemy deployment zone
+    /// - Must be more than 9" horizontally from all enemy models
+    ///
+    /// Returns `None` if valid, or `Some(reason)` if invalid.
+    /// Called from `validate_place_unit` when the unit has Infiltrators.
+    fn validate_infiltrators_position(
+        state: &GameState,
+        position: wh40k_core_types::Position,
+        unit_owner: wh40k_core_types::PlayerId,
+    ) -> Option<CommandValidationResult> {
+        // Must be >9" from enemy deployment zone
+        // Source: 40k_revised.md §12.4 - "more than 9\" horizontally from enemy deployment zone"
+        let nine_inches = wh40k_core_types::Inches::INFILTRATORS_MIN_DZ_DISTANCE;
+
+        if let Some(ref config) = state.deployment_config {
+            // Get the enemy's deployment zone
+            let enemy_player = if unit_owner == state.players[0].id {
+                state.players[1].id
+            } else {
+                state.players[0].id
+            };
+            let enemy_zone = config.zone_for(enemy_player);
+
+            // If point is inside enemy DZ, distance is 0 (definitely too close)
+            if enemy_zone.polygon.contains(position) {
+                return Some(CommandValidationResult::illegal_with_ref(
+                    "Infiltrators cannot deploy inside the enemy deployment zone",
+                    "40k_revised.md §12.4 - Infiltrators: >9\" from enemy deployment zone",
+                ));
+            }
+
+            // Check distance from position to the nearest edge of the enemy DZ polygon
+            let dist_to_enemy_dz = enemy_zone.polygon.min_distance_to(position);
+            if dist_to_enemy_dz <= nine_inches {
+                return Some(CommandValidationResult::illegal_with_ref(
+                    format!(
+                        "Infiltrators must deploy more than 9\" from the enemy deployment zone \
+                         (distance to enemy DZ is {})",
+                        dist_to_enemy_dz
+                    ),
+                    "40k_revised.md §12.4 - Infiltrators: >9\" from enemy deployment zone",
+                ));
+            }
+        }
+
+        // Must be >9" from all enemy models
+        // Source: 40k_revised.md §12.4 - "more than 9\" horizontally from all enemy models"
+        for enemy_unit in &state.units {
+            if enemy_unit.owner == unit_owner || enemy_unit.is_destroyed() || !enemy_unit.is_on_battlefield() {
+                continue;
+            }
+            for enemy_model in enemy_unit.models.iter().filter(|m| m.alive) {
+                let dist = position.distance(enemy_model.position);
+                if dist <= nine_inches {
+                    return Some(CommandValidationResult::illegal_with_ref(
+                        format!(
+                            "Infiltrators must deploy more than 9\" from all enemy models \
+                             (enemy model at {} is {} away)",
+                            enemy_model.position, dist
+                        ),
+                        "40k_revised.md §12.4 - Infiltrators: >9\" from all enemy models",
+                    ));
+                }
+            }
+        }
+
+        None // Valid position
+    }
+
+    /// Check if a unit has the FLY keyword for movement purposes.
+    ///
+    /// FLY models can move over enemy models and friendly MONSTER/VEHICLE
+    /// during Normal, Advance, or Fall Back moves.
+    ///
+    /// Note: In Boarding Actions, FLY is suppressed.
+    /// Source: 40k_revised.md §5.8 - Flying Models
+    /// Source: boarding_actions_complete_v3.md Section 3.2 - FLY suppressed in BA
+    pub fn has_fly_for_movement(state: &GameState, unit: &crate::unit::UnitState) -> bool {
+        if state.is_boarding_actions() {
+            return false; // FLY suppressed in Boarding Actions
+        }
+        unit.keywords.has(Keyword::Fly)
     }
 
     fn validate_select_unit_to_shoot(
@@ -1489,6 +1791,15 @@ impl CommandValidator {
                 ));
             }
 
+            // AIRCRAFT cannot be targeted by charges
+            // Source: 40k_revised.md §16.2 - AIRCRAFT cannot be the target of a charge
+            if target.keywords.has(Keyword::Aircraft) {
+                return CommandValidationResult::illegal_with_ref(
+                    format!("Cannot declare a charge against AIRCRAFT unit {}", target_id),
+                    "40k_revised.md §16.2 - AIRCRAFT: cannot be the target of a charge",
+                );
+            }
+
             // Check 12" range from closest models
             if let Some(charger_pos) = unit_ref_pos {
                 let mut any_within_12 = false;
@@ -1658,6 +1969,31 @@ impl CommandValidator {
             }
         }
 
+        // Unit coherency check: after charge move, the unit must remain in coherency.
+        // Simulate translated model positions and verify coherency is maintained.
+        // Source: 40k_revised.md §1.7 - Unit Coherency; §9.4 - "Ends in Unit Coherency"
+        if unit.models_alive() > 1 {
+            if let Some(ref_pos) = unit.reference_position() {
+                let dx = wh40k_core_types::Inches(destination.x.0 - ref_pos.x.0);
+                let dy = wh40k_core_types::Inches(destination.y.0 - ref_pos.y.0);
+                let translated_positions: Vec<wh40k_geometry::ModelPosition> = unit
+                    .models
+                    .iter()
+                    .filter(|m| m.alive)
+                    .map(|m| {
+                        let new_pos = m.position.translate(dx, dy);
+                        wh40k_geometry::ModelPosition::new(new_pos, m.base_size)
+                    })
+                    .collect();
+                if !wh40k_geometry::check_coherency(&translated_positions).is_coherent() {
+                    return CommandValidationResult::illegal_with_ref(
+                        "Charge Move would break unit coherency",
+                        "40k_revised.md §1.7 - Unit Coherency: must end charge in coherency",
+                    );
+                }
+            }
+        }
+
         CommandValidationResult::Legal
     }
 
@@ -1763,6 +2099,16 @@ impl CommandValidator {
             return CommandValidationResult::illegal("Unit is destroyed");
         }
 
+        // AIRCRAFT cannot be selected to fight
+        // Source: 40k_revised.md §16.2 - AIRCRAFT cannot be selected to fight
+        // (they cannot charge, so the "unless they charged" exception never applies)
+        if unit.keywords.has(Keyword::Aircraft) {
+            return CommandValidationResult::illegal_with_ref(
+                "AIRCRAFT units cannot be selected to fight",
+                "40k_revised.md §16.2 - AIRCRAFT: cannot be selected to fight",
+            );
+        }
+
         // Already fought this phase
         // Source: 40k_revised.md - "No unit can fight more than once per Fight phase"
         if state.turn_flags.has_fought(unit_id) {
@@ -1865,6 +2211,15 @@ impl CommandValidator {
 
         if unit.is_destroyed() || !unit.is_on_battlefield() {
             return CommandValidationResult::illegal("Unit is not on the battlefield or is destroyed");
+        }
+
+        // AIRCRAFT cannot make Pile-In or Consolidation moves
+        // Source: 40k_revised.md §16.2 - AIRCRAFT cannot Pile In or Consolidate
+        if unit.keywords.has(Keyword::Aircraft) {
+            return CommandValidationResult::illegal_with_ref(
+                format!("AIRCRAFT units cannot make {} moves", move_name),
+                "40k_revised.md §16.2 - AIRCRAFT: cannot Pile In or Consolidate",
+            );
         }
 
         // Max move distance: 3" for Pile-In, 3" for Consolidate
@@ -3251,5 +3606,487 @@ mod tests {
 
         let result = CommandValidator::validate(&state, &cmd);
         assert!(result.is_legal(), "Lone Operative within 12\" should be targetable");
+    }
+
+    // ===== AIRCRAFT movement rules tests =====
+    // Source: 40k_revised.md §16.1-16.2
+
+    #[test]
+    fn test_aircraft_normal_move_minimum_distance() {
+        let mut state = make_test_state_for_validation();
+        // Give the unit AIRCRAFT keyword and a large movement characteristic (e.g., 30")
+        state.units[0].keywords = KeywordSet::from_keywords(&[Keyword::Infantry, Keyword::Aircraft]);
+        state.units[0].base_movement = MoveCharacteristic::from_inches(30);
+        // Move only 5" — below the 20" minimum
+        let cmd = Command::NormalMove {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(15, 5), // 5" from (10,5)
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "AIRCRAFT must move at least 20\"");
+    }
+
+    #[test]
+    fn test_aircraft_normal_move_minimum_distance_low_m() {
+        let mut state = make_test_state_for_validation();
+        // AIRCRAFT with M=12" — minimum is min(20, 12) = 12"
+        state.units[0].keywords = KeywordSet::from_keywords(&[Keyword::Infantry, Keyword::Aircraft]);
+        state.units[0].base_movement = MoveCharacteristic::from_inches(12);
+        // Move only 5" — below the 12" minimum
+        let cmd = Command::NormalMove {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(15, 5), // 5" from (10,5)
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "AIRCRAFT with M=12\" must move at least 12\"");
+    }
+
+    #[test]
+    fn test_aircraft_normal_move_valid_distance() {
+        let mut state = make_test_state_for_validation();
+        // AIRCRAFT with M=30" — move 25" (above 20" minimum, below 30" max)
+        state.units[0].keywords = KeywordSet::from_keywords(&[Keyword::Infantry, Keyword::Aircraft]);
+        state.units[0].base_movement = MoveCharacteristic::from_inches(30);
+        // Move 25" to (35, 5) — enemy is at (20,20) which is > 9" away
+        let cmd = Command::NormalMove {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(35, 5),
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_legal(), "AIRCRAFT moving 25\" with M=30\" should be legal");
+    }
+
+    #[test]
+    fn test_aircraft_normal_move_too_close_to_enemy() {
+        let mut state = make_test_state_for_validation();
+        // AIRCRAFT with M=30"
+        state.units[0].keywords = KeywordSet::from_keywords(&[Keyword::Infantry, Keyword::Aircraft]);
+        state.units[0].base_movement = MoveCharacteristic::from_inches(30);
+        // Move enemy to (30, 5) so aircraft destination (30, 10) is within 9"
+        state.units[1].models[0].position = Position::from_inches(30, 10);
+        // Move 20" to (30, 5) — only 5" from enemy at (30, 10)
+        let cmd = Command::NormalMove {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(30, 5),
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "AIRCRAFT must end more than 9\" from all enemy models");
+    }
+
+    #[test]
+    fn test_aircraft_cannot_remain_stationary() {
+        let mut state = make_test_state_for_validation();
+        state.units[0].keywords = KeywordSet::from_keywords(&[Keyword::Infantry, Keyword::Aircraft]);
+        let cmd = Command::RemainStationary {
+            unit_id: UnitId::new(1),
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "AIRCRAFT cannot Remain Stationary");
+    }
+
+    #[test]
+    fn test_aircraft_cannot_advance() {
+        let mut state = make_test_state_for_validation();
+        state.units[0].keywords = KeywordSet::from_keywords(&[Keyword::Infantry, Keyword::Aircraft]);
+        let cmd = Command::AdvanceMove {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(20, 5),
+            advance_roll: 3,
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "AIRCRAFT cannot Advance");
+    }
+
+    #[test]
+    fn test_aircraft_cannot_fall_back() {
+        let mut state = make_test_state_for_validation();
+        state.units[0].keywords = KeywordSet::from_keywords(&[Keyword::Infantry, Keyword::Aircraft]);
+        state.units[0].engagement_status = EngagementStatus::Engaged;
+        let cmd = Command::FallBack {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(5, 5),
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "AIRCRAFT cannot Fall Back");
+    }
+
+    #[test]
+    fn test_aircraft_cannot_be_charge_target() {
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::Charge;
+        // Give the enemy unit AIRCRAFT keyword
+        state.units[1].keywords = KeywordSet::from_keywords(&[Keyword::Infantry, Keyword::Aircraft]);
+        // Move enemy closer so it's within 12"
+        state.units[1].models[0].position = Position::from_inches(18, 5);
+        let cmd = Command::DeclareCharge {
+            unit_id: UnitId::new(1),
+            targets: vec![UnitId::new(2)],
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "AIRCRAFT cannot be the target of a charge");
+    }
+
+    #[test]
+    fn test_aircraft_cannot_pile_in() {
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::Fight;
+        state.units[0].keywords = KeywordSet::from_keywords(&[Keyword::Infantry, Keyword::Aircraft]);
+        let cmd = Command::PileIn {
+            unit_id: UnitId::new(1),
+            positions: vec![(ModelId::new(100), Position::from_inches(11, 5))],
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "AIRCRAFT cannot Pile In");
+    }
+
+    #[test]
+    fn test_aircraft_cannot_consolidate() {
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::Fight;
+        state.units[0].keywords = KeywordSet::from_keywords(&[Keyword::Infantry, Keyword::Aircraft]);
+        let cmd = Command::Consolidate {
+            unit_id: UnitId::new(1),
+            positions: vec![(ModelId::new(100), Position::from_inches(11, 5))],
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "AIRCRAFT cannot Consolidate");
+    }
+
+    #[test]
+    fn test_aircraft_cannot_be_selected_to_fight() {
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::Fight;
+        state.units[0].keywords = KeywordSet::from_keywords(&[Keyword::Infantry, Keyword::Aircraft]);
+        state.units[0].engagement_status = EngagementStatus::Engaged;
+        let cmd = Command::SelectUnitToFight {
+            unit_id: UnitId::new(1),
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "AIRCRAFT cannot be selected to fight");
+    }
+
+    // ===== Coherency validation tests =====
+
+    /// Helper: create a multi-model unit for coherency testing.
+    /// Models are placed at the given positions.
+    fn make_multi_model_unit(
+        unit_id_val: u32,
+        player: PlayerId,
+        positions: &[(i32, i32)],
+    ) -> UnitState {
+        let unit_id = UnitId::new(unit_id_val);
+        let models: Vec<ModelState> = positions
+            .iter()
+            .enumerate()
+            .map(|(i, &(x, y))| {
+                ModelState::new(
+                    ModelId::new(unit_id_val * 100 + i as u32),
+                    unit_id,
+                    Wounds::new(3),
+                    Position::from_inches(x, y),
+                    BaseSize::MM32,
+                    Vec::new(),
+                    Vec::new(),
+                    false,
+                    None,
+                )
+            })
+            .collect();
+
+        let mut unit = UnitState::new(
+            unit_id,
+            player,
+            format!("Test Unit {}", unit_id_val),
+            DatasheetId::new(unit_id_val),
+            KeywordSet::from_keywords(&[Keyword::Infantry]),
+            models,
+            MoveCharacteristic::from_inches(6),
+            Toughness::new(4),
+            ArmorSave::THREE_PLUS,
+            None,
+            Leadership::new(7),
+            ObjectiveControl::new(2),
+        );
+        unit.status = UnitStatus::OnBattlefield;
+        unit
+    }
+
+    #[test]
+    fn test_normal_move_coherent_multi_model_allowed() {
+        // 3 models in a tight group — moving the reference point 2" keeps them coherent
+        let mut state = make_test_state_for_validation();
+        let unit = make_multi_model_unit(
+            1,
+            PlayerId::new(0),
+            &[(10, 5), (11, 5), (10, 6)],
+        );
+        state.units = vec![unit];
+        // Add enemy far away so it doesn't interfere
+        let enemy = make_multi_model_unit(2, PlayerId::new(1), &[(40, 40)]);
+        state.units.push(enemy);
+
+        // Move the unit 2" to the right (reference is model 0 at (10,5) -> destination (12,5))
+        let cmd = Command::NormalMove {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(12, 5),
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_legal(), "Coherent multi-model unit should be allowed to Normal Move: {:?}", result);
+    }
+
+    #[test]
+    fn test_normal_move_incoherent_multi_model_rejected() {
+        // 3 models: two close together, one far away = already incoherent
+        // Moving them should still be rejected because coherency is broken after translation
+        let mut state = make_test_state_for_validation();
+        let unit = make_multi_model_unit(
+            1,
+            PlayerId::new(0),
+            &[(10, 5), (11, 5), (25, 25)], // model at (25,25) is far from others
+        );
+        state.units = vec![unit];
+        // Add enemy far away
+        let enemy = make_multi_model_unit(2, PlayerId::new(1), &[(40, 40)]);
+        state.units.push(enemy);
+
+        // Move the unit 1" to the right (coherency still broken after translation)
+        let cmd = Command::NormalMove {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(11, 5),
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "Incoherent unit should not be allowed to move");
+    }
+
+    #[test]
+    fn test_normal_move_single_model_always_coherent() {
+        // Single model unit — coherency trivially satisfied
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::Movement;
+        // The default test state already has a single-model unit at (10,5)
+        let cmd = Command::NormalMove {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(12, 5),
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_legal(), "Single model unit move should be legal: {:?}", result);
+    }
+
+    #[test]
+    fn test_charge_move_coherent_allowed() {
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::Charge;
+        let unit = make_multi_model_unit(
+            1,
+            PlayerId::new(0),
+            &[(10, 5), (11, 5), (10, 6)],
+        );
+        state.units = vec![unit];
+
+        // Enemy within charge range
+        let enemy = make_multi_model_unit(2, PlayerId::new(1), &[(14, 5)]);
+        state.units.push(enemy);
+
+        // Set up charge roll and targets
+        state.turn_flags.set_charge_roll(UnitId::new(1), 5);
+        state.turn_flags.set_charge_targets(UnitId::new(1), vec![UnitId::new(2)]);
+
+        // Charge move: reference (10,5) -> (13,5), which is within ER of enemy at (14,5)
+        let cmd = Command::MakeChargeMove {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(13, 5),
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_legal(), "Coherent charge move should be legal: {:?}", result);
+    }
+
+    #[test]
+    fn test_charge_move_incoherent_rejected() {
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::Charge;
+        // Unit with broken coherency: two models close, one far
+        let unit = make_multi_model_unit(
+            1,
+            PlayerId::new(0),
+            &[(10, 5), (11, 5), (25, 25)],
+        );
+        state.units = vec![unit];
+
+        // Enemy at (14,5)
+        let enemy = make_multi_model_unit(2, PlayerId::new(1), &[(14, 5)]);
+        state.units.push(enemy);
+
+        state.turn_flags.set_charge_roll(UnitId::new(1), 5);
+        state.turn_flags.set_charge_targets(UnitId::new(1), vec![UnitId::new(2)]);
+
+        let cmd = Command::MakeChargeMove {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(13, 5),
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "Incoherent charge move should be rejected");
+    }
+
+    // =========================================================================
+    // Scouts pre-game move tests (R-17)
+    // Source: 40k_revised.md §12.5
+    // =========================================================================
+
+    #[test]
+    fn test_validate_scouts_move_legal() {
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::PreBattle;
+
+        // Give unit Scouts 6"
+        state.unit_mut(UnitId::new(1)).unwrap().scouts_distance =
+            Some(wh40k_core_types::Inches::from_inches(6));
+
+        let cmd = Command::ScoutsMove {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(14, 5), // 4" away, Scouts is 6"
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_legal(), "Legal Scouts move within distance should be accepted");
+    }
+
+    #[test]
+    fn test_validate_scouts_move_too_far() {
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::PreBattle;
+
+        state.unit_mut(UnitId::new(1)).unwrap().scouts_distance =
+            Some(wh40k_core_types::Inches::from_inches(6));
+
+        let cmd = Command::ScoutsMove {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(20, 5), // 10" away, Scouts is 6"
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "Scouts move exceeding distance should be rejected");
+    }
+
+    #[test]
+    fn test_validate_scouts_move_too_close_to_enemy() {
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::PreBattle;
+
+        state.unit_mut(UnitId::new(1)).unwrap().scouts_distance =
+            Some(wh40k_core_types::Inches::from_inches(12));
+
+        // Enemy is at (20, 20). Moving to (15, 20) would be 5" from enemy = within 9"
+        let cmd = Command::ScoutsMove {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(15, 20),
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "Scouts move ending within 9\" of enemy should be rejected");
+    }
+
+    #[test]
+    fn test_validate_scouts_move_no_scouts_ability() {
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::PreBattle;
+
+        // Unit has no scouts_distance (None by default)
+        let cmd = Command::ScoutsMove {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(14, 5),
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "Unit without Scouts ability should be rejected");
+    }
+
+    #[test]
+    fn test_validate_scouts_move_wrong_phase() {
+        let mut state = make_test_state_for_validation();
+        // State defaults to Movement phase, not PreBattle
+
+        state.unit_mut(UnitId::new(1)).unwrap().scouts_distance =
+            Some(wh40k_core_types::Inches::from_inches(6));
+
+        let cmd = Command::ScoutsMove {
+            unit_id: UnitId::new(1),
+            destination: Position::from_inches(14, 5),
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "Scouts move outside PreBattle phase should be rejected");
+    }
+
+    // =========================================================================
+    // Infiltrators deployment tests (R-16)
+    // Source: 40k_revised.md §12.4
+    // =========================================================================
+
+    #[test]
+    fn test_validate_infiltrators_deployment_legal() {
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::PreBattle;
+
+        // Mark unit as Undeployed with Infiltrators
+        state.unit_mut(UnitId::new(1)).unwrap().status = UnitStatus::Undeployed;
+        state.unit_mut(UnitId::new(1)).unwrap().has_infiltrators = true;
+
+        // Place at center of board, far from enemy at (20,20)
+        // This position is >9" from enemy and (with no deployment config) valid
+        let cmd = Command::PlaceUnit {
+            player: PlayerId::new(0),
+            unit_id: UnitId::new(1),
+            position: Position::from_inches(5, 5),
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_legal(), "Infiltrators deployment far from enemy should be accepted");
+    }
+
+    #[test]
+    fn test_validate_infiltrators_deployment_too_close_to_enemy() {
+        let mut state = make_test_state_for_validation();
+        state.current_phase = Phase::PreBattle;
+
+        state.unit_mut(UnitId::new(1)).unwrap().status = UnitStatus::Undeployed;
+        state.unit_mut(UnitId::new(1)).unwrap().has_infiltrators = true;
+
+        // Enemy is at (20,20). Trying to deploy at (15,20) = 5" away = within 9"
+        let cmd = Command::PlaceUnit {
+            player: PlayerId::new(0),
+            unit_id: UnitId::new(1),
+            position: Position::from_inches(15, 20),
+        };
+        let result = CommandValidator::validate(&state, &cmd);
+        assert!(result.is_illegal(), "Infiltrators too close to enemy models should be rejected");
+    }
+
+    // =========================================================================
+    // FLY movement tests (R-6 partial)
+    // Source: 40k_revised.md §5.8
+    // =========================================================================
+
+    #[test]
+    fn test_has_fly_for_movement_standard() {
+        let state = make_test_state_for_validation();
+        // Default unit (UnitId 1) does not have FLY
+        let unit = state.unit(UnitId::new(1)).unwrap();
+        assert!(!CommandValidator::has_fly_for_movement(&state, unit),
+            "Unit without FLY keyword should return false");
+    }
+
+    #[test]
+    fn test_has_fly_for_movement_with_fly() {
+        let mut state = make_test_state_for_validation();
+        state.unit_mut(UnitId::new(1)).unwrap().keywords |=
+            KeywordSet::from_keyword(Keyword::Fly);
+        let unit = state.unit(UnitId::new(1)).unwrap();
+        assert!(CommandValidator::has_fly_for_movement(&state, unit),
+            "Unit with FLY keyword should return true");
+    }
+
+    #[test]
+    fn test_has_fly_for_movement_suppressed_in_boarding_actions() {
+        let mut state = make_test_state_for_validation();
+        state.game_mode = GameMode::BoardingActions;
+        state.unit_mut(UnitId::new(1)).unwrap().keywords |=
+            KeywordSet::from_keyword(Keyword::Fly);
+        let unit = state.unit(UnitId::new(1)).unwrap();
+        assert!(!CommandValidator::has_fly_for_movement(&state, unit),
+            "FLY should be suppressed in Boarding Actions mode");
     }
 }

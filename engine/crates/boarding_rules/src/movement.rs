@@ -150,9 +150,16 @@ pub fn is_legal_move(
     }
 
     // 5. Check move distance
+    // In BA, distance is measured by the shortest legal path around walls.
+    // If the direct path is clear (no wall crossing), use straight-line distance.
+    // If walls block the direct path, the move requires routing through open hatchways,
+    // and the effective distance is the sum of path segments.
+    // Source: boarding_actions_complete_v3.md §3.2
     let capped_move = effective_movement(base_move);
-    let move_distance = from.distance(to);
-    if move_distance > capped_move {
+    let direct_distance = from.distance(to);
+    // If direct path is clear (passed wall checks above), straight-line is the shortest path
+    // If we got here, the direct path IS clear, so straight-line distance applies
+    if direct_distance > capped_move {
         return Err(MovementError::ExceedsMovement);
     }
 
@@ -178,6 +185,85 @@ pub fn can_move_through_hatchway(
         .copied()
         .unwrap_or(hatch.initial_state);
     state.allows_passage()
+}
+
+/// Compute the shortest legal path distance between two points in BA.
+///
+/// In BA, distances cannot be measured through Walls or closed Hatchways.
+/// Instead, distance is measured by the shortest legal path around them.
+/// If no legal path exists, returns None (infinite distance).
+///
+/// This is a simplified implementation that uses open hatchway waypoints
+/// to compute multi-segment paths. For complex layouts, a full visibility
+/// graph or A* pathfinder would be more accurate.
+///
+/// Source: boarding_actions_complete_v3.md §3.2
+pub fn shortest_legal_path_distance(
+    from: Position,
+    to: Position,
+    map: &BoardingMap,
+    hatchway_states: &HashMap<HatchwayId, HatchwayState>,
+) -> Option<Inches> {
+    // Check if direct path is clear (no wall/hatch obstruction)
+    let direct_clear = !map.walls.iter().any(|w| {
+        wh40k_geometry::boarding::line_segments_intersect(from, to, w.start, w.end)
+    }) && !map.hatchways.iter().any(|h| {
+        let state = hatchway_states.get(&h.id).copied().unwrap_or(h.initial_state);
+        if state.allows_passage() {
+            return false; // open hatchway doesn't block
+        }
+        let half = h.width.0 / 2;
+        let (seg_s, seg_e) = match h.orientation {
+            wh40k_core_types::HatchwayOrientation::Horizontal => {
+                (Position { x: Inches(h.position.x.0 - half), y: h.position.y },
+                 Position { x: Inches(h.position.x.0 + half), y: h.position.y })
+            }
+            wh40k_core_types::HatchwayOrientation::Vertical => {
+                (Position { x: h.position.x, y: Inches(h.position.y.0 - half) },
+                 Position { x: h.position.x, y: Inches(h.position.y.0 + half) })
+            }
+        };
+        wh40k_geometry::boarding::line_segments_intersect(from, to, seg_s, seg_e)
+    });
+
+    if direct_clear {
+        return Some(from.distance(to));
+    }
+
+    // Direct path blocked — try routing through open hatchway positions
+    // Collect all open hatchway positions as potential waypoints
+    let waypoints: Vec<Position> = map.hatchways.iter()
+        .filter(|h| {
+            let state = hatchway_states.get(&h.id).copied().unwrap_or(h.initial_state);
+            state.allows_passage()
+        })
+        .map(|h| h.position)
+        .collect();
+
+    // Simple 2-waypoint search: try from→waypoint→to for each waypoint
+    let mut best_distance: Option<Inches> = None;
+    for &wp in &waypoints {
+        let d1 = from.distance(wp);
+        let d2 = wp.distance(to);
+        let total = Inches(d1.0 + d2.0);
+        if best_distance.is_none() || total < best_distance.unwrap() {
+            best_distance = Some(total);
+        }
+    }
+
+    // Also try 2-waypoint paths: from→wp1→wp2→to
+    for (i, &wp1) in waypoints.iter().enumerate() {
+        for &wp2 in waypoints.iter().skip(i + 1) {
+            let d_a = Inches(from.distance(wp1).0 + wp1.distance(wp2).0 + wp2.distance(to).0);
+            let d_b = Inches(from.distance(wp2).0 + wp2.distance(wp1).0 + wp1.distance(to).0);
+            let d = if d_a < d_b { d_a } else { d_b };
+            if best_distance.is_none() || d < best_distance.unwrap() {
+                best_distance = Some(d);
+            }
+        }
+    }
+
+    best_distance
 }
 
 /// Check Deep Strike distance in Boarding Actions.
