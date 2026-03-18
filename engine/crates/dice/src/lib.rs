@@ -289,6 +289,9 @@ pub enum RollPurpose {
         stratagem_name: String,
         roll_index: u32,
     },
+    /// Destroyed Transport survival roll — each embarked model rolls D6, on 1 = destroyed.
+    /// Source: 40k_revised.md §6.5 - Destroyed Transports
+    DestroyedTransport,
     /// Generic/miscellaneous roll
     Misc {
         description: String,

@@ -9,16 +9,20 @@
 //! Source: 40k_revised.md Section 7 -- "SHOOTING PHASE"
 
 use wh40k_core_types::{
-    ArmorPenetration, ArmorSave, AttackCount, BaseSize, Damage, DatasheetId,
-    EngagementStatus, Inches, InvulnerableSave, Keyword, KeywordSet, Leadership,
-    ModelId, MoveCharacteristic, ObjectiveControl, PlayerId, Position, Skill,
-    Strength, Toughness, UnitId, WeaponAbility, WeaponAbilitySet,
+    ArmorPenetration, ArmorSave, AttackCount, BaseSize, BattleRound, Damage, DatasheetId,
+    EngagementStatus, GameMode, GameOutcome, Inches, InvulnerableSave, Keyword, KeywordSet,
+    Leadership, ModelId, MoveCharacteristic, ObjectiveControl, Phase, PlayerId, Position, Skill,
+    Strength, SubPhase, Toughness, UnitId, UnitStatus, WeaponAbility, WeaponAbilitySet,
     WeaponId, WeaponProfile, WeaponType, Wounds,
 };
+use wh40k_command_system::Command;
 use wh40k_dice::{DiceContext, DiceRoller, StreamKind};
+use wh40k_event_system::EventBus;
 use wh40k_game_core::combat::{resolve_attack_batch, AttackContext};
-use wh40k_game_core::state::TurnFlags;
+use wh40k_game_core::state::{GameState, TurnFlags};
 use wh40k_game_core::unit::{ModelState, UnitState};
+use wh40k_game_core::validator::CommandValidator;
+use wh40k_geometry::Board;
 
 // ===========================================================================
 // Helper factories
@@ -290,26 +294,76 @@ fn advanced_unit_can_only_fire_assault_weapons() {
 
 /// Source: 40k_revised.md 7.1
 /// Rule: "If a unit Fell Back, it cannot shoot."
-/// Verify that fell_back_this_turn properly blocks shooting eligibility.
-/// This is tracked in TurnFlags and checked by the validator.
+/// Verify that the CommandValidator rejects SelectUnitToShoot for a unit
+/// that has fell_back = true in TurnFlags.
 #[test]
 fn fell_back_unit_tracked_in_turnflags_for_shooting_block() {
-    let mut flags = TurnFlags::new();
-    let shooter = UnitId::new(5);
-    let other_unit = UnitId::new(6);
+    let player_a = PlayerId::new(0);
+    let player_b = PlayerId::new(1);
 
-    // Mark as fell back
-    flags.mark_fell_back(shooter);
+    // Build a unit for Player A
+    let unit_id = UnitId::new(5);
+    let model = make_model_with_weapons(
+        500, unit_id, 2, Position::from_inches(10, 10),
+        vec![make_ranged_weapon("Boltgun", 24, 2, 3, 4, 0, 1)],
+        vec![],
+    );
+    let mut unit = make_unit_with_keywords(
+        5, player_a,
+        &[Keyword::Infantry],
+        vec![model],
+    );
+    unit.status = UnitStatus::OnBattlefield;
 
-    // The fell-back flag should be set
+    // Build a GameState in the Shooting phase
+    let seed = [42u8; 32];
+    let ctx = DiceContext::new(seed, StreamKind::HitRoll, 0, 0);
+    let dice_roller = DiceRoller::new(ctx);
+
+    let mut state = GameState {
+        content_version: "test-shooting-1.0".to_string(),
+        scenario_id: None,
+        battle_round: BattleRound::new(1),
+        active_player: player_a,
+        current_phase: Phase::Shooting,
+        current_subphase: SubPhase::SelectUnitToShoot,
+        decision_owner: player_a,
+        players: [
+            wh40k_game_core::state::PlayerState::new(player_a, "Player A".to_string()),
+            wh40k_game_core::state::PlayerState::new(player_b, "Player B".to_string()),
+        ],
+        units: vec![unit],
+        board: Board::combat_patrol(),
+        deployment_config: None,
+        event_bus: EventBus::new(),
+        command_history: wh40k_command_system::CommandHistory::new(),
+        dice_roller,
+        active_effects: Vec::new(),
+        reaction_windows: Vec::new(),
+        turn_flags: TurnFlags::new(),
+        game_outcome: GameOutcome::InProgress,
+        deterministic_counter: 0,
+        game_mode: GameMode::CombatPatrol,
+        mode_state: None,
+    };
+
+    // Mark the unit as having fell back this turn
+    state.turn_flags.mark_fell_back(unit_id);
+
+    // Attempt to select unit to shoot
+    let cmd = Command::SelectUnitToShoot { unit_id };
+    let result = CommandValidator::validate(&state, &cmd);
+
     assert!(
-        flags.has_fell_back(shooter),
-        "Shooter that fell back should have fell_back flag"
+        result.is_illegal(),
+        "Unit that fell back should be ILLEGAL to select for shooting (§7.1): {}",
+        result,
     );
 
-    // Another unit that didn't fall back should be fine
+    // Verify an unrelated unit (not fell back) would be legal
+    let unit_id_other = UnitId::new(6);
     assert!(
-        !flags.has_fell_back(other_unit),
+        !state.turn_flags.has_fell_back(unit_id_other),
         "Unrelated unit should not have fell_back flag"
     );
 }

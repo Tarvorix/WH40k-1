@@ -144,6 +144,7 @@ pub fn unit_to_view(unit: &UnitState, turn_flags: &TurnFlags) -> UnitView {
         UnitStatus::InStrategicReserves => "InStrategicReserves".to_string(),
         UnitStatus::Destroyed => "Destroyed".to_string(),
         UnitStatus::Undeployed => "Undeployed".to_string(),
+        UnitStatus::Embarked => "Embarked".to_string(),
     };
 
     let engagement_str = match unit.engagement_status {

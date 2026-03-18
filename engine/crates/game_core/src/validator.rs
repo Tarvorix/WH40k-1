@@ -355,6 +355,14 @@ impl CommandValidator {
                 CommandValidationResult::Legal
             }
 
+            // ===== Transport commands =====
+            Command::Embark { unit_id, transport_id } => {
+                Self::validate_embark(state, *unit_id, *transport_id)
+            }
+            Command::Disembark { unit_id, transport_id, destination } => {
+                Self::validate_disembark(state, *unit_id, *transport_id, *destination)
+            }
+
             // ===== Boarding Actions commands =====
             // Basic validation: player must be the active player or decision owner.
             // Detailed Boarding Actions validation will live in the boarding_rules crate.
@@ -1221,6 +1229,105 @@ impl CommandValidator {
         CommandValidationResult::Legal
     }
 
+    /// Validate a Surge Move.
+    /// - One surge per phase
+    /// - Cannot surge while Battle-shocked
+    /// - Cannot surge while in Engagement Range
+    /// Source: 40k_revised.md §5.10
+    fn validate_surge_move(
+        state: &GameState,
+        unit_id: wh40k_core_types::UnitId,
+        destination: wh40k_core_types::Position,
+    ) -> CommandValidationResult {
+        let unit = match state.unit(unit_id) {
+            Some(u) => u,
+            None => return CommandValidationResult::illegal("Unit not found"),
+        };
+
+        if unit.owner != state.active_player {
+            return CommandValidationResult::illegal("Unit does not belong to the active player");
+        }
+
+        if !unit.is_on_battlefield() {
+            return CommandValidationResult::illegal("Unit is not on the battlefield");
+        }
+
+        if unit.is_destroyed() {
+            return CommandValidationResult::illegal("Unit is destroyed");
+        }
+
+        // One surge per phase: a unit that has already moved this phase cannot surge again.
+        // Source: 40k_revised.md §5.10 - one surge per phase
+        if state.turn_flags.has_moved(unit_id) {
+            return CommandValidationResult::illegal_with_ref(
+                "Unit has already moved this phase and cannot surge",
+                "40k_revised.md §5.10 - one surge per phase",
+            );
+        }
+
+        // Cannot surge while Battle-shocked
+        // Source: 40k_revised.md §5.10
+        if unit.battle_shocked {
+            return CommandValidationResult::illegal_with_ref(
+                "Battle-shocked units cannot perform a Surge Move",
+                "40k_revised.md §5.10 - cannot surge while Battle-shocked",
+            );
+        }
+
+        // Cannot surge while in Engagement Range
+        // Source: 40k_revised.md §5.10
+        if unit.engagement_status == EngagementStatus::Engaged {
+            return CommandValidationResult::illegal_with_ref(
+                "Units in Engagement Range cannot perform a Surge Move",
+                "40k_revised.md §5.10 - cannot surge while in Engagement Range",
+            );
+        }
+
+        // Destination must be on the board
+        if !state.board.contains(destination) {
+            return CommandValidationResult::illegal("Destination is outside the board");
+        }
+
+        // Check movement distance <= 3" (standard surge distance)
+        // Source: 40k_revised.md §5.10
+        let surge_distance = wh40k_core_types::Inches::from_inches(3);
+        if let Some(current_pos) = unit.reference_position() {
+            let distance = current_pos.distance(destination);
+            if distance > surge_distance {
+                return CommandValidationResult::illegal_with_ref(
+                    format!(
+                        "Surge Move distance ({}) exceeds maximum surge distance ({})",
+                        distance, surge_distance
+                    ),
+                    "40k_revised.md §5.10 - Surge Move: up to 3 inches",
+                );
+            }
+        }
+
+        // Cannot end within Engagement Range of any enemy model
+        // Source: 40k_revised.md §5.10 / §5.3
+        let unit_base = unit.models.first().map(|m| m.base_size)
+            .unwrap_or(wh40k_core_types::BaseSize::MM25);
+        for enemy_unit in &state.units {
+            if enemy_unit.owner == unit.owner || enemy_unit.is_destroyed() || !enemy_unit.is_on_battlefield() {
+                continue;
+            }
+            for enemy_model in enemy_unit.models.iter().filter(|m| m.alive) {
+                if wh40k_geometry::within_engagement_range_2d(
+                    destination, unit_base,
+                    enemy_model.position, enemy_model.base_size,
+                ) {
+                    return CommandValidationResult::illegal_with_ref(
+                        "Surge Move cannot end within Engagement Range of enemy models",
+                        "40k_revised.md §5.10 - Surge Move: cannot end in ER",
+                    );
+                }
+            }
+        }
+
+        CommandValidationResult::Legal
+    }
+
     /// Validate Infiltrators deployment position.
     ///
     /// Source: 40k_revised.md §12.4 - Infiltrators
@@ -1294,6 +1401,26 @@ impl CommandValidator {
         }
 
         None // Valid position
+    }
+
+    /// Check if a model is forced to end in Engagement Range and should be destroyed.
+    /// Source: 40k_revised.md §1.6
+    /// "If a model cannot avoid ending a move within Engagement Range, that model is destroyed."
+    /// This is a safety valve — if no legal move destination exists outside ER,
+    /// the model must be removed from play.
+    pub fn is_forced_into_engagement_range(
+        unit: &crate::unit::UnitState,
+        state: &GameState,
+    ) -> bool {
+        // A model is "forced" if every possible destination within its move range
+        // would end within ER of an enemy. This is computationally expensive to
+        // determine exactly, so we approximate: if the unit is surrounded within
+        // its movement range by enemies on all sides, it's forced.
+        // For now, return false — the validator blocks illegal ER moves,
+        // and the actual destruction should be handled as a special case
+        // when no valid moves exist.
+        let _ = (unit, state); // suppress unused warnings
+        false
     }
 
     /// Check if a unit has the FLY keyword for movement purposes.
@@ -2864,6 +2991,273 @@ impl CommandValidator {
         }
 
         true // No closer eligible target found
+    }
+
+    // ===== Transport validation =====
+
+    /// Validate an Embark command.
+    ///
+    /// Rules (Source: 40k_revised.md §6.2):
+    /// - Unit must be on the battlefield
+    /// - Transport must be friendly, on the battlefield, not destroyed
+    /// - Unit must be within 3" of transport
+    /// - Transport must have capacity for unit's model count
+    /// - Unit cannot have already disembarked this turn (§6.4)
+    /// - Unit cannot embark if it arrived from reserves this turn
+    fn validate_embark(
+        state: &GameState,
+        unit_id: wh40k_core_types::UnitId,
+        transport_id: wh40k_core_types::UnitId,
+    ) -> CommandValidationResult {
+        // Must be in Movement phase
+        if state.current_phase != Phase::Movement {
+            return CommandValidationResult::illegal_with_ref(
+                "Embark is only valid in the Movement phase",
+                "40k_revised.md §6.2 - Embark: during Movement phase",
+            );
+        }
+
+        let unit = match state.unit(unit_id) {
+            Some(u) => u,
+            None => return CommandValidationResult::illegal("Unit not found"),
+        };
+
+        // Unit must be on the battlefield
+        if !unit.is_on_battlefield() {
+            return CommandValidationResult::illegal("Unit is not on the battlefield");
+        }
+
+        // Unit must not be destroyed
+        if unit.is_destroyed() {
+            return CommandValidationResult::illegal("Unit is destroyed");
+        }
+
+        // Unit must belong to the active player
+        if unit.owner != state.active_player {
+            return CommandValidationResult::illegal("Unit does not belong to the active player");
+        }
+
+        // Unit cannot already be embarked
+        if unit.is_embarked() {
+            return CommandValidationResult::illegal_with_ref(
+                "Unit is already embarked in a transport",
+                "40k_revised.md §6.2 - Embark: unit must be on battlefield",
+            );
+        }
+
+        // Unit cannot have disembarked this turn
+        // Source: 40k_revised.md §6.4
+        if state.turn_flags.has_disembarked(unit_id) {
+            return CommandValidationResult::illegal_with_ref(
+                "Unit has already disembarked this turn and cannot embark",
+                "40k_revised.md §6.4 - Cannot embark and disembark in the same turn",
+            );
+        }
+
+        let transport = match state.unit(transport_id) {
+            Some(t) => t,
+            None => return CommandValidationResult::illegal("Transport not found"),
+        };
+
+        // Transport must be friendly
+        if transport.owner != unit.owner {
+            return CommandValidationResult::illegal_with_ref(
+                "Transport must be a friendly unit",
+                "40k_revised.md §6.2 - Embark: friendly TRANSPORT",
+            );
+        }
+
+        // Transport must be on the battlefield and not destroyed
+        if !transport.is_on_battlefield() || transport.is_destroyed() {
+            return CommandValidationResult::illegal(
+                "Transport is not on the battlefield or is destroyed",
+            );
+        }
+
+        // Transport must actually be a transport
+        if !transport.is_transport() {
+            return CommandValidationResult::illegal_with_ref(
+                "Target unit is not a transport (transport_capacity = 0)",
+                "40k_revised.md §6.1 - TRANSPORT keyword",
+            );
+        }
+
+        // Unit must be within 3" of transport
+        // Source: 40k_revised.md §6.2 - "within 3\" of a friendly TRANSPORT"
+        if let (Some(unit_pos), Some(transport_pos)) = (
+            unit.reference_position(),
+            transport.reference_position(),
+        ) {
+            let distance = unit_pos.distance(transport_pos);
+            let three_inches = wh40k_core_types::Inches::from_inches(3);
+            if distance > three_inches {
+                return CommandValidationResult::illegal_with_ref(
+                    format!(
+                        "Unit is too far from transport ({} away, must be within 3\")",
+                        distance
+                    ),
+                    "40k_revised.md §6.2 - Embark: within 3\" of TRANSPORT",
+                );
+            }
+        }
+
+        // Transport must have capacity for the unit's models
+        // Count models currently embarked in the transport
+        let embarked_model_count: usize = transport.embarked_units.iter()
+            .filter_map(|uid| state.unit(*uid))
+            .map(|u| u.models_alive())
+            .sum();
+        let unit_model_count = unit.models_alive();
+        let remaining_capacity = transport.transport_capacity as usize - embarked_model_count;
+        if unit_model_count > remaining_capacity {
+            return CommandValidationResult::illegal_with_ref(
+                format!(
+                    "Transport does not have enough capacity ({} remaining, unit has {} models)",
+                    remaining_capacity, unit_model_count
+                ),
+                "40k_revised.md §6.1 - Transport capacity",
+            );
+        }
+
+        CommandValidationResult::Legal
+    }
+
+    /// Validate a Disembark command.
+    ///
+    /// Rules (Source: 40k_revised.md §6.3):
+    /// - Unit must be embarked in the specified transport
+    /// - Destination must be within 3" of transport
+    /// - Destination must be more than 3" from all enemy models
+    ///   (battle-shocked units use 6" instead)
+    /// - Can only disembark at start of Movement phase
+    /// - Unit cannot have embarked this turn (§6.4)
+    fn validate_disembark(
+        state: &GameState,
+        unit_id: wh40k_core_types::UnitId,
+        transport_id: wh40k_core_types::UnitId,
+        destination: wh40k_core_types::Position,
+    ) -> CommandValidationResult {
+        // Must be in Movement phase
+        if state.current_phase != Phase::Movement {
+            return CommandValidationResult::illegal_with_ref(
+                "Disembark is only valid in the Movement phase",
+                "40k_revised.md §6.3 - Disembark: at the start of the Movement phase",
+            );
+        }
+
+        let unit = match state.unit(unit_id) {
+            Some(u) => u,
+            None => return CommandValidationResult::illegal("Unit not found"),
+        };
+
+        // Unit must belong to the active player
+        if unit.owner != state.active_player {
+            return CommandValidationResult::illegal("Unit does not belong to the active player");
+        }
+
+        // Unit must be embarked in the specified transport
+        match unit.embarked_in {
+            Some(tid) if tid == transport_id => {}
+            Some(_) => {
+                return CommandValidationResult::illegal(
+                    "Unit is not embarked in the specified transport",
+                );
+            }
+            None => {
+                return CommandValidationResult::illegal_with_ref(
+                    "Unit is not embarked in any transport",
+                    "40k_revised.md §6.3 - Disembark: unit must be embarked",
+                );
+            }
+        }
+
+        // Unit cannot have embarked this turn
+        // Source: 40k_revised.md §6.4
+        if state.turn_flags.has_embarked(unit_id) {
+            return CommandValidationResult::illegal_with_ref(
+                "Unit has already embarked this turn and cannot disembark",
+                "40k_revised.md §6.4 - Cannot embark and disembark in the same turn",
+            );
+        }
+
+        let transport = match state.unit(transport_id) {
+            Some(t) => t,
+            None => return CommandValidationResult::illegal("Transport not found"),
+        };
+
+        // Transport must not be destroyed
+        if transport.is_destroyed() {
+            return CommandValidationResult::illegal(
+                "Transport is destroyed (use emergency disembark instead)",
+            );
+        }
+
+        // Destination must be on the board
+        if !state.board.contains(destination) {
+            return CommandValidationResult::illegal("Destination is outside the board");
+        }
+
+        // Destination must be within 3" of transport
+        // Source: 40k_revised.md §6.3 - "within 3\" of their TRANSPORT"
+        if let Some(transport_pos) = transport.reference_position() {
+            let distance = transport_pos.distance(destination);
+            let three_inches = wh40k_core_types::Inches::from_inches(3);
+            if distance > three_inches {
+                return CommandValidationResult::illegal_with_ref(
+                    format!(
+                        "Destination is too far from transport ({} away, must be within 3\")",
+                        distance
+                    ),
+                    "40k_revised.md §6.3 - Disembark: within 3\" of TRANSPORT",
+                );
+            }
+        }
+
+        // Destination must be more than 3" from all enemy models
+        // (or 6" if unit is battle-shocked)
+        // Source: 40k_revised.md §6.3
+        let min_enemy_distance = if unit.battle_shocked {
+            wh40k_core_types::Inches::from_inches(6)
+        } else {
+            wh40k_core_types::Inches::from_inches(3)
+        };
+
+        let unit_base = unit.models.first()
+            .map(|m| m.base_size)
+            .unwrap_or(wh40k_core_types::BaseSize::MM25);
+
+        for enemy_unit in &state.units {
+            if enemy_unit.owner == unit.owner
+                || enemy_unit.is_destroyed()
+                || !enemy_unit.is_on_battlefield()
+            {
+                continue;
+            }
+            for enemy_model in enemy_unit.models.iter().filter(|m| m.alive) {
+                let dist = wh40k_geometry::distance_between_models(
+                    destination,
+                    unit_base,
+                    enemy_model.position,
+                    enemy_model.base_size,
+                );
+                if dist < min_enemy_distance {
+                    let rule_ref = if unit.battle_shocked {
+                        "40k_revised.md §6.3 - Disembark: battle-shocked units must be >6\" from enemies"
+                    } else {
+                        "40k_revised.md §6.3 - Disembark: must be >3\" from enemy models"
+                    };
+                    return CommandValidationResult::illegal_with_ref(
+                        format!(
+                            "Destination is too close to enemy models ({} away, must be >{}\")",
+                            dist, min_enemy_distance
+                        ),
+                        rule_ref,
+                    );
+                }
+            }
+        }
+
+        CommandValidationResult::Legal
     }
 }
 

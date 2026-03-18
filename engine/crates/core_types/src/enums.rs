@@ -177,6 +177,12 @@ pub enum MovementAction {
     OperateHatchway,
     /// Arrive from an Entry Zone (Boarding Actions reserves)
     ArriveFromEntryZone,
+    /// Scouts pre-game move (before first turn).
+    /// Source: 40k_revised.md §12.5 - Scouts
+    ScoutsMove,
+    /// Surge Move: a short additional move (typically 3") during specific phases.
+    /// Source: 40k_revised.md §5.10
+    SurgeMove,
 }
 
 // ---------------------------------------------------------------------------
@@ -298,6 +304,9 @@ pub enum UnitStatus {
     Destroyed,
     /// Set up but not yet deployed (pre-battle)
     Undeployed,
+    /// Embarked inside a transport (not on battlefield, but not in reserves)
+    /// Source: 40k_revised.md §6.2 - Embark
+    Embarked,
 }
 
 /// Outcome of the game.

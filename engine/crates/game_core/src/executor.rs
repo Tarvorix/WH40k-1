@@ -231,6 +231,9 @@ impl CommandExecutor {
             Command::ScoutsMove { unit_id, destination } => {
                 Self::apply_scouts_move(state, *unit_id, *destination)
             }
+            Command::SurgeMove { unit_id, destination } => {
+                Self::apply_surge_move(state, *unit_id, *destination)
+            }
 
             // ===== Shooting commands (Phase 2: combat resolution) =====
             Command::SelectUnitToShoot { unit_id } => {
@@ -371,6 +374,14 @@ impl CommandExecutor {
                 // TODO (R-25): Extra Attacks weapons — bearer should attack with BOTH the Extra Attacks
                 // weapon AND one other melee weapon. The number of attacks from Extra Attacks weapons
                 // cannot be modified. Source: 40k_revised.md §11.18
+
+                // TODO (R-24): Per-model weapon selection enforcement
+                // Each model selects ONE melee weapon to attack with (unless Extra Attacks).
+                // Need to track which weapon each unit has already resolved melee with
+                // and reject subsequent ResolveMeleeAttack commands for the same unit
+                // with a different weapon_id (unless the weapon has Extra Attacks).
+                // This requires a per-unit "melee_weapon_used" tracker in TurnFlags.
+
                 Self::apply_resolve_attack(
                     state, *attacker_id, *target_id, *weapon_id, true,
                 )
@@ -417,6 +428,14 @@ impl CommandExecutor {
                 Ok(vec![GameEvent::BattleEnded {
                     outcome: GameOutcome::Victory(winner),
                 }])
+            }
+
+            // ===== Transport commands =====
+            Command::Embark { unit_id, transport_id } => {
+                Self::apply_embark(state, *unit_id, *transport_id)
+            }
+            Command::Disembark { unit_id, transport_id, destination } => {
+                Self::apply_disembark(state, *unit_id, *transport_id, *destination)
             }
 
             // ===== Boarding Actions commands =====
@@ -982,6 +1001,49 @@ impl CommandExecutor {
         Ok(vec![GameEvent::MoveCompleted {
             unit: unit_id,
             action: MovementAction::ScoutsMove,
+            from,
+            to: destination,
+        }])
+    }
+
+    /// Apply a Surge Move.
+    ///
+    /// Translates all alive models by the same offset (reference position -> destination).
+    /// A Surge Move is a short additional move (typically 3") during specific phases.
+    /// Marks the unit as having moved this turn.
+    ///
+    /// Source: 40k_revised.md §5.10
+    fn apply_surge_move(
+        state: &mut GameState,
+        unit_id: UnitId,
+        destination: Position,
+    ) -> Result<Vec<GameEvent>, ExecutionError> {
+        let from = {
+            let unit = state.unit(unit_id).ok_or_else(|| ExecutionError::EntityNotFound {
+                entity: format!("Unit {}", unit_id),
+            })?;
+            unit.reference_position().unwrap_or(Position::ORIGIN)
+        };
+
+        // Calculate offset from reference model's position to destination
+        let dx = wh40k_core_types::Inches(destination.x.0 - from.x.0);
+        let dy = wh40k_core_types::Inches(destination.y.0 - from.y.0);
+
+        // Move all models by the same offset
+        let unit = state.unit_mut(unit_id).ok_or_else(|| ExecutionError::EntityNotFound {
+            entity: format!("Unit {}", unit_id),
+        })?;
+
+        for model in unit.models.iter_mut().filter(|m| m.alive) {
+            model.position = model.position.translate(dx, dy);
+        }
+
+        // Mark the unit as having moved so it cannot surge again this phase
+        state.turn_flags.mark_moved(unit_id);
+
+        Ok(vec![GameEvent::MoveCompleted {
+            unit: unit_id,
+            action: MovementAction::SurgeMove,
             from,
             to: destination,
         }])
@@ -2407,6 +2469,203 @@ impl CommandExecutor {
             target: target_unit_id,
         }])
     }
+
+    // ===== Transport application helpers =====
+
+    /// Apply an Embark command: unit enters a friendly transport.
+    ///
+    /// Source: 40k_revised.md §6.2 - Embark
+    /// - Set unit status to Embarked
+    /// - Set unit.embarked_in = Some(transport_id)
+    /// - Add unit_id to transport.embarked_units
+    /// - Mark unit as having embarked this turn
+    fn apply_embark(
+        state: &mut GameState,
+        unit_id: UnitId,
+        transport_id: UnitId,
+    ) -> Result<Vec<GameEvent>, ExecutionError> {
+        // Update the embarking unit
+        {
+            let unit = state.unit_mut(unit_id).ok_or_else(|| ExecutionError::EntityNotFound {
+                entity: format!("Unit {}", unit_id),
+            })?;
+            unit.status = UnitStatus::Embarked;
+            unit.embarked_in = Some(transport_id);
+        }
+
+        // Update the transport
+        {
+            let transport = state.unit_mut(transport_id).ok_or_else(|| ExecutionError::EntityNotFound {
+                entity: format!("Transport {}", transport_id),
+            })?;
+            transport.embarked_units.push(unit_id);
+        }
+
+        // Mark this unit as having embarked this turn
+        state.turn_flags.mark_embarked(unit_id);
+        state.turn_flags.mark_moved(unit_id);
+
+        Ok(vec![GameEvent::UnitEmbarked {
+            unit: unit_id,
+            transport: transport_id,
+        }])
+    }
+
+    /// Apply a Disembark command: unit exits a transport.
+    ///
+    /// Source: 40k_revised.md §6.3 - Disembark
+    /// - Set unit status to OnBattlefield
+    /// - Clear unit.embarked_in
+    /// - Remove from transport.embarked_units
+    /// - Set all models to destination position
+    /// - Mark unit as having moved and disembarked this turn
+    fn apply_disembark(
+        state: &mut GameState,
+        unit_id: UnitId,
+        transport_id: UnitId,
+        destination: Position,
+    ) -> Result<Vec<GameEvent>, ExecutionError> {
+        // Update the disembarking unit
+        {
+            let unit = state.unit_mut(unit_id).ok_or_else(|| ExecutionError::EntityNotFound {
+                entity: format!("Unit {}", unit_id),
+            })?;
+            unit.status = UnitStatus::OnBattlefield;
+            unit.embarked_in = None;
+
+            // Set all alive models to the destination position
+            for model in unit.models.iter_mut().filter(|m| m.alive) {
+                model.position = destination;
+            }
+        }
+
+        // Remove from transport's embarked list
+        {
+            let transport = state.unit_mut(transport_id).ok_or_else(|| ExecutionError::EntityNotFound {
+                entity: format!("Transport {}", transport_id),
+            })?;
+            transport.embarked_units.retain(|id| *id != unit_id);
+        }
+
+        // Mark this unit as having disembarked and moved this turn
+        state.turn_flags.mark_disembarked(unit_id);
+        state.turn_flags.mark_moved(unit_id);
+
+        Ok(vec![GameEvent::UnitDisembarked {
+            unit: unit_id,
+            transport: transport_id,
+            destination,
+        }])
+    }
+
+    /// Apply destroyed transport: emergency disembark all embarked units.
+    ///
+    /// Source: 40k_revised.md §6.5 - Destroyed Transport
+    /// - Each model in embarked units rolls D6, on 1 = model destroyed
+    /// - Remaining models set up within 3" of destroyed transport, >3" from enemies
+    /// - The transport is then fully destroyed
+    ///
+    /// This is called when a transport is destroyed during combat resolution.
+    /// It should be invoked from the combat/damage pipeline when a transport unit
+    /// reaches 0 wounds.
+    pub fn apply_destroyed_transport(
+        state: &mut GameState,
+        transport_id: UnitId,
+    ) -> Result<Vec<GameEvent>, ExecutionError> {
+        // Collect the IDs of embarked units and the transport position before mutation
+        let (embarked_ids, transport_pos) = {
+            let transport = state.unit(transport_id).ok_or_else(|| ExecutionError::EntityNotFound {
+                entity: format!("Transport {}", transport_id),
+            })?;
+            let pos = transport.reference_position().unwrap_or(Position::ORIGIN);
+            (transport.embarked_units.clone(), pos)
+        };
+
+        if embarked_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut all_models_lost: Vec<wh40k_core_types::ModelId> = Vec::new();
+        let mut events: Vec<GameEvent> = Vec::new();
+
+        // Process each embarked unit
+        for embarked_unit_id in &embarked_ids {
+            // Roll D6 for each alive model — on a 1, the model is destroyed
+            // Source: 40k_revised.md §6.5 - "roll one D6 for each model...on a 1, destroyed"
+            // Collect model IDs first, then roll dice separately to avoid borrow conflict
+            let alive_model_ids: Vec<wh40k_core_types::ModelId> = {
+                let unit = match state.unit(*embarked_unit_id) {
+                    Some(u) => u,
+                    None => continue,
+                };
+                unit.models.iter()
+                    .filter(|m| m.alive)
+                    .map(|m| m.id)
+                    .collect()
+            };
+            let models_to_check: Vec<(wh40k_core_types::ModelId, bool)> = alive_model_ids
+                .into_iter()
+                .map(|model_id| {
+                    let (roll, _roll_id) = state.dice_roller.roll_d6(
+                        wh40k_dice::RollPurpose::DestroyedTransport,
+                    );
+                    (model_id, roll == 1)
+                })
+                .collect();
+
+            // Apply model destruction and set positions
+            let unit = match state.unit_mut(*embarked_unit_id) {
+                Some(u) => u,
+                None => continue,
+            };
+
+            for (model_id, destroyed) in &models_to_check {
+                if *destroyed {
+                    if let Some(model) = unit.model_mut(*model_id) {
+                        model.alive = false;
+                        model.wounds_remaining = wh40k_core_types::Wounds::ZERO;
+                    }
+                    all_models_lost.push(*model_id);
+                }
+            }
+
+            // Set surviving models' positions to within 3" of transport position
+            // (simplified: all placed at the transport position)
+            for model in unit.models.iter_mut().filter(|m| m.alive) {
+                model.position = transport_pos;
+            }
+
+            // Update unit status
+            if unit.models_alive() == 0 {
+                unit.status = UnitStatus::Destroyed;
+            } else {
+                unit.status = UnitStatus::OnBattlefield;
+            }
+            unit.embarked_in = None;
+            unit.update_below_half_strength();
+        }
+
+        // Clear the transport's embarked list
+        {
+            let transport = state.unit_mut(transport_id).ok_or_else(|| ExecutionError::EntityNotFound {
+                entity: format!("Transport {}", transport_id),
+            })?;
+            transport.embarked_units.clear();
+        }
+
+        events.push(GameEvent::TransportDestroyed {
+            transport: transport_id,
+            disembarking_units: embarked_ids,
+            models_lost: all_models_lost,
+        });
+
+        Ok(events)
+    }
+
+    // TODO: Firing Deck - Some Transports let embarked units shoot.
+    // Source: 40k_revised.md §6.6 - Firing Deck X
+    // Not implemented yet. When implemented, embarked units with Firing Deck
+    // should be eligible to shoot during the Shooting Phase.
 }
 
 // ---------------------------------------------------------------------------

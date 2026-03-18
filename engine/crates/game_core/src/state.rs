@@ -509,6 +509,16 @@ pub struct TurnFlags {
     /// Archeotech Recovery (Mission 2): Beta objective selected for removal at round 5.
     /// Source: CP_Rules.md - Mission 2: Irradiated Power Cells
     pub archeotech_beta_objective: Option<wh40k_core_types::ObjectiveId>,
+
+    /// Units that disembarked from a transport this turn.
+    /// A unit that disembarked cannot embark in the same turn.
+    /// Source: 40k_revised.md §6.3 - Disembark, §6.4 - Cannot embark and disembark same turn
+    pub disembarked_this_turn: HashSet<UnitId>,
+
+    /// Units that embarked into a transport this turn.
+    /// A unit that embarked cannot disembark in the same turn.
+    /// Source: 40k_revised.md §6.2 - Embark, §6.4 - Cannot embark and disembark same turn
+    pub embarked_this_turn: HashSet<UnitId>,
 }
 
 impl TurnFlags {
@@ -535,6 +545,8 @@ impl TurnFlags {
         self.vaultswords_profiles.clear();
         self.fight_on_death_queue.clear();
         self.fight_alternation_next_player = None;
+        self.disembarked_this_turn.clear();
+        self.embarked_this_turn.clear();
     }
 
     /// Clear phase-specific flags for a new phase (stratagems used this phase).
@@ -619,6 +631,30 @@ impl TurnFlags {
     /// Check if a unit charged this turn (for Fights First eligibility).
     pub fn charged_this_turn(&self, unit_id: UnitId) -> bool {
         self.charged_this_turn.contains(&unit_id)
+    }
+
+    /// Record that a unit has disembarked from a transport this turn.
+    /// Source: 40k_revised.md §6.3
+    pub fn mark_disembarked(&mut self, unit_id: UnitId) {
+        self.disembarked_this_turn.insert(unit_id);
+    }
+
+    /// Check if a unit has disembarked this turn.
+    /// Source: 40k_revised.md §6.4
+    pub fn has_disembarked(&self, unit_id: UnitId) -> bool {
+        self.disembarked_this_turn.contains(&unit_id)
+    }
+
+    /// Record that a unit has embarked into a transport this turn.
+    /// Source: 40k_revised.md §6.2
+    pub fn mark_embarked(&mut self, unit_id: UnitId) {
+        self.embarked_this_turn.insert(unit_id);
+    }
+
+    /// Check if a unit has embarked this turn.
+    /// Source: 40k_revised.md §6.4
+    pub fn has_embarked(&self, unit_id: UnitId) -> bool {
+        self.embarked_this_turn.contains(&unit_id)
     }
 
     /// Record declared charge targets for a unit.

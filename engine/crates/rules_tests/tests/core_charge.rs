@@ -10,13 +10,18 @@
 //! Source: 40k_revised.md Section 9 -- "CHARGE PHASE"
 
 use wh40k_core_types::{
-    ArmorSave, BaseSize, DatasheetId,
-    EngagementStatus, Inches, Keyword, KeywordSet, Leadership, ModelId,
-    MoveCharacteristic, ObjectiveControl, PlayerId, Position,
+    ArmorSave, BaseSize, BattleRound, DatasheetId,
+    EngagementStatus, GameMode, GameOutcome, Inches, Keyword, KeywordSet, Leadership, ModelId,
+    MoveCharacteristic, ObjectiveControl, Phase, PlayerId, Position, SubPhase,
     Toughness, UnitId, UnitStatus, Wounds,
 };
-use wh40k_game_core::state::TurnFlags;
+use wh40k_command_system::Command;
+use wh40k_dice::{DiceContext, DiceRoller, StreamKind};
+use wh40k_event_system::EventBus;
+use wh40k_game_core::state::{GameState, TurnFlags};
 use wh40k_game_core::unit::{ModelState, UnitState};
+use wh40k_game_core::validator::CommandValidator;
+use wh40k_geometry::Board;
 
 // ===========================================================================
 // Helper factories
@@ -143,24 +148,76 @@ fn charge_range_diagonal_check() {
 
 /// Source: 40k_revised.md 9.1
 /// Rule: "A unit that Advances ... cannot ... charge in the same turn."
-/// TurnFlags.advanced_this_turn blocks charge eligibility.
+/// Test: Call CommandValidator::validate on a DeclareCharge command for a unit
+///       that has advanced = true in TurnFlags, and assert it returns illegal.
 #[test]
 fn advanced_units_cannot_charge() {
-    let mut flags = TurnFlags::new();
-    let unit = UnitId::new(5);
+    let player_a = PlayerId::new(0);
+    let player_b = PlayerId::new(1);
 
-    flags.mark_advanced(unit);
-
-    assert!(
-        flags.has_advanced(unit),
-        "Unit should be marked as advanced"
+    // Create the charger (Player A) at (10,10)
+    let charger_id = UnitId::new(5);
+    let charger = make_unit(
+        5, player_a,
+        &[Keyword::Infantry, Keyword::Battleline],
+        vec![make_model(500, charger_id, 2, Position::from_inches(10, 10))],
     );
 
-    // The validator checks has_advanced() and rejects charges.
-    // Here we verify the flag is correctly set for the validator to use.
+    // Create an enemy target (Player B) within 12" at (20,10)
+    let target_id = UnitId::new(6);
+    let target = make_unit(
+        6, player_b,
+        &[Keyword::Infantry],
+        vec![make_model(600, target_id, 2, Position::from_inches(20, 10))],
+    );
+
+    // Build a GameState in the Charge phase
+    let seed = [42u8; 32];
+    let ctx = DiceContext::new(seed, StreamKind::MiscRoll, 0, 0);
+    let dice_roller = DiceRoller::new(ctx);
+
+    let mut state = GameState {
+        content_version: "test-charge-1.0".to_string(),
+        scenario_id: None,
+        battle_round: BattleRound::new(1),
+        active_player: player_a,
+        current_phase: Phase::Charge,
+        current_subphase: SubPhase::DeclareChargeTargets,
+        decision_owner: player_a,
+        players: [
+            wh40k_game_core::state::PlayerState::new(player_a, "Player A".to_string()),
+            wh40k_game_core::state::PlayerState::new(player_b, "Player B".to_string()),
+        ],
+        units: vec![charger, target],
+        board: Board::combat_patrol(),
+        deployment_config: None,
+        event_bus: EventBus::new(),
+        command_history: wh40k_command_system::CommandHistory::new(),
+        dice_roller,
+        active_effects: Vec::new(),
+        reaction_windows: Vec::new(),
+        turn_flags: TurnFlags::new(),
+        game_outcome: GameOutcome::InProgress,
+        deterministic_counter: 0,
+        game_mode: GameMode::CombatPatrol,
+        mode_state: None,
+    };
+
+    // Mark the charger as having advanced this turn
+    state.turn_flags.mark_advanced(charger_id);
+    assert!(state.turn_flags.has_advanced(charger_id), "Unit should be marked as advanced");
+
+    // Attempt to declare a charge
+    let cmd = Command::DeclareCharge {
+        unit_id: charger_id,
+        targets: vec![target_id],
+    };
+    let result = CommandValidator::validate(&state, &cmd);
+
     assert!(
-        flags.has_moved(unit),
-        "Advanced unit should also be marked as moved"
+        result.is_illegal(),
+        "Advanced unit should be ILLEGAL to declare a charge (§9.1): {}",
+        result,
     );
 }
 

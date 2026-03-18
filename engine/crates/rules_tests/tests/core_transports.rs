@@ -110,7 +110,7 @@ fn make_transport_unit(id: u32, owner: PlayerId, pos: Position) -> UnitState {
         owner,
         "Test Transport".to_string(),
         DatasheetId::new(10),
-        KeywordSet::from_keywords(&[Keyword::Vehicle, Keyword::DedicatedTransport]),
+        KeywordSet::from_keywords(&[Keyword::Vehicle, Keyword::DedicatedTransport, Keyword::Transport]),
         vec![model],
         MoveCharacteristic::from_inches(12),
         Toughness::new(9),
@@ -120,6 +120,7 @@ fn make_transport_unit(id: u32, owner: PlayerId, pos: Position) -> UnitState {
         ObjectiveControl::new(2),
     );
     unit.status = UnitStatus::OnBattlefield;
+    unit.transport_capacity = 12; // Typical Rhino-style transport capacity
     unit
 }
 

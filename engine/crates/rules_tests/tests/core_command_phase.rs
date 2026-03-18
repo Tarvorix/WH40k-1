@@ -8,12 +8,16 @@
 //! Source: 40k_revised.md Section 4 — "COMMAND PHASE"
 
 use wh40k_core_types::{
-    ArmorSave, BaseSize, DatasheetId, Keyword, KeywordSet, Leadership, ModelId,
-    MoveCharacteristic, ObjectiveControl, PlayerId, Position, Toughness, UnitId, UnitStatus,
-    Wounds,
+    ArmorSave, BaseSize, BattleRound, BattleShockResult, DatasheetId, GameMode, GameOutcome,
+    Keyword, KeywordSet, Leadership, ModelId, MoveCharacteristic, ObjectiveControl, Phase,
+    PlayerId, Position, SubPhase, Toughness, UnitId, UnitStatus, Wounds,
 };
-use wh40k_game_core::state::PlayerState;
+use wh40k_dice::{DiceContext, DiceRoller, StreamKind};
+use wh40k_event_system::{EventBus, GameEvent};
+use wh40k_game_core::phase::PhaseStateMachine;
+use wh40k_game_core::state::{GameState, PlayerState};
 use wh40k_game_core::unit::{ModelState, UnitState};
+use wh40k_geometry::Board;
 
 // ===========================================================================
 // Helper factories
@@ -340,20 +344,92 @@ fn update_below_half_strength_flag() {
 
 /// Source: 40k_revised.md §4.2
 /// Rule: "Roll 2D6. If the result exceeds the unit's Leadership, it becomes Battle-shocked."
-/// Test: battle_shocked flag can be set and read.
+/// Test: Invoke PhaseStateMachine::process_battle_shock on a below-half-strength unit
+///       and verify the battle_shocked flag is set or cleared based on the 2D6 vs Leadership roll.
 #[test]
 fn battle_shock_flag_set_and_cleared() {
-    let mut unit = make_infantry_unit(6, 5, 1, 7, 2);
+    // Build a GameState with a below-half-strength unit owned by Player A
+    let player_a = PlayerId::new(0);
 
-    assert!(!unit.battle_shocked);
+    // Create a 10-model unit, then kill 6 to be below half strength
+    let mut unit = make_infantry_unit(6, 10, 1, 7, 2);
+    for i in 0..6 {
+        unit.models[i].alive = false;
+    }
+    unit.update_below_half_strength();
+    assert!(unit.is_below_half_strength(), "Unit should be below half strength");
 
-    // Simulate failed battle-shock test
-    unit.battle_shocked = true;
-    assert!(unit.battle_shocked);
+    let unit_id = unit.id;
 
-    // Simulate recovery at next Command Phase
-    unit.battle_shocked = false;
-    assert!(!unit.battle_shocked);
+    // Try many seeds to observe both pass and fail outcomes
+    let mut saw_pass = false;
+    let mut saw_fail = false;
+
+    for seed_byte in 0u8..100 {
+        let seed = [seed_byte; 32];
+        let ctx = DiceContext::new(seed, StreamKind::BattleShockTest, 0, 0);
+        let dice_roller = DiceRoller::new(ctx);
+
+        let mut state = GameState {
+            content_version: "test-bs-1.0".to_string(),
+            scenario_id: None,
+            battle_round: BattleRound::new(1),
+            active_player: player_a,
+            current_phase: Phase::Command,
+            current_subphase: SubPhase::BattleShockTests,
+            decision_owner: player_a,
+            players: [
+                PlayerState::new(PlayerId::new(0), "Player A".to_string()),
+                PlayerState::new(PlayerId::new(1), "Player B".to_string()),
+            ],
+            units: vec![unit.clone()],
+            board: Board::combat_patrol(),
+            deployment_config: None,
+            event_bus: EventBus::new(),
+            command_history: wh40k_command_system::CommandHistory::new(),
+            dice_roller,
+            active_effects: Vec::new(),
+            reaction_windows: Vec::new(),
+            turn_flags: wh40k_game_core::state::TurnFlags::new(),
+            game_outcome: GameOutcome::InProgress,
+            deterministic_counter: 0,
+            game_mode: GameMode::CombatPatrol,
+            mode_state: None,
+        };
+
+        let events = PhaseStateMachine::process_battle_shock(&mut state, unit_id);
+
+        // Verify we got a BattleShockTestResolved event
+        assert_eq!(events.len(), 1, "Should emit exactly one event");
+        match &events[0] {
+            GameEvent::BattleShockTestResolved { unit, result, roll } => {
+                assert_eq!(*unit, unit_id);
+                // Verify roll is a valid 2D6 result
+                assert!(*roll >= 2 && *roll <= 12, "Roll {} should be valid 2D6", roll);
+                // Verify the battle_shocked flag matches the result
+                let unit_after = state.unit(unit_id).unwrap();
+                match result {
+                    BattleShockResult::Passed => {
+                        assert!(!unit_after.battle_shocked, "Passed: unit should NOT be battle-shocked");
+                        saw_pass = true;
+                    }
+                    BattleShockResult::Failed => {
+                        assert!(unit_after.battle_shocked, "Failed: unit should be battle-shocked");
+                        saw_fail = true;
+                    }
+                }
+            }
+            other => panic!("Expected BattleShockTestResolved, got {:?}", other),
+        }
+
+        if saw_pass && saw_fail {
+            break;
+        }
+    }
+
+    // With 100 different seeds and Ld 7, we should see both outcomes
+    assert!(saw_pass, "Should observe at least one passed battle-shock test across seeds");
+    assert!(saw_fail, "Should observe at least one failed battle-shock test across seeds");
 }
 
 /// Source: 40k_revised.md §4.2

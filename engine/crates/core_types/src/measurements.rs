@@ -148,7 +148,7 @@ impl Inches {
     pub const TERRAIN_FREE_STEP_HEIGHT: Inches = Inches::from_inches(2);
 
     // Movement pivot costs
-    /// Pivot cost for non-round base models.
+    /// Pivot cost for non-round base models (deducted from movement).
     /// Source: 40k_revised.md §5.6
     pub const PIVOT_COST_STANDARD: Inches = Inches::from_inches(1);
     /// Pivot cost for MONSTER/VEHICLE on non-round base.

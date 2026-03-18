@@ -108,6 +108,18 @@ pub struct UnitState {
     /// Source: 40k_revised.md §12.4 - Infiltrators
     pub has_infiltrators: bool,
 
+    /// Transport capacity (0 = not a transport). Number of models that can embark.
+    /// Source: 40k_revised.md §6.1 - TRANSPORT keyword
+    pub transport_capacity: u8,
+
+    /// ID of the transport this unit is currently embarked in (None = not embarked).
+    /// Source: 40k_revised.md §6.2 - Embark
+    pub embarked_in: Option<UnitId>,
+
+    /// IDs of units currently embarked in this transport.
+    /// Source: 40k_revised.md §6.2 - Embark
+    pub embarked_units: Vec<UnitId>,
+
     /// The starting model count for this unit (for half-strength calculations).
     starting_model_count: usize,
 }
@@ -156,6 +168,9 @@ impl UnitState {
             deadly_demise: 0,
             scouts_distance: None,
             has_infiltrators: false,
+            transport_capacity: 0,
+            embarked_in: None,
+            embarked_units: Vec::new(),
             starting_model_count: starting_count,
         }
     }
@@ -260,6 +275,33 @@ impl UnitState {
     /// Check if this unit is currently on the battlefield.
     pub fn is_on_battlefield(&self) -> bool {
         self.status == UnitStatus::OnBattlefield
+    }
+
+    /// Check if this unit is a transport (has transport capacity > 0).
+    /// Source: 40k_revised.md §6.1
+    pub fn is_transport(&self) -> bool {
+        self.transport_capacity > 0
+    }
+
+    /// Check if this unit is currently embarked in a transport.
+    /// Source: 40k_revised.md §6.2
+    pub fn is_embarked(&self) -> bool {
+        self.embarked_in.is_some()
+    }
+
+    /// Get the number of models currently embarked in this transport.
+    /// Source: 40k_revised.md §6.1 - transport capacity
+    pub fn embarked_model_count(&self) -> u8 {
+        // This is a count of model slots used, not unit count.
+        // For now we track units and rely on the validator to check capacity.
+        0 // Placeholder; actual count is computed by summing models of embarked units
+    }
+
+    /// Get remaining transport capacity (how many more models can embark).
+    /// Requires access to the full game state to count embarked models.
+    pub fn remaining_capacity(&self, embarked_units: &[&UnitState]) -> u8 {
+        let used: usize = embarked_units.iter().map(|u| u.models_alive()).sum();
+        self.transport_capacity.saturating_sub(used as u8)
     }
 
     /// Check if this unit is in reserves.

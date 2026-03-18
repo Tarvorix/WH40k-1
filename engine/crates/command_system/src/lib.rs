@@ -307,6 +307,22 @@ pub mod command {
             player: PlayerId,
         },
 
+        // ===== Transport commands =====
+        /// Embark a unit into a friendly Transport.
+        /// Source: 40k_revised.md §6.2
+        Embark {
+            unit_id: UnitId,
+            transport_id: UnitId,
+        },
+
+        /// Disembark a unit from a Transport.
+        /// Source: 40k_revised.md §6.3
+        Disembark {
+            unit_id: UnitId,
+            transport_id: UnitId,
+            destination: Position,
+        },
+
         // ===== Boarding Actions commands =====
         /// Operate a hatchway (open or close). Boarding Actions only.
         /// Source: boarding_actions_complete_v3.md Section 3.2
@@ -439,6 +455,8 @@ pub mod command {
                 Command::Consolidate { unit_id, .. } => vec![*unit_id],
                 Command::HeroicInterventionMove { unit_id, .. } => vec![*unit_id],
                 Command::AssignOverwatchTarget { unit_id } => vec![*unit_id],
+                Command::Embark { unit_id, transport_id } => vec![*unit_id, *transport_id],
+                Command::Disembark { unit_id, transport_id, .. } => vec![*unit_id, *transport_id],
                 Command::OperateHatchway { unit_id, .. } => vec![*unit_id],
                 Command::PerformTacticalManoeuvre { unit_id, .. } => vec![*unit_id],
                 Command::UseBattlefieldCommand {
@@ -474,7 +492,9 @@ pub mod command {
                 | Command::RemainStationary { .. }
                 | Command::ArriveFromReserves { .. }
                 | Command::ScoutsMove { .. }
-                | Command::SurgeMove { .. } => "Movement",
+                | Command::SurgeMove { .. }
+                | Command::Embark { .. }
+                | Command::Disembark { .. } => "Movement",
 
                 Command::SelectUnitToShoot { .. }
                 | Command::DeclareShootingTargets { .. }
@@ -810,6 +830,23 @@ pub mod command {
                 }
                 Command::PassAction => write!(f, "Pass"),
                 Command::Concede { player } => write!(f, "Player {} concedes", player),
+                Command::Embark {
+                    unit_id,
+                    transport_id,
+                } => {
+                    write!(f, "Unit {} embarks into transport {}", unit_id, transport_id)
+                }
+                Command::Disembark {
+                    unit_id,
+                    transport_id,
+                    destination,
+                } => {
+                    write!(
+                        f,
+                        "Unit {} disembarks from transport {} to {}",
+                        unit_id, transport_id, destination
+                    )
+                }
                 Command::OperateHatchway {
                     player,
                     unit_id,

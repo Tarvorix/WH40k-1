@@ -104,6 +104,9 @@ pub enum Keyword {
     SistersOfBattle = 58,
     Damned = 59,
     Tacticus = 60,
+    /// The TRANSPORT keyword — units that can carry other units.
+    /// Source: 40k_revised.md §6.1
+    Transport = 61,
 }
 
 impl Keyword {
@@ -175,6 +178,7 @@ impl Keyword {
             "SMOKE" => Some(Keyword::Smoke),
             "AIRCRAFT" => Some(Keyword::Aircraft),
             "TITANIC" => Some(Keyword::Titanic),
+            "TRANSPORT" => Some(Keyword::Transport),
 
             // Unit-specific keywords (not mechanically relevant, silently ignored)
             _ => None,
@@ -267,6 +271,7 @@ bitflags! {
         const SISTERS_OF_BATTLE = 1 << 58;
         const DAMNED = 1 << 59;
         const TACTICUS = 1 << 60;
+        const TRANSPORT = 1 << 61;
     }
 }
 

@@ -215,6 +215,14 @@ fn hash_unit_state(hasher: &mut ahash::AHasher, unit: &crate::unit::UnitState) {
 
     unit.enhancement_oc_override.hash(hasher);
     unit.enhancement_oc_requires_engaged.hash(hasher);
+
+    // Transport fields
+    unit.transport_capacity.hash(hasher);
+    unit.embarked_in.hash(hasher);
+    hasher.write_usize(unit.embarked_units.len());
+    for uid in &unit.embarked_units {
+        uid.hash(hasher);
+    }
 }
 
 /// Hash all fields of a ModelState.
@@ -331,6 +339,10 @@ fn hash_turn_flags(hasher: &mut ahash::AHasher, flags: &crate::state::TurnFlags)
     for model_id in &flags.fight_on_death_queue {
         model_id.hash(hasher);
     }
+
+    // Transport turn flags
+    hash_sorted_set(hasher, &flags.disembarked_this_turn);
+    hash_sorted_set(hasher, &flags.embarked_this_turn);
 }
 
 /// Hash the DeploymentConfig.

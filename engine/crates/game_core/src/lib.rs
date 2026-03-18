@@ -28,7 +28,7 @@ pub use state::{
     GameState, PlayerState, TurnFlags, FactionRoundFlags,
     StratagemUsageTracker, MissionProgress,
 };
-pub use unit::{UnitState, ModelState, ReserveType, WargearAbilityState};
+pub use unit::{UnitState, ModelState, ReserveType, WargearAbilityState, check_unit_coherency, models_to_remove_for_coherency};
 pub use effect::{ActiveEffect, EffectSource, EffectType};
 pub use phase::PhaseStateMachine;
 pub use validator::CommandValidator;

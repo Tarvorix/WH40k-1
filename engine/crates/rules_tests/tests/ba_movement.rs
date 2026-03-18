@@ -594,61 +594,55 @@ fn test_measurement_same_compartment() {
 
 /// Source: boarding_actions_complete_v3.md Section 3.1
 /// Rule: "Deep Strike may only occur in battle rounds 2 and 3 (not 1, not 4-5)."
-/// Test: Deep Strike timing must be allowed in rounds 2-3 and denied in rounds
-///       1, 4, and 5. We validate using BattleRound range checks since BA deep
-///       strike has stricter timing than standard 40K.
-///
-/// Note: BA deep strike timing is stricter than CP reserves (which allow rounds 2-3
-///       then destroy). BA also restricts to rounds 2-3 only but with different
-///       consequences. The distance check function (deep_strike_distance_check)
-///       is round-agnostic; timing is enforced by the game state machine.
+/// Test: Call the actual `is_deep_strike_round_allowed()` function from
+///       boarding_rules::movement to validate round-by-round timing.
 #[test]
 fn test_ba_deep_strike_timing_allowed_rounds() {
+    use wh40k_boarding_rules::movement::is_deep_strike_round_allowed;
     use wh40k_core_types::BattleRound;
-
-    // BA Deep Strike is only allowed in rounds 2 and 3
-    let ba_deep_strike_allowed_rounds: Vec<u8> = vec![2, 3];
 
     // Round 1: NOT allowed
     assert!(
-        !ba_deep_strike_allowed_rounds.contains(&1),
+        !is_deep_strike_round_allowed(1),
         "Deep Strike must NOT be allowed in battle round 1"
     );
 
     // Round 2: allowed
     assert!(
-        ba_deep_strike_allowed_rounds.contains(&2),
+        is_deep_strike_round_allowed(2),
         "Deep Strike must be allowed in battle round 2"
     );
 
     // Round 3: allowed
     assert!(
-        ba_deep_strike_allowed_rounds.contains(&3),
+        is_deep_strike_round_allowed(3),
         "Deep Strike must be allowed in battle round 3"
     );
 
     // Round 4: NOT allowed (BA restriction, unlike standard where they auto-arrive)
     assert!(
-        !ba_deep_strike_allowed_rounds.contains(&4),
+        !is_deep_strike_round_allowed(4),
         "Deep Strike must NOT be allowed in battle round 4 in BA"
     );
 
     // Round 5: NOT allowed
     assert!(
-        !ba_deep_strike_allowed_rounds.contains(&5),
+        !is_deep_strike_round_allowed(5),
         "Deep Strike must NOT be allowed in battle round 5 in BA"
     );
 
-    // Verify all 5 rounds
+    // Verify all 5 rounds against the actual function
     for round_num in 1u8..=5 {
         let round = BattleRound::new(round_num);
         assert!(round.is_valid(), "Round {} should be valid", round_num);
         let expected = round_num == 2 || round_num == 3;
         assert_eq!(
-            ba_deep_strike_allowed_rounds.contains(&round_num),
+            is_deep_strike_round_allowed(round_num),
             expected,
-            "Round {} deep strike allowance mismatch",
-            round_num
+            "Round {} deep strike allowance mismatch: expected={}, got={}",
+            round_num,
+            expected,
+            is_deep_strike_round_allowed(round_num),
         );
     }
 }

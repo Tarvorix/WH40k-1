@@ -695,6 +695,33 @@ pub enum GameEvent {
         new_roll: u8,
     },
 
+    // === Transport ===
+
+    /// A unit has embarked into a transport.
+    /// Source: 40k_revised.md §6.2
+    UnitEmbarked {
+        unit: UnitId,
+        transport: UnitId,
+    },
+
+    /// A unit has disembarked from a transport.
+    /// Source: 40k_revised.md §6.3
+    UnitDisembarked {
+        unit: UnitId,
+        transport: UnitId,
+        destination: Position,
+    },
+
+    /// A transport has been destroyed and embarked units are emergency disembarking.
+    /// Source: 40k_revised.md §6.5
+    TransportDestroyed {
+        transport: UnitId,
+        /// Units that were embarked and are now emergency disembarking.
+        disembarking_units: Vec<UnitId>,
+        /// Models destroyed by the D6 roll (roll of 1 = destroyed).
+        models_lost: Vec<ModelId>,
+    },
+
     // === Boarding Actions ===
 
     /// A hatchway has been operated (opened or closed).
@@ -821,6 +848,9 @@ impl GameEvent {
             GameEvent::ObjectiveCorrupted { .. } => "ObjectiveCorrupted",
             GameEvent::BoardingMissionActionPerformed { .. } => "BoardingMissionActionPerformed",
             GameEvent::BattleEnded { .. } => "BattleEnded",
+            GameEvent::UnitEmbarked { .. } => "UnitEmbarked",
+            GameEvent::UnitDisembarked { .. } => "UnitDisembarked",
+            GameEvent::TransportDestroyed { .. } => "TransportDestroyed",
         }
     }
 
@@ -1242,6 +1272,23 @@ impl fmt::Display for GameEvent {
             }
             GameEvent::BattleEnded { outcome } => {
                 write!(f, "Battle ended: {:?}", outcome)
+            }
+            GameEvent::UnitEmbarked { unit, transport } => {
+                write!(f, "Unit {} embarked into transport {}", unit, transport)
+            }
+            GameEvent::UnitDisembarked { unit, transport, destination } => {
+                write!(
+                    f,
+                    "Unit {} disembarked from transport {} to {}",
+                    unit, transport, destination
+                )
+            }
+            GameEvent::TransportDestroyed { transport, disembarking_units, .. } => {
+                write!(
+                    f,
+                    "Transport {} destroyed, {} units emergency disembarking",
+                    transport, disembarking_units.len()
+                )
             }
         }
     }

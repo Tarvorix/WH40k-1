@@ -478,4 +478,10 @@ mod tests {
         );
         assert_eq!(count, 0);
     }
+
+    // BA Attack Allocation (BA-7) tests
+    #[test]
+    fn test_attack_must_target_visible_model() {
+        assert!(attack_must_target_visible_model());
+    }
 }
